@@ -1,0 +1,44 @@
+High Priority Tasks to be done:
+
+    1. [DONE] Add mixed beat_division_factors -->   Works fine except for when tempo and time signature change don't
+                                                        overlap
+                                                    Also, doesn't work if tempo change in the middle of beat
+    2. import directly from midi
+    5. [ALMOST DONE] Create a notebook TUTORIAL!!!
+
+Lower Priority Tasks to be done
+
+    # @Marina
+        1. implement a hit, velocity property setter
+
+        1. does have velocity variations?
+            check per voice:
+                get non-zero velocities
+                np.var to get variance
+
+            return true if for majority of voices we get variations
+
+        2. does have utiming variations?
+        3. is performance?
+        4. Flatten a number of voices to a single pitch
+                Note: If multiple voices at each time step, grab the loudest (Check with GrooVAE paper)
+
+    # @Teresa
+        1. internal method to create spectrogram
+                input params: fft_size, hop_size, sr, window, soundfont
+
+        2. Mel Spectrograms
+        3. RESET a Voice --> sets a voice to zero (in h, v, and o)
+                             based on a list of indices for drum groups
+                             exp. [0,1] --> removes kick and snare (if Roland_REDUCED_MAPPING)
+                             Note --> remove
+
+
+
+    # @ Behzad
+
+    4. Split using given time indices or time in seconds or n_bars
+    5. split large using smaller windows and overlap --> maybe better to use an external class
+    6. Split at tempo change, split and time_sig change, split at meta change
+    4. Implement Appending sequences
+    7. save score as png
