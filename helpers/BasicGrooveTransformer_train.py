@@ -3,7 +3,7 @@ import torch
 import wandb
 import re
 import numpy as np
-from src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
+from model.src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
 
 
 def calculate_loss(prediction, y, bce_fn, mse_fn, hit_loss_penalty):

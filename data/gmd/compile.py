@@ -1,4 +1,4 @@
-from utils import *
+from src.utils import *
 
 import argparse
 
@@ -35,9 +35,14 @@ if __name__ == "__main__":
     test_dict = get_gmd_dict(test_tfds, metadata_pd)
     validation_dict = get_gmd_dict(validation_tfds, metadata_pd)
 
-    # Step 3 --- store as a single dict
+    # Step 3 --- sort based on loop_id
+    train_dict = sort_dictionary_by_key(train_dict, "loop_id")
+    test_dict = sort_dictionary_by_key(test_dict, "loop_id")
+    validation_dict = sort_dictionary_by_key(validation_dict, "loop_id")
+    
+    # Step 4 --- store as a single dict
     gmd_dict = {"train": train_dict, "test": test_dict, "validation": validation_dict}
-    fname = setTags[args.SetID].replace("/", "_")+".pickle"
+    fname = setTags[args.SetID].replace("/", "_")
     pickle_dict = pickle_dict(gmd_dict, "resources/storedDicts", fname)
 
 
