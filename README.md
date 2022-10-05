@@ -2,7 +2,7 @@
 Variational version of Monotonic Groove Transformer
 
 
-# Install Environment
+# Install Environment (Local on Mac/Linux/Windows)
 
 ----
 
@@ -47,3 +47,44 @@ Variational version of Monotonic Groove Transformer
 
 
 
+# Install Environment (On UPF Cluster Use Conda)
+
+----
+
+Before installing the environment above, do the following:
+
+1. Start an interactive session
+
+
+      srun --nodes=1 --partition=short --gres=gpu:1 --cpus-per-task=4 --mem=8g --pty bash -i
+      source /etc/profile.d/lmod.sh
+      source /etc/profile.d/zz_hpcnow-arch.sh
+
+2. We need to load FluidSynth first. This is needed for running `import fluidsynth` after 
+installing the `pyFluidSynth` pip3 package. (check available modules using `module av` command)
+   
+
+      module load FluidSynth/2.3.0-GCCcore-10.2.0
+      
+
+3. Setup venv environment called `VarGrvTrnsfmr`
+   
+
+      conda create --name VarGrvTrnsfmr python=3.6   
+      source activate VarGrvTrnsfmr		           
+
+
+4. Install following packages
+      
+
+      conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
+      pip3 install note_seq
+      pip3 install wandb
+      pip3 install bokeh
+      pip3 install matplotlib
+      pip3 install ffmpeg
+      pip3 install tqdm
+      pip3 install colorcet
+      pip3 install visual_midi	
+      pip3 install pyfluidsynth 
+      

@@ -1,5 +1,5 @@
 import numpy as np
-import zipfile
+import bz2
 import wandb
 
 from eval.GrooveEvaluator.src.feature_extractor import Feature_Extractor_From_HVO_SubSets
@@ -12,9 +12,9 @@ from bokeh.resources import CDN
 import sys
 sys.path.insert(1, "../../preprocessed_dataset/")
 sys.path.insert(1, "../preprocessed_dataset/")
-from Subset_Creators import subsetters          #FIXME add preprocess_data directory
+from data.gmd.src import subsetters       #FIXME add preprocess_data directory
 
-import pickle as pk
+import pickle
 import os
 from tqdm import tqdm
 
@@ -30,9 +30,7 @@ class Evaluator:
 
     def __init__(
             self,
-            pickle_source_path,
-            set_subfolder,
-            hvo_pickle_filename,
+            gmd_pickle_path,
             list_of_filter_dicts_for_subsets,
             _identifier="Train",
             n_samples_to_use=1024,
@@ -46,9 +44,9 @@ class Evaluator:
         """
         This class will perform a thorough Intra- and Inter- evaluation between ground truth data and predictions
 
-        :param pickle_source_path:          "../preprocessed_dataset/datasets_extracted_locally/GrooveMidi/hvo_0.4.2/"
-        :param set_subfolder:               "GrooveMIDI_processed_{train/test/evaluation}"
-        :param hvo_pickle_filename:         "hvo_sequence_data.obj"
+        :param gmd_pickle_path:          "data/gmd/resources/cached/beat_division_factor_[4]/
+                                          drum_mapping_label_['ROLAND_REDUCED_MAPPING']/
+                                          beat_type_['beat']_time_signature_['4-4']/test.bz2pickle"
         :param list_of_filter_dicts_for_subsets
         :param _identifier:               Text identifier for set comparison --> Train if dealing with evaluating
                                             predictions of the training set. Test if evaluating performance on test set
@@ -64,7 +62,7 @@ class Evaluator:
 
         # Create subsets of data
         gt_subsetter_sampler = subsetters.GrooveMidiSubsetterAndSampler(
-            pickle_source_path=pickle_source_path, subset=set_subfolder, hvo_pickle_filename=hvo_pickle_filename,
+            gmd_pickle_path,
             list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
             number_of_samples=n_samples_to_use,
             max_hvo_shape=max_hvo_shape
@@ -113,7 +111,7 @@ class Evaluator:
 
     def get_logging_dict(self, velocity_heatmap_html=True, global_features_html=True,
                          piano_roll_html=True, audio_files=True,
-                         sf_paths=["../hvo_sequence/hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
+                         sf_paths=["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
                          recalculate_ground_truth=True):
 
         _gt_logging_data = None
@@ -141,7 +139,7 @@ class Evaluator:
 
     def get_wandb_logging_media(self, velocity_heatmap_html=True, global_features_html=True,
                          piano_roll_html=True, audio_files=True,
-                         sf_paths=["../hvo_sequence/hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
+                         sf_paths=["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
                          recalculate_ground_truth=True):
 
         # Get logging data for ground truth data
@@ -295,23 +293,16 @@ class Evaluator:
             disable_tqdm=self.disable_tqdm,
             group_by_minor_keys=True)
 
-    def dump(self, path=None, auto_zip=True):          # todo implement in comparator
+    def dump(self, path=None, fname="evaluator"):          # todo implement in comparator
         if path is None:
-            path = os.path.join("misc", self._identifier)
-        if not os.path.exists(os.path.dirname(path)):
-            os.makedirs(os.path.dirname(path))
+            path = os.path.join("misc")
 
-        fname = os.path.join(path, "evaluator.Eval") if ".Eval" not in path else path
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-        f = open(fname, "wb")
-        pk.dump(self, f)
-
-        if auto_zip is True:
-            zipObj = zipfile.ZipFile(fname.replace(".Eval", ".zip"), 'w')
-            zipObj.write(fname)
-            zipObj.close()
-            f.close()
-            os.remove(fname)
+        ofile = bz2.BZ2File(os.path.join(path, f"{self._identifier}_{fname}.Eval.bz2"), 'wb')
+        pickle.dump(self, ofile)
+        ofile.close()
 
     def get_sample_indices(self, n_samples_per_subset=20):
         subsets = self._gt_subsets
@@ -524,7 +515,7 @@ class HVOSeq_SubSet_Evaluator (object):
                 sf_path = sf_paths[np.random.randint(0, len(sf_paths))]
                 audios.append(sample_hvo.synthesize(sf_path=sf_path))
                 captions.append("{}_{}_{}.wav".format(
-                    self.set_identifier, sample_hvo.metadata.style_primary, sample_hvo.metadata.master_id.replace("/", "_")
+                    self.set_identifier, sample_hvo.metadata["style_primary"], sample_hvo.metadata["master_id"].replace("/", "_")
                 ))
 
         # sort so that they are alphabetically ordered in wandb
@@ -546,8 +537,8 @@ class HVOSeq_SubSet_Evaluator (object):
             piano_rolls = []
             for sample_hvo in self._sampled_hvos[tag]:
                 title = "{}_{}_{}".format(
-                    self.set_identifier, sample_hvo.metadata.style_primary,
-                    sample_hvo.metadata.master_id.replace("/", "_"))
+                    self.set_identifier, sample_hvo.metadata["style_primary"],
+                    sample_hvo.metadata["master_id"].replace("/", "_"))
                 piano_rolls.append(sample_hvo.to_html_plot(filename=title))
             piano_roll_tabs.append(separate_figues_by_tabs(piano_rolls, [str(x) for x in range(len(piano_rolls))]))
             tab_titles.append(tag)
@@ -634,7 +625,7 @@ class HVOSeq_SubSet_Evaluator (object):
                             {
                                 self.set_identifier:
                                     [
-                                        wandb.Audio(c_a[1], caption=c_a[0], sample_rate=44100)
+                                        wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000)
                                         for c_a in captions_audios_tuples
                                     ]
                             }
@@ -655,18 +646,13 @@ class HVOSeq_SubSet_Evaluator (object):
 
         return wandb_media_dict
 
-    def dump(self, path=None, auto_zip=True):          # todo implement in comparator
+    def dump(self, path=None, fname="subset_evaluator"):          # todo implement in comparator
         if path is None:
             path = os.path.join("misc", self.set_identifier)
         if not os.path.exists(path):
             os.makedirs(path)
 
-        fname = os.path.join(path, "subset_evaluator.SubEval")
-        f = open(fname, "wb")
-        pk.dump(self, f)
+        ofile = bz2.BZ2File(os.path.join(path, f"{fname}.SubEval.bz2"), 'wb')
+        pickle.dump(self, ofile)
+        ofile.close()
 
-        if auto_zip is True:
-            zipObj = zipfile.ZipFile(fname.replace(".SubEval", ".zip"), 'w')
-            zipObj.write(fname)
-            zipObj.close()
-            os.remove(fname)

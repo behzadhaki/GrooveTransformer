@@ -82,7 +82,7 @@ class Feature_Extractor_From_HVO_SubSets:
             self.number_of_unique_performances_in_sets.update(
                 {
                     set_name: len(
-                        list(set(([hvo_seq.metadata.master_id for hvo_seq in hvo_subset])))
+                        list(set(([hvo_seq.metadata["master_id"] for hvo_seq in hvo_subset])))
                     ) for set_name, hvo_subset in zip(self.tags, self.hvo_subsets)
                 }
             )

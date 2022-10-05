@@ -1,5 +1,8 @@
 # Import model
 import torch
+import sys
+sys.path.insert(1, "../..")
+sys.path.insert(1, "..")
 from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
 from model.saved.monotonic_groove_transformer_v1 import params
 from eval.GrooveEvaluator.src.back_compatible_loader import load_evaluator
@@ -50,14 +53,14 @@ def load_model(model_name, model_path):
 if __name__ == '__main__':
     # ------------------ Load Trained Model  ------------------ #
     model_name = "colorful_sweep_41"
-    model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
+    model_path = f"../../model/saved/monotonic_groove_transformer_v1/{model_name}.model"
 
     groove_transformer = load_model(model_name, model_path)
 
     # load and existing evaluator to ensure consistency
 
     gmd_eval = load_evaluator(
-        f"eval/saved/monotonic_groove_transformer_v1/"
+        f"../../eval/saved/monotonic_groove_transformer_v1/"
         f"validation_set_evaluator_run_misunderstood-bush-246_Epoch_26.Eval")
 
     gt_hvo_sequences = gmd_eval.get_ground_truth_hvo_sequences()
