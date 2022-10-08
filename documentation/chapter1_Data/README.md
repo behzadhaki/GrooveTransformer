@@ -11,7 +11,7 @@
    1. [Groove Midi Dataset](#3_1)
       1. [Load dataset as a dictionary](#3_1_1)
       2. [Extract `HVO_Sequence` objects from dataset dictionaries](#3_1_2)
-      3. [Load GMD Dataset in `HVO_Sequence` format using a single command !!!](#3_1_3)
+      3. [**_Load GMD Dataset in `HVO_Sequence` format using a single command !!!_**](#3_1_3)
 
 
 

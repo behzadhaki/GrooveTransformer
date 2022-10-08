@@ -7,8 +7,8 @@
 
 #### List of Contents
 
-[Chapter 1 - Data](chapter1_Datas/README.md)
+[Chapter 1 - Data](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter1_Data/README.md)
 
-[Chapter 2 - Model](chapter2_Model/README.md)
+[Chapter 2 - Model](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter2_Model/README.md)
 
-[Chapter 3 - Evaluator](chapter3_Evaluator/README.md)
+[Chapter 3 - Evaluator](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter3_Evaluator/README.md)
