@@ -85,6 +85,12 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors=[4], m
     return hvo_seq
 
 
+def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+    midi_data = pretty_midi.PrettyMIDI(filename)
+    ns = note_seq.midi_io.midi_to_note_sequence(midi_data)
+    return note_sequence_to_hvo_sequence(ns, drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
+
+
 def place_note_in_hvo(ns_note, hvo, grid, drum_mapping):
     """
     updates the entries in hvo corresponding to features available in ns_note
@@ -224,6 +230,8 @@ def unique_pitches_in_note_sequence(ns):
 def save_note_sequence_to_midi(ns, filename="temp.mid"):
     pm = note_seq.note_sequence_to_pretty_midi(ns)
     pm.write(filename)
+
+
 
 
 #   -------------------- Audio Synthesizers --------------------
