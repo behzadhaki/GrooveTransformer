@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import note_seq
 from note_seq.protobuf import music_pb2
@@ -263,7 +265,18 @@ class HVO_Sequence(object):
 
         return hvo_reset, hvo_reset_comp
 
+    def random(self, length, num_voices):
+        '''
+        generates a random sequence with `length` number of steps
 
+        :param length: number of timesteps
+        :param num_voices: number of voices
+        :return: None
+        '''
+        h_ran = np.random.random_integers(0, 1, (length, num_voices))
+        v_ran = np.random.ranf((length, num_voices)) * h_ran
+        o_ran = (np.random.ranf((length, num_voices)) - 0.5) * h_ran
+        self.hvo = np.concatenate([h_ran, v_ran, o_ran], axis=-1)
 
 
     def flatten_voices(self, offset_aggregator_modes=3, velocity_aggregator_modes=1, get_velocities=True, reduce_dim=False, voice_idx=2):
@@ -1493,6 +1506,8 @@ class HVO_Sequence(object):
 
         if self.is_ready_for_use() is False:
             return None
+
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         ns = self.to_note_sequence(midi_track_n=midi_track_n)
         pm = note_seq.note_sequence_to_pretty_midi(ns)
