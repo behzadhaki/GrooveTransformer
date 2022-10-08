@@ -160,9 +160,11 @@ The dataset can also be found as a [Groove TFDS](https://www.tensorflow.org/data
 In order to avoid installing tensorflow, the groove TFDS subsets have been downloaded and stored as dictionaries of metadatas and midi files. 
 Access these pickled dictionaries [here](../../data/gmd/resources/storedDicts):
     
+```
 1. groove_full-midionly.bz2pickle
 2. groove_2bar-midionly.bz2pickle
 3. groove_4bar-midionly.bz2pickle
+```
 
 These files are simply dictionaries of the following format
 ```
@@ -247,7 +249,6 @@ force_regenerate = False        # set true if you don't want to use the cached v
 train_set = load_gmd_hvo_sequences(
     gmd_pickle_path, dataset_tag, filter_json_path, beat_division_factor, drum_mapping_label,
     subset_tag, force_regenerate)
-    
 ```
 
 
