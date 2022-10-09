@@ -1,4 +1,4 @@
-# Chapter 2 - Models: Instantiation, Storing, Loading, Generating
+# Chapter 2 - Models: Instantiating, Storing, Loading, Generating
 
 ----
 
@@ -22,7 +22,8 @@
 ### 2.i `BasicGrooveTransformer.GrooveTransformer`  <a name="2_i"></a>
 
 A groove transformer similar to the original transformer consisting of
-[transformerEncoder](torch.nn.TransformerEncoder link) and [transformerEncoder](torch.nn.TransformerDecoder link).
+[transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder) 
+and [transformerDecoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerDecoder.html#torch.nn.TransformerDecoder).
 
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
 ```
@@ -50,7 +51,9 @@ TM = GrooveTransformer(params["d_model"], params["embedding_size_src"], params["
 ```
 
 ### 2.ii `BasicGrooveTransformer.GrooveTransformerEncoder` <a name="2_ii"></a>
-A groove transformer consisting of the [transformerEncoder](torch.nn.TransformerEncoder link) only section of the original transformer
+A groove transformer consisting of the 
+[transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
+only section of the original transformer
 
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
 
@@ -108,9 +111,9 @@ checkpoint = torch.load(model_path, map_location=model_param['device'])
 ------------------------------------------------------------------
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
-Create am input groove (create a HVO_Sequence instance [link to data docu],
-load a midi file [link to data docu], 
-or grab one from the HVO_Sequence datasets as below [link to dataset section in documentation])
+Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),
+[load a midi file](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-), 
+or [grab one from the HVO_Sequence datasets as below](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-)
 ```
 from data.dataLoaders import load_gmd_hvo_sequences
 test_set = load_gmd_hvo_sequences(
