@@ -1,9 +1,5 @@
 
----
-
 # List of Contents
-
-
 ### Guides for using the repository can be found here
 
 ---
@@ -34,4 +30,11 @@
 
 
 [Chapter 3 - Evaluator](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter3_Evaluator/README.md)
+----
+
+
+[Chapter 4 - WANDB](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter4_WANDB/README.md)
+----
+
+[Chapter 5 - Training](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter5_Training/README.md)
 ----
