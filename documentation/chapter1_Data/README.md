@@ -74,7 +74,7 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 
 Source code available [here](../../testers/HVO_Sequence/demo.py)
 
-**create a score** <a name="createHVO"></a>
+#### **create a score** <a name="createHVO"></a>
 
 ```
 from hvo_sequence.hvo_seq import HVO_Sequence
@@ -102,7 +102,7 @@ hvo_seq.add_tempo(0, 50)
 hvo_seq.random(32, 9)
 ```
 
-**Access data using the .get() or .hvo method**
+#### **Access data using the .get() or .hvo method**
 ```
 
 # ----------------------------------------------------------------
@@ -116,7 +116,7 @@ hvo_seq.get("vo")    # get vel with offsets
 hvo_seq.get("hv0")    # get hvwith offsets replaced as 0
 hvo_seq.get("ovhhv0")    # use h v o and 0 to create any tensor
 ```
-**Plot piano roll** <a name="pianoroll"></a>
+#### **Plot piano roll** <a name="pianoroll"></a>
 ```
 # ----------------------------------------------------------------
 # -----------           Plot PianoRoll              --------------
@@ -124,7 +124,7 @@ hvo_seq.get("ovhhv0")    # use h v o and 0 to create any tensor
 hvo_seq.to_html_plot("test.html", show_figure=True)
 ```
 
-**save to midi** <a name="saveMidi"></a>
+#### **save to midi** <a name="saveMidi"></a>
 ```
 # ----------------------------------------------------------------
 # -----------           Synthesize/Export           --------------
@@ -133,13 +133,13 @@ hvo_seq.to_html_plot("test.html", show_figure=True)
 hvo_seq.save_hvo_to_midi("misc/test.mid")
 ```
 
-**convert to note_sequence**   <a name="toNoteSequence"></a>
+#### **convert to note_sequence**   <a name="toNoteSequence"></a>
 ```
 # Export to note_sequece
 hvo_seq.to_note_sequence(midi_track_n=10)
 ```
 
-**Synthesize to (or save as) audio using a SoundFont** <a name="synthesize"></a>
+#### **Synthesize to (or save as) audio using a SoundFont** <a name="synthesize"></a>
 ```
 # Synthesize to audio
 audio = hvo_seq.synthesize(sr=44100, sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
@@ -150,7 +150,7 @@ hvo_seq.save_audio(filename="misc/temp.wav", sr=44100,
                    sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
 ```
 
-**Load from midi** <a name="loadFromMidi"></a>
+#### **Load from midi** <a name="loadFromMidi"></a>
 ```
 # ----------------------------------------------------------------
 # -----------           Load from Midi             --------------
