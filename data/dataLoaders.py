@@ -1,11 +1,13 @@
 from data.src.utils import *
 
-def load_gmd_hvo_sequences(gmd_pickle_path, dataset_tag, filter_json_path, beat_division_factor, drum_mapping_label,
-                           subset_tag, force_regenerate=False):
+def load_gmd_hvo_sequences(gmd_pickle_path, dataset_tag, filter_json_path, subset_tag, force_regenerate=False):
     assert os.path.exists(gmd_pickle_path), "path to gmd dict pickle is incorrect --- " \
                                             "look into data/gmd/resources/storedDicts/groove-*.bz2pickle"
 
     dir__ = get_data_directory_using_filters(dataset_tag, filter_json_path)
+    filter_json = json.load(open(filter_json_path, "r"))
+    beat_division_factor = filter_json["global"]["beat_division_factor"]
+    drum_mapping_label = filter_json["global"]["drum_mapping_label"]
 
     if (not os.path.exists(dir__)) or force_regenerate is True:
         print("No Cached Version Available --> extracting data from original groove midi data")
