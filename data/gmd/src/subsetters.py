@@ -17,12 +17,8 @@ import bz2
 
 from copy import deepcopy
 
-# todo append subset to beginning of the tags
-# todo for None cases name the tag as full_set
-# implement sort by samples
 
-
-class GrooveMidiSubsetterAndSampler(object):
+class SubsetterAndSampler(object):
     def __init__(
             self,
             hvo_sequences_list,
@@ -62,6 +58,17 @@ class HVOSetSubsetter(object):
             max_len=None,
             at_least_one_hit_in_voices=None
     ):
+        '''
+        Uses a list of filter dictionaries to create subsets of the hvo_sequences_list
+
+        :param hvo_sequences_list: a flat list of all hvo_sequences in the set
+        :param list_of_filter_dicts_for_subsets: uses this to divide the dataset into subsets
+        :param max_len: makes sure that all sequences in the subset are of length == max_len
+        :param at_least_one_hit_in_voices: (default None: no requirement) A list of voice indices, where at least one hit is needed
+                                            for example, if [0, 1, 2] there should be at least
+                                            a kick, snare OR hat hit in each sample. In other words,
+                                            if there is no hit in these voices, the sample is discarded
+        '''
         self.list_of_filter_dicts_for_subsets = list_of_filter_dicts_for_subsets
 
         self.full_hvo_set_pre_filters = hvo_sequences_list
@@ -94,7 +101,7 @@ class HVOSetSubsetter(object):
         # if no filters, return a SINGLE dataset containing all hvo_seq sequences
         if self.list_of_filter_dicts_for_subsets is None or self.list_of_filter_dicts_for_subsets == [None]:
             hvo_subsets = [self.full_hvo_set_pre_filters]
-            subset_tags = ['Complete_Groove_MIDI_Set']
+            subset_tags = ['CompleteSet']
 
         else:
             hvo_subsets = []
@@ -137,7 +144,17 @@ class HVOSetSubsetter(object):
 
 
 class Set_Sampler(object):
-    def __init__(self, tags_, hvo_subsets_, number_of_samples, max_hvo_shape=(32, 27)):
+
+    def __init__(self, tags_, hvo_subsets_, number_of_samples = None, max_hvo_shape=(32, 27)):
+        '''
+        samples randomly from a set of hvo_sequence subsets
+        :param tags_: list of tags for each subset
+        :param hvo_subsets_:  list of hvo_sequences for each subset
+        :param number_of_samples: (default None --> means all samples)
+                                    number of samples *RANDOMLY* to take from each subset
+        :param max_hvo_shape: (default (32, 27)) max shape of hvo_sequences to be returned.
+                            If samples are longer, they will be trimmed to this length.
+        '''
         tags = []
         hvo_subsets = []
         self.subsets_dict = {}
