@@ -24,7 +24,7 @@ for style in styles:
         {"style_primary": [style], "beat_type": ["beat"], "time_signature": ["4-4"]}
     )
 
-train_set_sampler = subsetters.GrooveMidiSubsetterAndSampler(
+train_set_sampler = subsetters.SubsetterAndSampler(
     pickle_source_path=pickle_source_path, subset="GrooveMIDI_processed_train",
     hvo_pickle_filename="hvo_sequence_data.obj",
     list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
@@ -32,7 +32,7 @@ train_set_sampler = subsetters.GrooveMidiSubsetterAndSampler(
     max_hvo_shape=(32, 27)
     )
 
-test_set_sampler = subsetters.GrooveMidiSubsetterAndSampler(
+test_set_sampler = subsetters.SubsetterAndSampler(
     pickle_source_path=pickle_source_path, subset="GrooveMIDI_processed_test",
     hvo_pickle_filename="hvo_sequence_data.obj",
     list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
@@ -63,8 +63,8 @@ train_gt_evaluator = HVOSeq_SubSet_Evaluator (
     set_subsets=subsets_by_style_and_beat,              # Ground Truth typically
     set_tags=tags_by_style_and_beat,
     set_identifier= "TRAIN",
-    analyze_heatmap=True,
-    analyze_global_features=True,
+    need_heatmap=True,
+    need_global_features=True,
     n_samples_to_analyze=20,
     synthesize_sequences=True,
     n_samples_to_synthesize=10,

@@ -34,8 +34,8 @@ train_set_evaluator = Evaluator(
     n_samples_to_use=2048,
     n_samples_to_synthesize_visualize_per_subset=10,
     disable_tqdm=False,
-    analyze_heatmap=True,
-    analyze_global_features=True
+    need_heatmap=True,
+    need_global_features=True
 )
 
 # Get data to be passed to model

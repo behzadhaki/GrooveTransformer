@@ -34,8 +34,8 @@ train_set_evaluator = Evaluator(
     n_samples_to_use=128,
     n_samples_to_synthesize_visualize_per_subset=10,
     disable_tqdm=False,
-    analyze_heatmap=True,
-    analyze_global_features=True
+    need_heatmap=True,
+    need_global_features=True
 )
 
 train_set_evaluator2 = Evaluator(
@@ -46,8 +46,8 @@ train_set_evaluator2 = Evaluator(
     n_samples_to_use=256,
     n_samples_to_synthesize_visualize_per_subset=10,
     disable_tqdm=False,
-    analyze_heatmap=True,
-    analyze_global_features=True
+    need_heatmap=True,
+    need_global_features=True
 )
 
 

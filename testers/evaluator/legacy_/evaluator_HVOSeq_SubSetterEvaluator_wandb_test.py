@@ -30,7 +30,7 @@ for style in styles:
         {"style_primary": [style], "beat_type": ["beat"], "time_signature": ["4-4"]}
     )
 
-test_set_sampler = subsetters.GrooveMidiSubsetterAndSampler(
+test_set_sampler = subsetters.SubsetterAndSampler(
     pickle_source_path=pickle_source_path, subset="GrooveMIDI_processed_test",
     hvo_pickle_filename="hvo_sequence_data.obj",
     list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
@@ -45,8 +45,8 @@ test_gt_evaluator = HVOSeq_SubSet_Evaluator (
     set_subsets=test_set_gt_subsets,              # Ground Truth typically
     set_tags=test_set_gt_tags,
     set_identifier= "TEST",
-    analyze_heatmap=True,
-    analyze_global_features=True,
+    need_heatmap=True,
+    need_global_features=True,
     max_samples_in_subset=None,
     n_samples_to_synthesize_visualize=30,
     disable_tqdm=False,

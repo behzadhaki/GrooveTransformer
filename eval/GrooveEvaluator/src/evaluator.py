@@ -19,21 +19,17 @@ from eval.post_training_evaluations.src.mgeval_rytm_utils import flatten_subset_
 
 
 class Evaluator:
-    # Eval 1. Test set loss
-    #
-    # todo 1. From Training Subsets, grab n_samples and pass to model
-
     def __init__(
             self,
             hvo_sequences_list,
-            list_of_filter_dicts_for_subsets,
+            list_of_filter_dicts_for_subsets=None,
             _identifier="Train",
-            n_samples_to_use=1024,
+            n_samples_to_use=-1,
             max_hvo_shape=(32, 27),
-            analyze_heatmap=True,
-            analyze_global_features=True,
-            analyze_piano_roll=True,
-            analyze_audio=True,
+            need_heatmap=True,
+            need_global_features=True,
+            need_piano_roll=True,
+            need_audio=True,
             n_samples_to_synthesize="all",
             n_samples_to_draw_pianorolls="all",
             disable_tqdm=False,
@@ -42,23 +38,27 @@ class Evaluator:
         """
         This class will perform a thorough Intra- and Inter- evaluation between ground truth data and predictions
 
-        :param hvo_sequences_list:        A list of hvo_sequences samples
-        :param list_of_filter_dicts_for_subsets
-        :param _identifier:               Text identifier for set comparison --> Train if dealing with evaluating
-                                            predictions of the training set. Test if evaluating performance on test set
-        :param max_hvo_shape:               tuple of (steps, 3*n_drum_voices) --> fits all sequences to this shape
-                                                    by trimming or padding them
-        :param n_samples_to_use:            number of samples to use for evaluation (uniformly samples n_samples_to_use
-                                            from all classes in the ground truth set)
-        :param analyze_heatmap:
-
+        :param hvo_sequences_list: A 1D list of HVO_Sequence objects corresponding to ground truth data
+        :param list_of_filter_dicts_for_subsets: (Default: None, means use all data without subsetting) The filter dictionaries using which the dataset will be subsetted into different groups. Note that the HVO_Sequence objects must contain `metadata` attributes with the keys specified in the filter dictionaries.
+        :param _identifier: A string label to identify the set of HVO_Sequence objects. This is used to name the output files.
+        :param n_samples_to_use: (Default: -1, means use all data) The number of samples to use for evaluation in case you don't want to use all the samples. THese are randomly selected.
+                 (it is recommended to use the entirety of the dataset, if smaller subset is needed, process them externally prior to Evaluator initialization)
+        :param max_hvo_shape: (Default: (32, 27)) The maximum shape of the HVO array. This is used to trim/pad the HVO arrays to the same shape.
+        :param need_heatmap: (Default: True) Whether to generate velocity timing heatmaps
+        :param need_global_features: (Default: True) Whether to generate global features plots
+        :param need_piano_roll: (Default: True) Whether to generate piano roll plots
+        :param need_audio: (Default: True) Whether to generate audio files
+        :param n_samples_to_synthesize: (Default: "all") The number of samples to synthesize audio files for. If "all", all samples will be synthesized.
+        :param n_samples_to_draw_pianorolls: (Default: "all") The number of samples to draw piano rolls for. If "all", all samples will be drawn.
+        :param disable_tqdm: (Default: False) Whether to disable tqdm progress bars
         """
-        self.analyze_heatmap, self.analyze_global_features = analyze_heatmap, analyze_global_features
-        self.analyze_piano_roll, self.analyze_audio = analyze_piano_roll, analyze_audio
+        self.need_heatmap, self.need_global_features = need_heatmap, need_global_features
+        self.need_piano_roll, self.need_audio = need_piano_roll, need_audio
         self.disable_tqdm = disable_tqdm
+        n_samples_to_use = len(hvo_sequences_list) if n_samples_to_use == -1 else n_samples_to_use
 
         # Create subsets of data
-        gt_subsetter_sampler = subsetters.GrooveMidiSubsetterAndSampler(
+        gt_subsetter_sampler = subsetters.SubsetterAndSampler(
             hvo_sequences_list,
             list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
             number_of_samples=n_samples_to_use,
@@ -91,8 +91,8 @@ class Evaluator:
             "{}_Ground_Truth".format(self._identifier),  # a name for the subset
             disable_tqdm=self.disable_tqdm,
             group_by_minor_keys=True,
-            analyze_heatmap=analyze_heatmap,
-            analyze_global_features=analyze_global_features
+            need_heatmap=need_heatmap,
+            need_global_features=need_global_features
         )
 
         # Empty place holder for predictions, also Placeholder Subset evaluator for predicted data
@@ -111,7 +111,7 @@ class Evaluator:
     def get_logging_dict(self, velocity_heatmap_html="default", global_features_html="default",
                          piano_roll_html="default", audio_files="default",
                          sf_paths="default",
-                         recalculate_ground_truth=False):
+                         recalculate_ground_truth=False, need_groundTruth=True):
 
         assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
         assert global_features_html == "default" or type(global_features_html) == bool
@@ -119,10 +119,10 @@ class Evaluator:
         assert audio_files == "default" or type(audio_files) == bool
 
         sf_paths = ["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"] if sf_paths == "default" else sf_paths
-        velocity_heatmap_html = self.analyze_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
-        global_features_html = self.analyze_global_features if "default" in global_features_html else global_features_html
-        piano_roll_html = self.analyze_piano_roll if "default" in piano_roll_html else piano_roll_html
-        audio_files = self.analyze_audio if "default" in audio_files else audio_files
+        velocity_heatmap_html = self.need_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
+        global_features_html = self.need_global_features if "default" in global_features_html else global_features_html
+        piano_roll_html = self.need_piano_roll if "default" in piano_roll_html else piano_roll_html
+        audio_files = self.need_audio if "default" in audio_files else audio_files
 
         _gt_logging_data = None
         # Get logging data for ground truth data
@@ -149,37 +149,42 @@ class Evaluator:
             for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
         ) if self.prediction_SubSet_Evaluator is not None else None
 
-        return _gt_logging_data, _predicted_logging_data
+        if need_groundTruth is True:
+            return _gt_logging_data, _predicted_logging_data
+        else:
+            return _predicted_logging_data
 
     def get_wandb_logging_media(self, velocity_heatmap_html="default", global_features_html="default",
                                 piano_roll_html="default", audio_files="default",
                                 sf_paths="default",
-                                recalculate_ground_truth=False):
+                                recalculate_ground_truth=False,
+                                need_groundTruth=True):
 
         assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
         assert global_features_html == "default" or type(global_features_html) == bool
         assert piano_roll_html == "default" or type(piano_roll_html) == bool
         assert audio_files == "default" or type(audio_files) == bool
 
-        velocity_heatmap_html = self.analyze_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
-        global_features_html = self.analyze_global_features if "default" in global_features_html else global_features_html
-        piano_roll_html = self.analyze_piano_roll if "default" in piano_roll_html else piano_roll_html
-        audio_files = self.analyze_audio if "default" in audio_files else audio_files
+        velocity_heatmap_html = self.need_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
+        global_features_html = self.need_global_features if "default" in global_features_html else global_features_html
+        piano_roll_html = self.need_piano_roll if "default" in piano_roll_html else piano_roll_html
+        audio_files = self.need_audio if "default" in audio_files else audio_files
 
         # Get logging data for ground truth data
-        if recalculate_ground_truth is True or self._gt_logged_once_wandb is False:
+        if need_groundTruth is True:
+            if recalculate_ground_truth is True or self._gt_logged_once_wandb is False:
 
-            gt_logging_media = self.gt_SubSet_Evaluator.get_wandb_logging_media(
-                velocity_heatmap_html=velocity_heatmap_html,
-                global_features_html=global_features_html,
-                piano_roll_html=piano_roll_html,
-                audio_files=audio_files,
-                sf_paths=sf_paths,
-                use_specific_samples_at=self.audio_sample_locations
-            )
-            self._gt_logged_once_wandb = True
-        else:
-            gt_logging_media = {}
+                gt_logging_media = self.gt_SubSet_Evaluator.get_wandb_logging_media(
+                    velocity_heatmap_html=velocity_heatmap_html,
+                    global_features_html=global_features_html,
+                    piano_roll_html=piano_roll_html,
+                    audio_files=audio_files,
+                    sf_paths=sf_paths,
+                    use_specific_samples_at=self.audio_sample_locations
+                )
+                self._gt_logged_once_wandb = True
+            else:
+                gt_logging_media = {}
 
         predicted_logging_media = self.prediction_SubSet_Evaluator.get_wandb_logging_media(
             velocity_heatmap_html=velocity_heatmap_html,
@@ -315,8 +320,8 @@ class Evaluator:
             "{}_Predictions".format(self._identifier),  # a name for the subset
             disable_tqdm=self.disable_tqdm,
             group_by_minor_keys=True,
-            analyze_heatmap=self.analyze_heatmap,
-            analyze_global_features=self.analyze_global_features
+            need_heatmap=self.need_heatmap,
+            need_global_features=self.need_global_features
         )
 
     def dump(self, path=None, fname="evaluator"):  # todo implement in comparator
@@ -368,8 +373,8 @@ class HVOSeq_SubSet_Evaluator(object):
             n_samples_to_synthesize_visualize=10,
             disable_tqdm=True,
             group_by_minor_keys=True,
-            analyze_heatmap=True,
-            analyze_global_features=True
+            need_heatmap=True,
+            need_global_features=True
     ):
 
         """
@@ -389,8 +394,8 @@ class HVOSeq_SubSet_Evaluator(object):
         :param disable_tqdm:                True if you don't want to use tqdm
         :param group_by_minor_keys:         if True, plots are grouped per feature/drum voice or,
                                             otherwise grouped by style
-        :param analyze_heatmap:             True/False if velocity heatmap analysis is needed
-        :param analyze_global_features:     True/False if global feature  analysis is needed
+        :param need_heatmap:             True/False if velocity heatmap analysis is needed
+        :param need_global_features:     True/False if global feature  analysis is needed
         """
         self.__version__ = "0.0.0"
 
@@ -402,8 +407,8 @@ class HVOSeq_SubSet_Evaluator(object):
         self.feature_extractor = None  # instantiates in
 
         self.max_samples_in_subset = max_samples_in_subset
-        self.analyze_heatmap = analyze_heatmap
-        self.analyze_global_features = analyze_global_features
+        self.need_heatmap = need_heatmap
+        self.need_global_features = need_global_features
         self.vel_heatmaps_dict = None
         self.vel_scatters_dict = None
         self.vel_heatmaps_bokeh_fig = None
@@ -446,13 +451,13 @@ class HVOSeq_SubSet_Evaluator(object):
             max_samples_in_subset=self.max_samples_in_subset,
         )
 
-        if self.analyze_global_features:
+        if self.need_global_features:
             self.feature_extractor.extract(use_tqdm=not self.disable_tqdm)
             self.global_features_dict = self.feature_extractor.get_global_features_dicts(
                 regroup_by_feature=self.group_by_minor_keys)
 
-        print(self.analyze_heatmap)
-        if self.analyze_heatmap:
+        print(self.need_heatmap)
+        if self.need_heatmap:
             self.vel_heatmaps_dict, self.vel_scatters_dict = self.feature_extractor.get_velocity_timing_heatmap_dicts(
                 s=(4, 10),
                 bins=[32 * 8, 127],
@@ -685,16 +690,27 @@ class HVOSeq_SubSet_Evaluator(object):
 
         return wandb_media_dict
 
-    def dump(self, path=None, fname="subset_evaluator"):  # todo implement in comparator
+    def dump(self, path=None, fname=""):
         if path is None:
-            path = os.path.join("misc", self.set_identifier)
+            path = os.path.join("misc")
+
         if not os.path.exists(path):
             os.makedirs(path)
 
-        ofile = bz2.BZ2File(os.path.join(path, f"{fname}.SubEval.bz2"), 'wb')
+        fpath = os.path.join(path, f"{fname}_{self.set_identifier}.SubEval.bz2")
+        ofile = bz2.BZ2File(fpath, 'wb')
         pickle.dump(self, ofile)
         ofile.close()
 
+        print(f"Dumped {self.set_identifier}  evaluator to {fpath}")
+
+        return fpath
+
+def load_evaluator (full_path):
+    ifile = bz2.BZ2File(full_path, 'rb')
+    evaluator = pickle.load(ifile)
+    ifile.close()
+    return evaluator
 
 if __name__ == "__main__":
     print("TEST ---- TEST")
