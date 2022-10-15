@@ -1,27 +1,22 @@
+import sys
+
+sys.path.insert(1, "../../../")
+sys.path.insert(1, "../../")
 import numpy as np
 import bz2
 import wandb
-
 from eval.GrooveEvaluator.src.feature_extractor import Feature_Extractor_From_HVO_SubSets
 from eval.GrooveEvaluator.src.plotting_utils import global_features_plotter, velocity_timing_heatmaps_scatter_plotter
 from eval.GrooveEvaluator.src.plotting_utils import separate_figues_by_tabs
-
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-
-import sys
-sys.path.insert(1, "../../preprocessed_dataset/")
-sys.path.insert(1, "../preprocessed_dataset/")
-from data.gmd.src import subsetters       #FIXME add preprocess_data directory
-
+from data.gmd.src import subsetters  # FIXME add preprocess_data directory
 import pickle
 import os
 from tqdm import tqdm
-
-import sys
-sys.path.insert(1, "../../../")
-sys.path.insert(1, "../../")
 import copy
+from eval.post_training_evaluations.src.mgeval_rytm_utils import flatten_subset_genres
+
 
 class Evaluator:
     # Eval 1. Test set loss
@@ -30,23 +25,24 @@ class Evaluator:
 
     def __init__(
             self,
-            gmd_pickle_path,
+            hvo_sequences_list,
             list_of_filter_dicts_for_subsets,
             _identifier="Train",
             n_samples_to_use=1024,
             max_hvo_shape=(32, 27),
-            n_samples_to_synthesize_visualize_per_subset=20,
             analyze_heatmap=True,
             analyze_global_features=True,
-            disable_tqdm=True,
+            analyze_piano_roll=True,
+            analyze_audio=True,
+            n_samples_to_synthesize="all",
+            n_samples_to_draw_pianorolls="all",
+            disable_tqdm=False,
             # todo distance measures KL, Overlap, intra and interset
     ):
         """
         This class will perform a thorough Intra- and Inter- evaluation between ground truth data and predictions
 
-        :param gmd_pickle_path:          "data/gmd/resources/cached/beat_division_factor_[4]/
-                                          drum_mapping_label_['ROLAND_REDUCED_MAPPING']/
-                                          beat_type_['beat']_time_signature_['4-4']/test.bz2pickle"
+        :param hvo_sequences_list:        A list of hvo_sequences samples
         :param list_of_filter_dicts_for_subsets
         :param _identifier:               Text identifier for set comparison --> Train if dealing with evaluating
                                             predictions of the training set. Test if evaluating performance on test set
@@ -58,11 +54,12 @@ class Evaluator:
 
         """
         self.analyze_heatmap, self.analyze_global_features = analyze_heatmap, analyze_global_features
+        self.analyze_piano_roll, self.analyze_audio = analyze_piano_roll, analyze_audio
         self.disable_tqdm = disable_tqdm
 
         # Create subsets of data
         gt_subsetter_sampler = subsetters.GrooveMidiSubsetterAndSampler(
-            gmd_pickle_path,
+            hvo_sequences_list,
             list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
             number_of_samples=n_samples_to_use,
             max_hvo_shape=max_hvo_shape
@@ -84,17 +81,19 @@ class Evaluator:
 
         self._gt_hvos_array = np.stack(self._gt_hvos_array)
 
-        
         # a text to identify the evaluator (exp "Train_Epoch1", "Test_Epoch1")
         self._identifier = _identifier
 
         # Subset evaluator for ground_truth data
         self.gt_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
-            self._gt_subsets,              # Ground Truth typically
+            self._gt_subsets,  # Ground Truth typically
             self._gt_tags,
-            "{}_Ground_Truth".format(self._identifier),             # a name for the subset
+            "{}_Ground_Truth".format(self._identifier),  # a name for the subset
             disable_tqdm=self.disable_tqdm,
-            group_by_minor_keys=True)
+            group_by_minor_keys=True,
+            analyze_heatmap=analyze_heatmap,
+            analyze_global_features=analyze_global_features
+        )
 
         # Empty place holder for predictions, also Placeholder Subset evaluator for predicted data
         self._prediction_tags, self._prediction_subsets = None, None
@@ -102,17 +101,28 @@ class Evaluator:
         self._prediction_hvos_array = None
 
         # Get the index for the samples that will be synthesized and also for which the piano-roll can be generated
-        self.audio_sample_locations = self.get_sample_indices(n_samples_to_synthesize_visualize_per_subset)
+        self.audio_sample_locations = self.get_sample_indices(n_samples_to_synthesize)
+        self.piano_roll_sample_locations = self.get_sample_indices(n_samples_to_draw_pianorolls)
 
-        self._gt_logged_once = False             # Flag will be set to True when ground truth data is once evaluated
-        self._gt_logged_once_wandb = False       # Flag will be set to True when ground truth data is once evaluated
-                                                    # for WANDB
+        self._gt_logged_once = False  # Flag will be set to True when ground truth data is once evaluated
+        self._gt_logged_once_wandb = False  # Flag will be set to True when ground truth data is once evaluated
+        # for WANDB
 
+    def get_logging_dict(self, velocity_heatmap_html="default", global_features_html="default",
+                         piano_roll_html="default", audio_files="default",
+                         sf_paths="default",
+                         recalculate_ground_truth=False):
 
-    def get_logging_dict(self, velocity_heatmap_html=True, global_features_html=True,
-                         piano_roll_html=True, audio_files=True,
-                         sf_paths=["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
-                         recalculate_ground_truth=True):
+        assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
+        assert global_features_html == "default" or type(global_features_html) == bool
+        assert piano_roll_html == "default" or type(piano_roll_html) == bool
+        assert audio_files == "default" or type(audio_files) == bool
+
+        sf_paths = ["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"] if sf_paths == "default" else sf_paths
+        velocity_heatmap_html = self.analyze_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
+        global_features_html = self.analyze_global_features if "default" in global_features_html else global_features_html
+        piano_roll_html = self.analyze_piano_roll if "default" in piano_roll_html else piano_roll_html
+        audio_files = self.analyze_audio if "default" in audio_files else audio_files
 
         _gt_logging_data = None
         # Get logging data for ground truth data
@@ -123,8 +133,11 @@ class Evaluator:
                 piano_roll_html=piano_roll_html,
                 audio_files=audio_files,
                 sf_paths=sf_paths,
-                use_specific_samples_at=self.audio_sample_locations
+                for_audios_use_specific_samples_at=self.audio_sample_locations,
+                for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
             )
+            self._gt_logged_once = True
+
 
         _predicted_logging_data = self.prediction_SubSet_Evaluator.get_logging_dict(
             velocity_heatmap_html=velocity_heatmap_html,
@@ -132,15 +145,26 @@ class Evaluator:
             piano_roll_html=piano_roll_html,
             audio_files=audio_files,
             sf_paths=sf_paths,
-            use_specific_samples_at=self.audio_sample_locations
+            for_audios_use_specific_samples_at=self.audio_sample_locations,
+            for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
         ) if self.prediction_SubSet_Evaluator is not None else None
 
         return _gt_logging_data, _predicted_logging_data
 
-    def get_wandb_logging_media(self, velocity_heatmap_html=True, global_features_html=True,
-                         piano_roll_html=True, audio_files=True,
-                         sf_paths=["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"],
-                         recalculate_ground_truth=True):
+    def get_wandb_logging_media(self, velocity_heatmap_html="default", global_features_html="default",
+                                piano_roll_html="default", audio_files="default",
+                                sf_paths="default",
+                                recalculate_ground_truth=False):
+
+        assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
+        assert global_features_html == "default" or type(global_features_html) == bool
+        assert piano_roll_html == "default" or type(piano_roll_html) == bool
+        assert audio_files == "default" or type(audio_files) == bool
+
+        velocity_heatmap_html = self.analyze_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
+        global_features_html = self.analyze_global_features if "default" in global_features_html else global_features_html
+        piano_roll_html = self.analyze_piano_roll if "default" in piano_roll_html else piano_roll_html
+        audio_files = self.analyze_audio if "default" in audio_files else audio_files
 
         # Get logging data for ground truth data
         if recalculate_ground_truth is True or self._gt_logged_once_wandb is False:
@@ -189,8 +213,7 @@ class Evaluator:
             _pred = pred[:, :, i]
             n_hits = _gt.shape[-1]
             accuracies["Hits_Accuracy"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                   ((_gt == _pred).sum(axis=-1) / n_hits).mean()})
-
+                                                                      ((_gt == _pred).sum(axis=-1) / n_hits).mean()})
 
         gt = gt.reshape((n_examples, -1))
         pred = pred.reshape((n_examples, -1))
@@ -202,8 +225,8 @@ class Evaluator:
 
     def get_velocity_errors(self, drum_mapping):
         n_drum_voices = len(drum_mapping.keys())
-        gt = self._gt_hvos_array[:, :, n_drum_voices:2*n_drum_voices]
-        pred = self._prediction_hvos_array[:, :,  n_drum_voices:2*n_drum_voices]
+        gt = self._gt_hvos_array[:, :, n_drum_voices:2 * n_drum_voices]
+        pred = self._prediction_hvos_array[:, :, n_drum_voices:2 * n_drum_voices]
 
         n_examples = gt.shape[0]
         # Flatten
@@ -212,19 +235,19 @@ class Evaluator:
             _gt = gt[:, :, i]
             _pred = pred[:, :, i]
             errors["Velocity_MSE"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                                                      (((_gt - _pred)**2).mean(axis=-1)).mean()})
+                                                                 (((_gt - _pred) ** 2).mean(axis=-1)).mean()})
 
         gt = gt.reshape((n_examples, -1))
         pred = pred.reshape((n_examples, -1))
         errors["Velocity_MSE"][self._identifier].update(
-            {"Overall".format(self._identifier): (((gt - pred)**2).mean(axis=-1)).mean()})
+            {"Overall".format(self._identifier): (((gt - pred) ** 2).mean(axis=-1)).mean()})
 
         return errors
 
     def get_micro_timing_errors(self, drum_mapping):
         n_drum_voices = len(drum_mapping.keys())
-        gt = self._gt_hvos_array[:, :, 2*n_drum_voices:]
-        pred = self._prediction_hvos_array[:, :, 2*n_drum_voices:]
+        gt = self._gt_hvos_array[:, :, 2 * n_drum_voices:]
+        pred = self._prediction_hvos_array[:, :, 2 * n_drum_voices:]
         n_examples = gt.shape[0]
         # Flatten
         errors = {"Micro_Timing_MSE": {self._identifier: {}}}
@@ -232,12 +255,12 @@ class Evaluator:
             _gt = gt[:, :, i]
             _pred = pred[:, :, i]
             errors["Micro_Timing_MSE"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                                                      (((_gt - _pred)**2).mean(axis=-1)).mean()})
+                                                                     (((_gt - _pred) ** 2).mean(axis=-1)).mean()})
 
         gt = gt.reshape((n_examples, -1))
         pred = pred.reshape((n_examples, -1))
         errors["Micro_Timing_MSE"][self._identifier].update(
-            {"Overall".format(self._identifier): (((gt - pred)**2).mean(axis=-1)).mean()})
+            {"Overall".format(self._identifier): (((gt - pred) ** 2).mean(axis=-1)).mean()})
 
         return errors
 
@@ -289,11 +312,14 @@ class Evaluator:
         self.prediction_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
             self._prediction_subsets,
             self._prediction_tags,
-            "{}_Predictions".format(self._identifier),             # a name for the subset
+            "{}_Predictions".format(self._identifier),  # a name for the subset
             disable_tqdm=self.disable_tqdm,
-            group_by_minor_keys=True)
+            group_by_minor_keys=True,
+            analyze_heatmap=self.analyze_heatmap,
+            analyze_global_features=self.analyze_global_features
+        )
 
-    def dump(self, path=None, fname="evaluator"):          # todo implement in comparator
+    def dump(self, path=None, fname="evaluator"):  # todo implement in comparator
         if path is None:
             path = os.path.join("misc")
 
@@ -304,28 +330,33 @@ class Evaluator:
         pickle.dump(self, ofile)
         ofile.close()
 
-    def get_sample_indices(self, n_samples_per_subset=20):
+        print(f"Dumped Evaluator to {os.path.join(path, f'{self._identifier}_{fname}.Eval.bz2')}")
+
+    def get_sample_indices(self, n_samples_per_subset="all"):
+        assert n_samples_per_subset == "all" or isinstance(n_samples_per_subset, int)
+
         subsets = self._gt_subsets
         tags = self._gt_tags
         sample_locations = {tag: [] for tag in tags}
 
         for subset_ix, subset in enumerate(subsets):
-            for i in range(min(len(subset), n_samples_per_subset)):
+            n_samples = min(len(subset), n_samples_per_subset) if n_samples_per_subset != "all" else len(subset)
+            for i in range(n_samples):
                 sample_locations[tags[subset_ix]].append(i)
 
         return sample_locations
 
 
 PATH_DICT_TEMPLATE = {
-    "root_dir": "",                 # ROOT_DIR to save data
-    "project_name": '',             # GROOVE_TRANSFORMER_INFILL or GROOVE_TRANSFORMER_TAP2DRUM
-    "run_name": '',                 # WANDB RUN NAME run = wandb.init(...
+    "root_dir": "",  # ROOT_DIR to save data
+    "project_name": '',  # GROOVE_TRANSFORMER_INFILL or GROOVE_TRANSFORMER_TAP2DRUM
+    "run_name": '',  # WANDB RUN NAME run = wandb.init(...
     "set_identifier": '',  # TRAIN OR TEST
     "epoch": '',
 }
 
 
-class HVOSeq_SubSet_Evaluator (object):
+class HVOSeq_SubSet_Evaluator(object):
     # todo 1. From Training Subsets, grab n_samples and pass to model
 
     def __init__(
@@ -368,7 +399,7 @@ class HVOSeq_SubSet_Evaluator (object):
         self.disable_tqdm = disable_tqdm
         self.group_by_minor_keys = group_by_minor_keys
 
-        self.feature_extractor = None   # instantiates in
+        self.feature_extractor = None  # instantiates in
 
         self.max_samples_in_subset = max_samples_in_subset
         self.analyze_heatmap = analyze_heatmap
@@ -382,7 +413,7 @@ class HVOSeq_SubSet_Evaluator (object):
         # Store subsets and tags locally, and auto-extract
         self.__set_subsets = None
         self.__set_tags = None
-        self.tags_subsets = (set_tags, set_subsets)
+        self.tags_subsets = (set_tags, set_subsets)         # auto extracts here!!!
 
         # Flag to re-extract if data changed
         self.__analyze_Flag = True
@@ -420,15 +451,16 @@ class HVOSeq_SubSet_Evaluator (object):
             self.global_features_dict = self.feature_extractor.get_global_features_dicts(
                 regroup_by_feature=self.group_by_minor_keys)
 
-        self.vel_heatmaps_dict, self.vel_scatters_dict = self.feature_extractor.get_velocity_timing_heatmap_dicts(
-            s=(4, 10),
-            bins=[32*8, 127],
-            regroup_by_drum_voice=self.group_by_minor_keys
-        ) if self.analyze_heatmap else None
+        print(self.analyze_heatmap)
+        if self.analyze_heatmap:
+            self.vel_heatmaps_dict, self.vel_scatters_dict = self.feature_extractor.get_velocity_timing_heatmap_dicts(
+                s=(4, 10),
+                bins=[32 * 8, 127],
+                regroup_by_drum_voice=self.group_by_minor_keys
+            )
 
-
-        # todo
-        #self.global_features_dict = self.feature_extractor.
+            # todo
+        # self.global_features_dict = self.feature_extractor.
 
     def get_vel_heatmap_bokeh_figures(
             self, plot_width=1200, plot_height_per_set=100, legend_fnt_size="8px",
@@ -440,8 +472,8 @@ class HVOSeq_SubSet_Evaluator (object):
         tags = copy.deepcopy(self.tags_subsets[0])
         tags.sort()
 
-        _vel_heatmaps_dict = {x: {} for x in  self.vel_heatmaps_dict.keys()}
-        _vel_scatters_dict = {x: {} for x in  self.vel_scatters_dict.keys()}
+        _vel_heatmaps_dict = {x: {} for x in self.vel_heatmaps_dict.keys()}
+        _vel_scatters_dict = {x: {} for x in self.vel_scatters_dict.keys()}
 
         for inst in self.vel_heatmaps_dict.keys():
             for tag in tags:
@@ -515,7 +547,8 @@ class HVOSeq_SubSet_Evaluator (object):
                 sf_path = sf_paths[np.random.randint(0, len(sf_paths))]
                 audios.append(sample_hvo.synthesize(sf_path=sf_path))
                 captions.append("{}_{}_{}.wav".format(
-                    self.set_identifier, sample_hvo.metadata["style_primary"], sample_hvo.metadata["master_id"].replace("/", "_")
+                    self.set_identifier, sample_hvo.metadata["style_primary"],
+                    sample_hvo.metadata["master_id"].replace("/", "_")
                 ))
 
         # sort so that they are alphabetically ordered in wandb
@@ -532,7 +565,7 @@ class HVOSeq_SubSet_Evaluator (object):
         tab_titles = []
         piano_roll_tabs = []
         for subset_ix, tag in tqdm(enumerate(self._sampled_hvos.keys()),
-                                   desc='Creating Piano rolls for '+ self.set_identifier,
+                                   desc='Creating Piano rolls for ' + self.set_identifier,
                                    disable=self.disable_tqdm):
             piano_rolls = []
             for sample_hvo in self._sampled_hvos[tag]:
@@ -567,7 +600,9 @@ class HVOSeq_SubSet_Evaluator (object):
         return wandb_features_data
 
     def get_logging_dict(self, velocity_heatmap_html=True, global_features_html=True,
-                         piano_roll_html=True, audio_files=True, sf_paths=None, use_specific_samples_at=None):
+                         piano_roll_html=True, audio_files=True, sf_paths=None,
+                         for_audios_use_specific_samples_at=None, for_piano_rolls_use_specific_samples_at=None):
+
         if audio_files is True:
             assert sf_paths is not None, "Provide sound_file path(s) for synthesizing samples"
 
@@ -577,19 +612,22 @@ class HVOSeq_SubSet_Evaluator (object):
         if global_features_html is True:
             logging_dict.update({"global_feature_pdfs": self.get_global_features_bokeh_figure()})
         if audio_files is True:
-            captions_audios_tuples = self.get_audios(sf_paths, use_specific_samples_at)
+            captions_audios_tuples = self.get_audios(sf_paths, for_audios_use_specific_samples_at)
             captions_audios = [(c_a[0], c_a[1]) for c_a in captions_audios_tuples]
             logging_dict.update({"captions_audios": captions_audios})
         if piano_roll_html is True:
-            logging_dict.update({"piano_rolls": self.get_piano_rolls(use_specific_samples_at)})
+            logging_dict.update({"piano_rolls": self.get_piano_rolls(for_piano_rolls_use_specific_samples_at)})
 
         return logging_dict
 
     def get_wandb_logging_media(self, velocity_heatmap_html=True, global_features_html=True,
-                                piano_roll_html=True, audio_files=True, sf_paths=None, use_specific_samples_at=None):
+                                piano_roll_html=True, audio_files=True, sf_paths=None,
+                                for_audios_use_specific_samples_at=None, for_piano_rolls_use_specific_samples_at=None):
 
         logging_dict = self.get_logging_dict(velocity_heatmap_html, global_features_html,
-                                             piano_roll_html, audio_files, sf_paths, use_specific_samples_at)
+                                             piano_roll_html, audio_files, sf_paths,
+                                             for_audios_use_specific_samples_at,
+                                             for_piano_rolls_use_specific_samples_at)
 
         wandb_media_dict = {}
         for key in logging_dict.keys():
@@ -598,9 +636,9 @@ class HVOSeq_SubSet_Evaluator (object):
                     {
                         "velocity_heatmaps":
                             {
-                            self.set_identifier:
-                                wandb.Html(file_html(
-                                    logging_dict["velocity_heatmaps"], CDN, "vel_heatmap_"+self.set_identifier))
+                                self.set_identifier:
+                                    wandb.Html(file_html(
+                                        logging_dict["velocity_heatmaps"], CDN, "vel_heatmap_" + self.set_identifier))
                             }
                     }
                 )
@@ -612,7 +650,8 @@ class HVOSeq_SubSet_Evaluator (object):
                             {
                                 self.set_identifier:
                                     wandb.Html(file_html(
-                                        logging_dict["global_feature_pdfs"], CDN, "feature_pdfs_"+self.set_identifier))
+                                        logging_dict["global_feature_pdfs"], CDN,
+                                        "feature_pdfs_" + self.set_identifier))
                             }
                     }
                 )
@@ -639,14 +678,14 @@ class HVOSeq_SubSet_Evaluator (object):
                             {
                                 self.set_identifier:
                                     wandb.Html(file_html(
-                                        logging_dict["piano_rolls"], CDN, "piano_rolls_"+self.set_identifier))
+                                        logging_dict["piano_rolls"], CDN, "piano_rolls_" + self.set_identifier))
                             }
                     }
                 )
 
         return wandb_media_dict
 
-    def dump(self, path=None, fname="subset_evaluator"):          # todo implement in comparator
+    def dump(self, path=None, fname="subset_evaluator"):  # todo implement in comparator
         if path is None:
             path = os.path.join("misc", self.set_identifier)
         if not os.path.exists(path):
@@ -656,3 +695,6 @@ class HVOSeq_SubSet_Evaluator (object):
         pickle.dump(self, ofile)
         ofile.close()
 
+
+if __name__ == "__main__":
+    print("TEST ---- TEST")

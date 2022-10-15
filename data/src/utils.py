@@ -16,19 +16,19 @@ def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE
     return all(passed_conditions)
 
 
-def get_data_directory_using_filters(dataset_tag, filter_json_path):
+def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path):
     """
     returns the directory path from which the data corresponding to the
-    specified filter.json file is located or should be stored
+    specified dataset_setting.json file is located or should be stored
 
     :param dataset_tag: [str] (use "gmd" for groove midi dataset)
-    :param filter_json_path: [file.json path] (path to filter.json or similar filter jsons)
+    :param dataset_setting_json_path: [file.json path] (path to dataset_setting.json or similar filter jsons)
     :return: path to save/load from the train.pickle/test.pickle/validation.pickle hvo_sequence subsets
     """
     main_path = f"data/{dataset_tag}/resources/cached/"
     last_directory = ""
-    filter_dict = json.load(open(filter_json_path, "r"))[dataset_tag]
-    global_dict = json.load(open(filter_json_path, "r"))["global"]
+    filter_dict = json.load(open(dataset_setting_json_path, "r"))[dataset_tag]
+    global_dict = json.load(open(dataset_setting_json_path, "r"))["global"]
     for key_, val_ in global_dict.items():
         main_path += f"{key_}_{val_}/"
 
@@ -40,22 +40,22 @@ def get_data_directory_using_filters(dataset_tag, filter_json_path):
     return main_path + last_directory[:-1]  # remove last underline
 
 
-def pickle_hvo_dict(hvo_dict, dataset_tag, filter_json_path):
+def pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path):
     """ pickles a dictionary of train/test/validation hvo_sequences (see below for dict structure)
 
     :param hvo_dict: [dict] dict of format {"train": [hvo_seqs], "test": [hvo_seqs], "validation": [hvo_seqs]}
     :param dataset_tag: [str] (use "gmd" for groove midi dataset)
-    :param filter_json_path: [file.json path] (path to filter.json or similar filter jsons)
+    :param dataset_setting_json_path: [file.json path] (path to dataset_setting.json or similar filter jsons)
     """
 
 
     # create directories if needed
-    dir__ = get_data_directory_using_filters(dataset_tag, filter_json_path)
+    dir__ = get_data_directory_using_filters(dataset_tag, dataset_setting_json_path)
     if not os.path.exists(dir__):
         os.makedirs(dir__)
 
     # collect and dump samples that match filter
-    filter_dict_ = json.load(open(filter_json_path, "r"))[dataset_tag]
+    filter_dict_ = json.load(open(dataset_setting_json_path, "r"))[dataset_tag]
     for set_key_, set_data_ in hvo_dict.items():
         filtered_samples = []
         num_samples = len(set_data_)
@@ -116,13 +116,13 @@ if __name__ == "__main__":
 
     gmd_pickle_path = "gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
     dataset_tag = "gmd"
-    filter_json_path = "filter.json"
+    dataset_setting_json_path = "dataset_setting.json"
     beat_division_factor = [4]
     drum_mapping_label = "ROLAND_REDUCED_MAPPING"
     subset_tag = "train"
 
     gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path)
     hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
-    pickle_hvo_dict(hvo_dict, dataset_tag, filter_json_path)
+    pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
 
 

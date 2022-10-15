@@ -1,20 +1,20 @@
 from data.src.utils import *
 
-def load_gmd_hvo_sequences(gmd_pickle_path, dataset_tag, filter_json_path, subset_tag, force_regenerate=False):
+def load_gmd_hvo_sequences(gmd_pickle_path, dataset_tag, dataset_setting_json_path, subset_tag, force_regenerate=False):
     assert os.path.exists(gmd_pickle_path), "path to gmd dict pickle is incorrect --- " \
                                             "look into data/gmd/resources/storedDicts/groove-*.bz2pickle"
 
-    dir__ = get_data_directory_using_filters(dataset_tag, filter_json_path)
-    filter_json = json.load(open(filter_json_path, "r"))
-    beat_division_factor = filter_json["global"]["beat_division_factor"]
-    drum_mapping_label = filter_json["global"]["drum_mapping_label"]
+    dir__ = get_data_directory_using_filters(dataset_tag, dataset_setting_json_path)
+    dataset_setting_json = json.load(open(dataset_setting_json_path, "r"))
+    beat_division_factor = dataset_setting_json["global"]["beat_division_factor"]
+    drum_mapping_label = dataset_setting_json["global"]["drum_mapping_label"]
 
     if (not os.path.exists(dir__)) or force_regenerate is True:
         print("No Cached Version Available --> extracting data from original groove midi data")
         gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path)
         drum_mapping = get_drum_mapping_using_label(drum_mapping_label)
         hvo_dict = extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping)
-        pickle_hvo_dict(hvo_dict, dataset_tag, filter_json_path)
+        pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
     else:
         print(f"Using cached data available at {dir__}")
 
@@ -31,15 +31,15 @@ if __name__ == "__main__":
 
     gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
     dataset_tag = "gmd"
-    filter_json_path = "filter.json"
+    dataset_setting_json_path = "dataset_setting.json"
     beat_division_factor = [4]
     drum_mapping_label = "ROLAND_REDUCED_MAPPING"
     subset_tag = "train"
 
     # gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path)
     # hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
-    # pickle_hvo_dict(hvo_dict, dataset_tag, filter_json_path)
+    # pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
 
     train_set = load_gmd_hvo_sequences(
-        gmd_pickle_path, dataset_tag, filter_json_path, beat_division_factor, drum_mapping_label,
+        gmd_pickle_path, dataset_tag, dataset_setting_json_path, beat_division_factor, drum_mapping_label,
         subset_tag)

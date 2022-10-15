@@ -21,12 +21,11 @@ from data.dataLoaders import load_gmd_hvo_sequences
 
 gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
 dataset_tag = "gmd"
-filter_json_path = "filter.json"
+dataset_setting_json_path = "dataset_setting.json"
 beat_division_factor = [4]
 drum_mapping_label = "ROLAND_REDUCED_MAPPING"
 subset_tag = "train"
 force_regenerate = False        # set true if you don't want to use the cached version
 
 train_set = load_gmd_hvo_sequences(
-    gmd_pickle_path, dataset_tag, filter_json_path, beat_division_factor, drum_mapping_label,
-    subset_tag, force_regenerate)
+    gmd_pickle_path, dataset_tag, dataset_setting_json_path, subset_tag, force_regenerate)

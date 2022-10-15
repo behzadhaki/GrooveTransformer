@@ -25,15 +25,15 @@ from copy import deepcopy
 class GrooveMidiSubsetterAndSampler(object):
     def __init__(
             self,
-            pickled_hvo_set_filename,
+            hvo_sequences_list,
             list_of_filter_dicts_for_subsets=None,
             number_of_samples=1024,
             max_hvo_shape=(32, 27),
             at_least_one_hit_in_voices=None         # should be a list of voices where at least 1 hit is required
                                                     # example:  [0, 1, 2]
     ):
-        tags_all, subsets_all = GrooveMidiSubsetter(
-            pickled_hvo_set_filename,
+        tags_all, subsets_all = HVOSetSubsetter(
+            hvo_sequences_list,
             list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
             max_len=max_hvo_shape[0],
             at_least_one_hit_in_voices=at_least_one_hit_in_voices).create_subsets()
@@ -54,24 +54,17 @@ class GrooveMidiSubsetterAndSampler(object):
         return self.hvos_array_tags, self.hvos_array, self.hvo_seq_templates
 
 
-class GrooveMidiSubsetter(object):
+class HVOSetSubsetter(object):
     def __init__(
             self,
-            pickled_hvo_set_filename,
+            hvo_sequences_list,
             list_of_filter_dicts_for_subsets=None,
             max_len=None,
             at_least_one_hit_in_voices=None
     ):
         self.list_of_filter_dicts_for_subsets = list_of_filter_dicts_for_subsets
-        self.pickled_hvo_set_filename = pickled_hvo_set_filename
 
-        # load preprocessed hvo_sequences from pickle file
-        if "bz2" in pickled_hvo_set_filename:
-            ifile = bz2.BZ2File(pickled_hvo_set_filename, 'rb')
-            self.full_hvo_set_pre_filters = pickle.load(ifile)
-            ifile.close()
-        else:
-            self.full_hvo_set_pre_filters = pickle.load(open(pickled_hvo_set_filename, 'rb'))
+        self.full_hvo_set_pre_filters = hvo_sequences_list
 
         self.at_least_one_hit_in_voices = at_least_one_hit_in_voices
 

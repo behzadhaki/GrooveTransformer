@@ -259,12 +259,12 @@ from data.dataLoaders import load_gmd_hvo_sequences
 
 gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
 dataset_tag = "gmd"
-filter_json_path = "filter.json"
+dataset_setting_json_path = "dataset_setting.json"
 subset_tag = "train"
 force_regenerate = False        # set true if you don't want to use the cached version
 
 train_set = load_gmd_hvo_sequences(
-    gmd_pickle_path, dataset_tag, filter_json_path,
+    gmd_pickle_path, dataset_tag, dataset_setting_json_path,
     subset_tag, force_regenerate)
 ```
 
