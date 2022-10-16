@@ -126,7 +126,7 @@ To load a saved model, use the full path along with the `load_evaluator` method
 
 ```python
 from eval.GrooveEvaluator.src.evaluator import load_evaluator
-evaluator_test_set = load_evaluator("misc/test_set_full_.Eval.bz2")
+evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
 ```
 
 
@@ -179,11 +179,16 @@ _gt_logging_data, _predicted_logging_data = evaluator_test_set.get_logging_dict(
 >     _predicted_logging_data = evaluator_test_set.get_logging_dict(need_groundTruth=False)
 >```
 
-```python
-The resulting dictionaries (`_gt_logging_data`, `_predicted_logging_data`) have the following keys:
-```commandline
-_gt_logging_data.keys()
-Out: dict_keys(['velocity_heatmaps', 'global_feature_pdfs', 'captions_audios', 'piano_rolls'])
+
+The resulting dictionaries (`_gt_logging_data`, `_predicted_logging_data`) have the following format:
+
+``` python
+{
+    'velocity_heatmaps': bokeh.models.layouts.Tabs Figure,
+     'global_feature_pdfs': bokeh.models.layouts.Tabs Figure, 
+     'piano_rolls': bokeh.models.layouts.Tabs Figure,
+     'captions_audios': tuple(str, numpy.ndarray), 
+}
 ```
 
 > **Note** The above keys are only available if the `need_heatmap`, `need_global_features`, `need_audio`, `need_piano_roll` parameters are set to True during initialization.
@@ -217,8 +222,8 @@ save_wav_file(os.path.join("misc", fname), data, 44100)
 
 
 ##### 2.4.4.2 Results for `WandB` <a name="2_iv_d_ii"></a>
+Same as above, but the results are in a format that can be directly logged to `WandB` using the `wandb.log` method.
 
-
-
+# # TODO: HERE
 
 

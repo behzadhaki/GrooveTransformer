@@ -24,7 +24,7 @@ if __name__ == "__main__":
         test_set,
         list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
         _identifier="test_set_full",
-        n_samples_to_use= -1,
+        n_samples_to_use=20, #-1,
         max_hvo_shape=(32, 27),
         need_heatmap=True,
         need_global_features=True,
@@ -35,12 +35,12 @@ if __name__ == "__main__":
         disable_tqdm=False
     )
 
-    # 2.3 -      Save Model
+    # 2.3 -      Save Evaluator
     evaluator_test_set.dump(path="path", fname="fname")
 
-    # 2.3 -      Load Model using full path with extension
+    # 2.3 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
-    evaluator_test_set = load_evaluator("misc/test_set_full_.Eval.bz2")
+    evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
 
     # 2.4.1 - get ground truth hvo pianoroll scores
     evaluator_test_set.get_ground_truth_hvos_array()
@@ -68,7 +68,6 @@ if __name__ == "__main__":
     show(_predicted_logging_data['global_feature_pdfs'])
     show(_predicted_logging_data['piano_rolls'])
 
-
     # save audio files
     import os
     import soundfile as sf
@@ -83,7 +82,41 @@ if __name__ == "__main__":
     data = sample_audio_tuple[1]
     save_wav_file(os.path.join("misc", fname), data, 44100)
 
+    # 2.5 - Exporting gt and predictions to midi files
+    evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="misc")
+
+    # 2.5 - Exporting boxplot statistics of gt OR predictions to csv files and a pandas dataframe
+    df = evaluator_test_set.get_statistics_of_global_features(calc_gt=True, calc_pred=True, csv_file="misc/global_features_statistics.csv", trim_decimals=3)
+
+    # 2.5 - Calculate rhythmic distances of gt and pred patterns
+    rhythmic_distances = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
+
+    # 2.5 - Get Pos/Neg Hit statistics
+    hit_scores = evaluator_test_set.get_statistics_of_pos_neg_hit_scores(hit_weight=1, trim_decimals=1, csv_file="misc/hit_scores.csv")
+
+    # 2.5 - Get Statistics of velocity distributions
+    velocitiy_distributions = evaluator_test_set.get_velocity_distributions()
+    statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_velocity_distributions(trim_decimals=1, csv_file="misc/vel_stats.csv")
+    velocity_MSE_entire_score = evaluator_test_set.get_velocity_MSE(ignore_correct_silences=False)
+    velocity_MSE_non_silent_locs = evaluator_test_set.get_velocity_MSE(ignore_correct_silences=True)
+
+    # 2.5 - Get Statistics of utiming distributions
+    statistics_of_offsetocitiy_distributions = evaluator_test_set.get_statistics_of_offset_distributions(
+        trim_decimals=1, csv_file="misc/offset_stats.csv")
+    offset_MSE_entire_score = evaluator_test_set.get_offset_MSE(ignore_correct_silences=False)
+    offset_MSE_non_silent_locs = evaluator_test_set.get_offset_MSE(ignore_correct_silences=True)
+
+    # 2.5 -
+    from eval.GrooveEvaluator.src.evaluator import load_evaluator
+
+    evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()  # This is here just to make sure the code doesnt rely on the model here
+    evaluator_test_set.add_predictions(predicted_hvos_array)
+    offsetocitiy_distributions = evaluator_test_set.get_offset_distributions()
+
     # -----------------  Getting WandB data ----------------- #
-    results = evaluator_test_set.get_logging_dict(need_groundTruth=True)    # include ground truth data
-    results = evaluator_test_set.get_logging_dict(need_groundTruth=False)   # exclude ground truth data
+    results = evaluator_test_set.get_wandb_logging_media(need_groundTruth=True)    # include ground truth data
+    # results = evaluator_test_set.get_wandb_logging_media(need_groundTruth=False)   # exclude ground truth data
+
+
 

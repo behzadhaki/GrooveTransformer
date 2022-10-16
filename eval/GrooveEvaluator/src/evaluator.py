@@ -16,7 +16,49 @@ import os
 from tqdm import tqdm
 import copy
 from eval.post_training_evaluations.src.mgeval_rytm_utils import flatten_subset_genres
+import pandas as pd
+from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_score, matthews_corrcoef
 
+
+def flatten(t):
+    if len(t) >=1:
+        if isinstance(t[0], list):
+            return [item for sublist in t for item in sublist]
+        else:
+            return t
+
+def get_stats_from_samples_dict(feature_value_dict, trim_decimals=None):
+    stats = []  # list of lists stats[i] corresponds to [mean, std, min, max, median, q1, q3]
+    labels = []
+
+    for key in feature_value_dict.keys():
+        # Compile all genre data together
+        data = []
+        if isinstance(feature_value_dict[key], dict):
+            for key2 in feature_value_dict[key].keys():
+                data.extend(feature_value_dict[key][key2])
+        else:
+            data = flatten(feature_value_dict[key])
+
+        # Calc stats
+        stats.append(
+            [np.mean(data), np.std(data), np.min(data), np.max(data), np.percentile(data, 50),
+             np.percentile(data, 25),
+             np.percentile(data, 75)])
+        labels.append(key)
+
+    # trim dataframe values to have trim_decimals decimal places
+    if trim_decimals is not None:
+        stats = [[f"{x:.{trim_decimals}f}" if x is not None else x for x in data] for data in stats]
+
+    df2 = pd.DataFrame(np.array(stats).transpose(),
+                       ["mean", "std", "min", "max", "median", "q1", "q3"],
+                       labels)
+
+    if trim_decimals is not None:
+        df2 = df2.round(trim_decimals)
+
+    return df2
 
 class Evaluator:
     def __init__(
@@ -52,9 +94,12 @@ class Evaluator:
         :param n_samples_to_draw_pianorolls: (Default: "all") The number of samples to draw piano rolls for. If "all", all samples will be drawn.
         :param disable_tqdm: (Default: False) Whether to disable tqdm progress bars
         """
+
         self.need_heatmap, self.need_global_features = need_heatmap, need_global_features
         self.need_piano_roll, self.need_audio = need_piano_roll, need_audio
         self.disable_tqdm = disable_tqdm
+        self.num_voices = int(max_hvo_shape[-1] / 3)
+
         n_samples_to_use = len(hvo_sequences_list) if n_samples_to_use == -1 else n_samples_to_use
 
         # Create subsets of data
@@ -108,42 +153,49 @@ class Evaluator:
         self._gt_logged_once_wandb = False  # Flag will be set to True when ground truth data is once evaluated
         # for WANDB
 
-    def get_logging_dict(self, velocity_heatmap_html="default", global_features_html="default",
-                         piano_roll_html="default", audio_files="default",
+    # ==================================================================================================================
+    #  Get Logging dict or WandB Artifacts for ground truth data and/or predictions
+    #  The logging dict contains:
+    #   - Heatmap Bokeh Plots
+    #   - Global Feature Bokeh Plots
+    #   - Piano Roll Bokeh Plots
+    #   - Audio Files synthesized from HVO_Sequences
+    # ==================================================================================================================
+    def get_logging_dict(self, need_velocity_heatmap="default", need_global_features="default",
+                         need_piano_rolls="default", need_audio_files="default",
                          sf_paths="default",
                          recalculate_ground_truth=False, need_groundTruth=True):
 
-        assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
-        assert global_features_html == "default" or type(global_features_html) == bool
-        assert piano_roll_html == "default" or type(piano_roll_html) == bool
-        assert audio_files == "default" or type(audio_files) == bool
+        assert need_velocity_heatmap == "default" or type(need_velocity_heatmap) == bool
+        assert need_global_features == "default" or type(need_global_features) == bool
+        assert need_piano_rolls == "default" or type(need_piano_rolls) == bool
+        assert need_audio_files == "default" or type(need_audio_files) == bool
 
         sf_paths = ["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"] if sf_paths == "default" else sf_paths
-        velocity_heatmap_html = self.need_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
-        global_features_html = self.need_global_features if "default" in global_features_html else global_features_html
-        piano_roll_html = self.need_piano_roll if "default" in piano_roll_html else piano_roll_html
-        audio_files = self.need_audio if "default" in audio_files else audio_files
+        need_velocity_heatmap = self.need_heatmap if "default" in need_velocity_heatmap else need_velocity_heatmap
+        need_global_features = self.need_global_features if "default" in need_global_features else need_global_features
+        need_piano_rolls = self.need_piano_roll if "default" in need_piano_rolls else need_piano_rolls
+        need_audio_files = self.need_audio if "default" in need_audio_files else need_audio_files
 
         _gt_logging_data = None
         # Get logging data for ground truth data
         if recalculate_ground_truth is True or self._gt_logged_once is False:
             _gt_logging_data = self.gt_SubSet_Evaluator.get_logging_dict(
-                velocity_heatmap_html=velocity_heatmap_html,
-                global_features_html=global_features_html,
-                piano_roll_html=piano_roll_html,
-                audio_files=audio_files,
+                need_velocity_heatmap=need_velocity_heatmap,
+                need_global_features=need_global_features,
+                need_piano_rolls=need_piano_rolls,
+                need_audio_files=need_audio_files,
                 sf_paths=sf_paths,
                 for_audios_use_specific_samples_at=self.audio_sample_locations,
                 for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
             )
             self._gt_logged_once = True
 
-
         _predicted_logging_data = self.prediction_SubSet_Evaluator.get_logging_dict(
-            velocity_heatmap_html=velocity_heatmap_html,
-            global_features_html=global_features_html,
-            piano_roll_html=piano_roll_html,
-            audio_files=audio_files,
+            need_velocity_heatmap=need_velocity_heatmap,
+            need_global_features=need_global_features,
+            need_piano_rolls=need_piano_rolls,
+            need_audio_files=need_audio_files,
             sf_paths=sf_paths,
             for_audios_use_specific_samples_at=self.audio_sample_locations,
             for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
@@ -154,31 +206,31 @@ class Evaluator:
         else:
             return _predicted_logging_data
 
-    def get_wandb_logging_media(self, velocity_heatmap_html="default", global_features_html="default",
-                                piano_roll_html="default", audio_files="default",
+    def get_wandb_logging_media(self, need_velocity_heatmap="default", need_global_features="default",
+                                need_piano_rolls="default", need_audio_files="default",
                                 sf_paths="default",
                                 recalculate_ground_truth=False,
                                 need_groundTruth=True):
 
-        assert velocity_heatmap_html == "default" or type(velocity_heatmap_html) == bool
-        assert global_features_html == "default" or type(global_features_html) == bool
-        assert piano_roll_html == "default" or type(piano_roll_html) == bool
-        assert audio_files == "default" or type(audio_files) == bool
+        assert need_velocity_heatmap == "default" or type(need_velocity_heatmap) == bool
+        assert need_global_features == "default" or type(need_global_features) == bool
+        assert need_piano_rolls == "default" or type(need_piano_rolls) == bool
+        assert need_audio_files == "default" or type(need_audio_files) == bool
 
-        velocity_heatmap_html = self.need_heatmap if "default" in velocity_heatmap_html else velocity_heatmap_html
-        global_features_html = self.need_global_features if "default" in global_features_html else global_features_html
-        piano_roll_html = self.need_piano_roll if "default" in piano_roll_html else piano_roll_html
-        audio_files = self.need_audio if "default" in audio_files else audio_files
+        need_velocity_heatmap = self.need_heatmap if "default" in need_velocity_heatmap else need_velocity_heatmap
+        need_global_features = self.need_global_features if "default" in need_global_features else need_global_features
+        need_piano_rolls = self.need_piano_roll if "default" in need_piano_rolls else need_piano_rolls
+        need_audio_files = self.need_audio if "default" in need_audio_files else need_audio_files
 
         # Get logging data for ground truth data
         if need_groundTruth is True:
             if recalculate_ground_truth is True or self._gt_logged_once_wandb is False:
 
                 gt_logging_media = self.gt_SubSet_Evaluator.get_wandb_logging_media(
-                    velocity_heatmap_html=velocity_heatmap_html,
-                    global_features_html=global_features_html,
-                    piano_roll_html=piano_roll_html,
-                    audio_files=audio_files,
+                    need_velocity_heatmap=need_velocity_heatmap,
+                    need_global_features=need_global_features,
+                    need_piano_rolls=need_piano_rolls,
+                    need_audio_files=need_audio_files,
                     sf_paths=sf_paths,
                     use_specific_samples_at=self.audio_sample_locations
                 )
@@ -187,10 +239,10 @@ class Evaluator:
                 gt_logging_media = {}
 
         predicted_logging_media = self.prediction_SubSet_Evaluator.get_wandb_logging_media(
-            velocity_heatmap_html=velocity_heatmap_html,
-            global_features_html=global_features_html,
-            piano_roll_html=piano_roll_html,
-            audio_files=audio_files,
+            need_velocity_heatmap=need_velocity_heatmap,
+            need_global_features=need_global_features,
+            need_piano_rolls=need_piano_rolls,
+            need_audio_files=need_audio_files,
             sf_paths=sf_paths,
             use_specific_samples_at=self.audio_sample_locations
         ) if self.prediction_SubSet_Evaluator is not None else {}
@@ -206,70 +258,418 @@ class Evaluator:
 
         return results
 
-    def get_hits_accuracies(self, drum_mapping):
-        n_drum_voices = len(drum_mapping.keys())
-        gt = self._gt_hvos_array[:, :, :n_drum_voices]
-        pred = self._prediction_hvos_array[:, :, :n_drum_voices]
-        n_examples = gt.shape[0]
-        # Flatten
-        accuracies = {"Hits_Accuracy": {self._identifier: {}}}
-        for i, drum_voice in enumerate(drum_mapping.keys()):
-            _gt = gt[:, :, i]
-            _pred = pred[:, :, i]
-            n_hits = _gt.shape[-1]
-            accuracies["Hits_Accuracy"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                                                      ((_gt == _pred).sum(axis=-1) / n_hits).mean()})
+    # ==================================================================================================================
+    #  Export to Midi
+    # ==================================================================================================================
+    def export_to_midi(self, need_gt=False, need_pred=False, directory="misc"):
+        '''
 
-        gt = gt.reshape((n_examples, -1))
-        pred = pred.reshape((n_examples, -1))
-        n_hits = gt.shape[-1]
-        accuracies["Hits_Accuracy"][self._identifier].update(
-            {"Overall".format(self._identifier): ((gt == pred).sum(axis=-1) / n_hits).mean()})
+        :param need_gt: (default False) if True, will export the ground truth to midi
+        :param need_pred: (default False) if True, will export the predictions to midi
+        :param directory: (default "misc") the parent directory to save the midi files to
+        :return:
+        '''
 
-        return accuracies
+        def subset_to_midi(subset_tag, subsets_tags, subsets, path):
+            '''
 
-    def get_velocity_errors(self, drum_mapping):
-        n_drum_voices = len(drum_mapping.keys())
-        gt = self._gt_hvos_array[:, :, n_drum_voices:2 * n_drum_voices]
-        pred = self._prediction_hvos_array[:, :, n_drum_voices:2 * n_drum_voices]
+            :param subset_tag: (str) label used for grouping the subsets
+            :param subsets_tags: (list) list of tags for each subset
+            :param subsets: (list) list of subsets
+            :param path: directory to save the midi files
+            :return:
+            '''
+            subset_path = os.path.join(path, subset_tag)
+            metadata = dict()
 
-        n_examples = gt.shape[0]
-        # Flatten
-        errors = {"Velocity_MSE": {self._identifier: {}}}
-        for i, drum_voice in enumerate(drum_mapping.keys()):
-            _gt = gt[:, :, i]
-            _pred = pred[:, :, i]
-            errors["Velocity_MSE"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                                                 (((_gt - _pred) ** 2).mean(axis=-1)).mean()})
+            for subsetix, tag in enumerate(subsets_tags):
+                # Reinitialize metadata
+                tag_path = os.path.join(subset_path, tag)
+                os.makedirs(tag_path, exist_ok=True)
 
-        gt = gt.reshape((n_examples, -1))
-        pred = pred.reshape((n_examples, -1))
-        errors["Velocity_MSE"][self._identifier].update(
-            {"Overall".format(self._identifier): (((gt - pred) ** 2).mean(axis=-1)).mean()})
+                for ix, _hvo in enumerate(subsets[subsetix]):
+                    # add metadata
+                    if ix == 0:
+                        metadata = {ix: _hvo.metadata}
+                    else:
+                        metadata.update({ix: _hvo.metadata})
 
-        return errors
+                    # export midi
+                    _hvo.save_hvo_to_midi(os.path.join(tag_path, f"{ix}.mid"))
 
-    def get_micro_timing_errors(self, drum_mapping):
-        n_drum_voices = len(drum_mapping.keys())
-        gt = self._gt_hvos_array[:, :, 2 * n_drum_voices:]
-        pred = self._prediction_hvos_array[:, :, 2 * n_drum_voices:]
-        n_examples = gt.shape[0]
-        # Flatten
-        errors = {"Micro_Timing_MSE": {self._identifier: {}}}
-        for i, drum_voice in enumerate(drum_mapping.keys()):
-            _gt = gt[:, :, i]
-            _pred = pred[:, :, i]
-            errors["Micro_Timing_MSE"][self._identifier].update({"{}".format(drum_voice, self._identifier):
-                                                                     (((_gt - _pred) ** 2).mean(axis=-1)).mean()})
+                metadata_for_samples = pd.DataFrame(metadata).transpose()
+                metadata_for_samples.to_csv(os.path.join(tag_path, "metadata.csv"))
 
-        gt = gt.reshape((n_examples, -1))
-        pred = pred.reshape((n_examples, -1))
-        errors["Micro_Timing_MSE"][self._identifier].update(
-            {"Overall".format(self._identifier): (((gt - pred) ** 2).mean(axis=-1)).mean()})
+        directory = os.path.join(directory, self._identifier)
+        os.makedirs(directory, exist_ok=True)
 
-        return errors
+        # extract and export subsets for gt
+        if need_gt:
+            gt_subsets = self._gt_subsets
+            gt_subsets_tags = self._gt_tags
+            gt_subset_tag = "gt"
+            subset_to_midi(gt_subset_tag, gt_subsets_tags, gt_subsets, directory)
 
-    def get_rhythmic_distances(self):
+        # extract and export subsets for predictions
+        if need_pred:
+            prediction_subsets = self._prediction_subsets
+            prediction_subsets_tags = self._prediction_tags
+            prediction_subset_tag = "prediction"
+            subset_to_midi(prediction_subset_tag, prediction_subsets_tags, prediction_subsets, directory)
+
+    # ==================================================================================================================
+    #  Evaluation of Hits
+    # ==================================================================================================================
+    def get_pos_neg_hit_scores(self, hit_weight=1):
+        hit_scores_dict =  {
+        
+            'Accuracy': [
+                accuracy_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                               sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)],
+            'Precision': [
+                precision_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                                sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)],
+            'Recall': [
+                recall_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                             sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)],
+            'F1-Score': [
+                f1_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                         sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)],
+            'MCC (Hit/Silence Classification)': [
+                matthews_corrcoef(true_values[:, :self.num_voices].flatten(),
+                                  predictions[:, :self.num_voices].flatten())
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)],
+            'MCC (Correct Number of Instruments at each step)': [
+                matthews_corrcoef(true_values[:, :self.num_voices].sum(axis=1).flatten(),
+                                  predictions[:, :self.num_voices].sum(axis=1).flatten())
+                for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                      self._prediction_hvos_array)]
+        }
+        
+        Actual_P_array = []
+        Total_predicted_array = []
+        TP_array = []
+        FP_array = []
+        PPV_array = []
+        FDR_array = []
+        TPR_array = []
+        FPR_array = []
+        FP_over_N = []
+        FN_over_P = []
+        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
+            true_values, predictions = np.array(flatten(true_values[:, :self.num_voices])), np.array(flatten(predictions[:, :self.num_voices]))
+            flat_size = len(true_values)
+            Actual_P = np.count_nonzero(true_values)
+            Actual_N = flat_size - Actual_P
+            TP = ((predictions == 1) & (true_values == 1)).sum()
+            FP = ((predictions == 1) & (true_values == 0)).sum()
+            FN = ((predictions == 0) & (true_values == 1)).sum()
+            # https://en.wikipedia.org/wiki/Precision_and_recall
+            PPV_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
+            FDR_array.append(FP / (TP + FP) if (TP + FP) > 0 else 0)
+            TPR_array.append(TP / Actual_P)
+            FPR_array.append(FP / Actual_N)
+            TP_array.append(TP)
+            FP_array.append(FP)
+            FP_over_N.append(FP / Actual_N)
+            FN_over_P.append(FN / Actual_P)
+            Actual_P_array.append(Actual_P)
+            Total_predicted_array.append((predictions == 1).sum())
+
+        hit_scores_dict.update({
+            "TPR": TPR_array,
+            "FPR": FPR_array,
+            "PPV": PPV_array,
+            "FDR": FDR_array,
+            "Ratio of Silences Predicted as Hits": FP_over_N,
+            "Ratio of Hits Predicted as Silences": FN_over_P,
+            "Actual Hits": Actual_P_array,
+            "True Hits (Matching GMD)": TP_array,
+            "False Hits (Different from GMD)": FP_array,
+            "Total Hits": Total_predicted_array,
+        })
+
+        return hit_scores_dict
+
+    def get_statistics_of_pos_neg_hit_scores(self, hit_weight=1, csv_file=None, trim_decimals=3):
+        # make sure that the csv file ends in .csv
+        if csv_file is not None:
+            if not csv_file.endswith(".csv"):
+                csv_file = csv_file + ".csv"
+
+        # make directories for file path
+        if csv_file is not None:
+            os.makedirs(os.path.dirname(csv_file), exist_ok=True)
+
+        hit_scores_dict = self.get_pos_neg_hit_scores(hit_weight=hit_weight)
+        df2 = get_stats_from_samples_dict(hit_scores_dict, trim_decimals=trim_decimals)
+
+        if csv_file is not None:
+            df2.to_csv(csv_file)
+
+        return df2
+
+    # ==================================================================================================================
+    #  Evaluation of Velocities
+    # ==================================================================================================================
+    def get_velocity_distributions(self):
+
+        velocity_distributions = dict()
+
+        vel_actual = np.array([])
+        vel_all_Hits = np.array([])
+        vel_TP = np.array([])
+        vel_FP = np.array([])
+        vel_actual_mean = np.array([])
+        vel_actual_std = np.array([])
+        vel_all_Hits_mean = np.array([])
+        vel_all_Hits_std = np.array([])
+        vel_TP_mean = np.array([])
+        vel_TP_std = np.array([])
+        vel_FP_mean = np.array([])
+        vel_FP_std = np.array([])
+        
+        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
+            true_vels = true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, self.num_voices: 2*self.num_voices])]
+            true_vels = np.where(true_vels>0.5, 0.5, true_vels)
+            vel_actual=np.append(vel_actual, true_vels)
+            vel_actual_mean=np.append(vel_actual_mean, np.nanmean(true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, :self.num_voices])]))
+            vel_actual_std=np.append(vel_actual_std, np.nanstd(true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, :self.num_voices])]))
+            vels_predicted = np.array(predictions[:, self.num_voices: 2*self.num_voices]).flatten()
+            actual_hits = np.array(true_values[:, :self.num_voices]).flatten()
+            predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
+            all_predicted_hit_indices, = (predicted_hits==1).nonzero()
+            vel_all_Hits = np.append(vel_all_Hits, vels_predicted[all_predicted_hit_indices])
+            vel_all_Hits_mean = np.append(vel_all_Hits_mean, np.nanmean(vels_predicted[all_predicted_hit_indices]))
+            vel_all_Hits_std = np.append(vel_all_Hits_std, np.nanstd(vels_predicted[all_predicted_hit_indices]))
+            true_hit_indices, = np.logical_and(actual_hits==1, predicted_hits==1).nonzero()
+            vel_TP = np.append(vel_TP, vels_predicted[true_hit_indices])
+            vel_TP_mean = np.append(vel_TP_mean, np.nanmean(vels_predicted[true_hit_indices]))
+            vel_TP_std = np.append(vel_TP_std, np.nanstd(vels_predicted[true_hit_indices]))
+            false_hit_indices, = np.logical_and(actual_hits==0, predicted_hits==1).nonzero()
+            vel_FP = np.append(vel_FP, vels_predicted[false_hit_indices])
+            vel_FP_mean = np.append(vel_FP_mean, np.nanmean(vels_predicted[false_hit_indices]))
+            vel_FP_std = np.append(vel_FP_std, np.nanstd(vels_predicted[false_hit_indices]))
+
+        velocity_distributions.update(
+            {
+                "All Hits (mean per Loop)": np.nan_to_num(vel_all_Hits_mean),
+                "True Hits (mean per Loop)": np.nan_to_num(vel_TP_mean),
+                "False Hits (mean per Loop)": np.nan_to_num(vel_FP_mean),
+                "All Hits (std per Loop)": np.nan_to_num(vel_all_Hits_std),
+                "True Hits (std per Loop)": np.nan_to_num(vel_TP_std),
+                "False Hits (std per Loop)": np.nan_to_num(vel_FP_std),
+            }
+        )
+
+        return velocity_distributions
+
+    def get_statistics_of_velocity_distributions(self, csv_file=None, trim_decimals=3):
+        # make sure that the csv file ends in .csv
+        if csv_file is not None:
+            if not csv_file.endswith(".csv"):
+                csv_file = csv_file + ".csv"
+
+        # make directories for file path
+        if csv_file is not None:
+            os.makedirs(os.path.dirname(csv_file), exist_ok=True)
+
+        velocity_distributions = self.get_velocity_distributions()
+        df2 = get_stats_from_samples_dict(velocity_distributions, trim_decimals=trim_decimals)
+
+        if csv_file is not None:
+            df2.to_csv(csv_file)
+
+        return df2
+
+    def get_velocity_MSE(self, ignore_correct_silences=True):
+        non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :, :self.num_voices]) > 0
+        gt_vels = self._gt_hvos_array[:, :, self.num_voices:2 * self.num_voices]
+        pred_vels = self._prediction_hvos_array[:, :, self.num_voices:2 * self.num_voices]
+        n_examples = gt_vels.shape[0]
+        if ignore_correct_silences:
+            gt = gt_vels[non_silence_indices]
+            pred = pred_vels[non_silence_indices]
+        else:
+            gt = gt_vels.reshape((n_examples, -1))
+            pred = pred_vels.reshape((n_examples, -1))
+
+        return ((gt - pred) ** 2).mean(axis=-1).mean()
+
+    # ==================================================================================================================
+    #  Evaluation of Microtiming
+    # ==================================================================================================================
+    def get_offset_distributions(self):
+
+        offset_distributions = dict()
+
+        offset_actual = np.array([])
+        offset_all_Hits = np.array([])
+        offset_TP = np.array([])
+        offset_FP = np.array([])
+        offset_actual_mean = np.array([])
+        offset_actual_std = np.array([])
+        offset_all_Hits_mean = np.array([])
+        offset_all_Hits_std = np.array([])
+        offset_TP_mean = np.array([])
+        offset_TP_std = np.array([])
+        offset_FP_mean = np.array([])
+        offset_FP_std = np.array([])
+
+        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
+            true_offsets = true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, 2 * self.num_voices:])]
+            true_offsets = np.where(true_offsets > 0.5, 0.5, true_offsets)
+            offset_actual = np.append(offset_actual, true_offsets)
+            offset_actual_mean = np.append(offset_actual_mean, np.nanmean(
+                true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, :self.num_voices])]))
+            offset_actual_std = np.append(offset_actual_std, np.nanstd(
+                true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, :self.num_voices])]))
+            offsets_predicted = np.array(predictions[:, 2 * self.num_voices:]).flatten()
+            actual_hits = np.array(true_values[:, :self.num_voices]).flatten()
+            predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
+            all_predicted_hit_indices, = (predicted_hits == 1).nonzero()
+            offset_all_Hits = np.append(offset_all_Hits, offsets_predicted[all_predicted_hit_indices])
+            offset_all_Hits_mean = np.append(offset_all_Hits_mean,
+                                             np.nanmean(offsets_predicted[all_predicted_hit_indices]))
+            offset_all_Hits_std = np.append(offset_all_Hits_std,
+                                            np.nanstd(offsets_predicted[all_predicted_hit_indices]))
+            true_hit_indices, = np.logical_and(actual_hits == 1, predicted_hits == 1).nonzero()
+            offset_TP = np.append(offset_TP, offsets_predicted[true_hit_indices])
+            offset_TP_mean = np.append(offset_TP_mean, np.nanmean(offsets_predicted[true_hit_indices]))
+            offset_TP_std = np.append(offset_TP_std, np.nanstd(offsets_predicted[true_hit_indices]))
+            false_hit_indices, = np.logical_and(actual_hits == 0, predicted_hits == 1).nonzero()
+            offset_FP = np.append(offset_FP, offsets_predicted[false_hit_indices])
+            offset_FP_mean = np.append(offset_FP_mean, np.nanmean(offsets_predicted[false_hit_indices]))
+            offset_FP_std = np.append(offset_FP_std, np.nanstd(offsets_predicted[false_hit_indices]))
+
+        offset_distributions.update(
+            {
+                "All Hits (mean per Loop)": np.nan_to_num(offset_all_Hits_mean),
+                "True Hits (mean per Loop)": np.nan_to_num(offset_TP_mean),
+                "False Hits (mean per Loop)": np.nan_to_num(offset_FP_mean),
+                "All Hits (std per Loop)": np.nan_to_num(offset_all_Hits_std),
+                "True Hits (std per Loop)": np.nan_to_num(offset_TP_std),
+                "False Hits (std per Loop)": np.nan_to_num(offset_FP_std),
+            }
+        )
+
+        return offset_distributions
+
+    def get_statistics_of_offset_distributions(self, csv_file=None, trim_decimals=3):
+        # make sure that the csv file ends in .csv
+        if csv_file is not None:
+            if not csv_file.endswith(".csv"):
+                csv_file = csv_file + ".csv"
+
+        # make directories for file path
+        if csv_file is not None:
+            os.makedirs(os.path.dirname(csv_file), exist_ok=True)
+
+        offset_distributions = self.get_offset_distributions()
+        df2 = get_stats_from_samples_dict(offset_distributions, trim_decimals=trim_decimals)
+
+        if csv_file is not None:
+            df2.to_csv(csv_file)
+
+        return df2
+
+    def get_offset_MSE(self, ignore_correct_silences=True):
+        non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :,
+                                                                             :self.num_voices]) > 0
+        gt_offsets = self._gt_hvos_array[:, :, 2 * self.num_voices:]
+        pred_offsets = self._prediction_hvos_array[:, :, 2 * self.num_voices:]
+        n_examples = gt_offsets.shape[0]
+        if ignore_correct_silences:
+            gt = gt_offsets[non_silence_indices]
+            pred = pred_offsets[non_silence_indices]
+        else:
+            gt = gt_offsets.reshape((n_examples, -1))
+            pred = pred_offsets.reshape((n_examples, -1))
+
+        return ((gt - pred) ** 2).mean(axis=-1).mean()
+
+    # ==================================================================================================================
+    #  Evaluation using Global Features Implemented in HVO_Sequence
+    # ==================================================================================================================
+    def get_statistics_of_global_features(self, calc_gt=True, calc_pred=True, csv_file=None, trim_decimals=3):
+        '''
+        Calculates the mean, median, Q1, Q3 and std of the global features of the ground truth and the prediction.
+        :param calc_gt: If True, the statistics of the ground truth will be calculated.
+        :param calc_pred: If True, the statistics of the prediction will be calculated.
+        :param csv_file: If not None, the statistics will be saved to the given csv file.
+        :param trim_decimals: If not None, The number of decimals to which the statistics will be trimmed.
+        :return:
+        '''
+        # make sure that the csv file ends in .csv
+        if csv_file is not None:
+            if not csv_file.endswith(".csv"):
+                csv_file = csv_file + ".csv"
+
+        # make directories for file path
+        if csv_file is not None:
+            os.makedirs(os.path.dirname(csv_file), exist_ok=True)
+
+        gt_df = get_stats_from_samples_dict(
+            self.gt_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True), trim_decimals=trim_decimals
+        ) if (calc_gt and self.gt_SubSet_Evaluator is not None) else None
+
+        pd_df = get_stats_from_samples_dict(
+            self.prediction_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True), trim_decimals=trim_decimals
+        ) if (calc_pred and self.prediction_SubSet_Evaluator is not None) else None
+
+        keys = []
+        if gt_df is not None:
+            keys.extend(gt_df.columns)
+        if pd_df is not None:
+            keys.extend(pd_df.columns)
+
+        datas = []
+        labels = []
+
+        for key in keys:
+            if gt_df is not None:
+                data = gt_df.iloc[:][key].values if key in gt_df.columns else [None] * 7
+            else:
+                data = [None] * 7
+
+            labels.append(key + "__Ground_Truth")
+            datas.append(data)
+
+            if pd_df is not None:
+                data = pd_df.iloc[:][key].values if key in pd_df.columns else [None] * 7
+            else:
+                data = [None] * 7
+
+            datas.append(data)
+            labels.append(key + "__Prediction")
+
+        df2 = pd.DataFrame(np.array(datas).transpose(),
+                           ["mean", "std", "min", "max", "median", "q1", "q3"],
+                           labels
+                           )
+
+        df2 = df2.loc[:, ~df2.columns.duplicated()]  # cols are duplicated
+
+        if csv_file is not None:
+            df2.to_csv(csv_file)
+
+        return df2
+
+    # ==================================================================================================================
+    #  Evaluation by comparing the rhythmic distances between the ground truth and the prediction
+    #  (using multiple distance measures implemented in HVO_Sequence)
+    # ==================================================================================================================
+    def get_statistics_of_rhythmic_distances_of_pred_to_gt(self, tag_by_identifier=False, csv_dir=None, trim_decimals=None):
+
         gt_set = {self._gt_tags[ix]: subset for ix, subset in enumerate(self._gt_subsets)}
         predicted_set = {self._prediction_tags[ix]: subset for ix, subset in enumerate(self._prediction_subsets)}
 
@@ -295,16 +695,45 @@ class Evaluator:
                        "q1": np.percentile(distances_dict[key], 25),
                        "q3": np.percentile(distances_dict[key], 75)}
 
-            distances_dict[key] = {self._identifier: summary}
+            if tag_by_identifier:
+                distances_dict[key] = {self._identifier: summary}
+            else:
+                distances_dict[key] = summary
+
+        # write dict to csv
+        if csv_dir is not None:
+            csv_dir = os.path.join(csv_dir, self._identifier)
+            os.makedirs(csv_dir, exist_ok=True)
+
+            if tag_by_identifier:
+                print("Jerre")
+                for key in distances_dict.keys():
+                    df = pd.DataFrame(distances_dict[key])
+                    # round dataframe values to have 3 decimal places
+                    if trim_decimals is not None:
+                        df = df.round(trim_decimals)
+
+                    df.to_csv(os.path.join(csv_dir, key + ".csv"))
+            else:
+                df = pd.DataFrame(distances_dict)
+                if trim_decimals is not None:
+                    df = df.round(trim_decimals)
+                df.to_csv(os.path.join(csv_dir, self._identifier + ".csv"))
 
         return distances_dict
 
+    # ==================================================================================================================
+    #  Get ground truth samples in HVO_Sequence format or as a numpy array
+    # ==================================================================================================================
     def get_ground_truth_hvo_sequences(self):
         return copy.deepcopy(self._gt_hvo_sequences)
 
     def get_ground_truth_hvos_array(self):
         return copy.deepcopy(self._gt_hvos_array)
 
+    # ==================================================================================================================
+    #  Add predictions to the evaluator
+    # ==================================================================================================================
     def add_predictions(self, prediction_hvos_array):
         self._prediction_hvos_array = prediction_hvos_array
         self._prediction_tags, self._prediction_subsets = \
@@ -324,6 +753,9 @@ class Evaluator:
             need_global_features=self.need_global_features
         )
 
+    # ==================================================================================================================
+    #  Save Evaluator
+    # ==================================================================================================================
     def dump(self, path=None, fname="evaluator"):  # todo implement in comparator
         if path is None:
             path = os.path.join("misc")
@@ -337,6 +769,9 @@ class Evaluator:
 
         print(f"Dumped Evaluator to {os.path.join(path, f'{self._identifier}_{fname}.Eval.bz2')}")
 
+    # ==================================================================================================================
+    #  Utils
+    # ==================================================================================================================
     def get_sample_indices(self, n_samples_per_subset="all"):
         assert n_samples_per_subset == "all" or isinstance(n_samples_per_subset, int)
 
@@ -350,7 +785,6 @@ class Evaluator:
                 sample_locations[tags[subset_ix]].append(i)
 
         return sample_locations
-
 
 PATH_DICT_TEMPLATE = {
     "root_dir": "",  # ROOT_DIR to save data
@@ -604,39 +1038,39 @@ class HVOSeq_SubSet_Evaluator(object):
                 )
         return wandb_features_data
 
-    def get_logging_dict(self, velocity_heatmap_html=True, global_features_html=True,
-                         piano_roll_html=True, audio_files=True, sf_paths=None,
+    def get_logging_dict(self, need_velocity_heatmap=True, need_global_features=True,
+                         need_piano_rolls=True, need_audio_files=True, sf_paths=None,
                          for_audios_use_specific_samples_at=None, for_piano_rolls_use_specific_samples_at=None):
 
-        if audio_files is True:
+        if need_audio_files is True:
             assert sf_paths is not None, "Provide sound_file path(s) for synthesizing samples"
 
         logging_dict = {}
-        if velocity_heatmap_html is True:
+        if need_velocity_heatmap is True:
             logging_dict.update({"velocity_heatmaps": self.get_vel_heatmap_bokeh_figures()})
-        if global_features_html is True:
+        if need_global_features is True:
             logging_dict.update({"global_feature_pdfs": self.get_global_features_bokeh_figure()})
-        if audio_files is True:
+        if need_audio_files is True:
             captions_audios_tuples = self.get_audios(sf_paths, for_audios_use_specific_samples_at)
             captions_audios = [(c_a[0], c_a[1]) for c_a in captions_audios_tuples]
             logging_dict.update({"captions_audios": captions_audios})
-        if piano_roll_html is True:
+        if need_piano_rolls is True:
             logging_dict.update({"piano_rolls": self.get_piano_rolls(for_piano_rolls_use_specific_samples_at)})
 
         return logging_dict
 
-    def get_wandb_logging_media(self, velocity_heatmap_html=True, global_features_html=True,
-                                piano_roll_html=True, audio_files=True, sf_paths=None,
+    def get_wandb_logging_media(self, need_velocity_heatmap=True, need_global_features=True,
+                                need_piano_rolls=True, need_audio_files=True, sf_paths=None,
                                 for_audios_use_specific_samples_at=None, for_piano_rolls_use_specific_samples_at=None):
 
-        logging_dict = self.get_logging_dict(velocity_heatmap_html, global_features_html,
-                                             piano_roll_html, audio_files, sf_paths,
+        logging_dict = self.get_logging_dict(need_velocity_heatmap, need_global_features,
+                                             need_piano_rolls, need_audio_files, sf_paths,
                                              for_audios_use_specific_samples_at,
                                              for_piano_rolls_use_specific_samples_at)
 
         wandb_media_dict = {}
         for key in logging_dict.keys():
-            if velocity_heatmap_html is True and key in "velocity_heatmaps":
+            if need_velocity_heatmap is True and key in "velocity_heatmaps":
                 wandb_media_dict.update(
                     {
                         "velocity_heatmaps":
@@ -648,7 +1082,7 @@ class HVOSeq_SubSet_Evaluator(object):
                     }
                 )
 
-            if global_features_html is True and key in "global_feature_pdfs":
+            if need_global_features is True and key in "global_feature_pdfs":
                 wandb_media_dict.update(
                     {
                         "global_feature_pdfs":
@@ -661,7 +1095,7 @@ class HVOSeq_SubSet_Evaluator(object):
                     }
                 )
 
-            if audio_files is True and key in "captions_audios":
+            if need_audio_files is True and key in "captions_audios":
                 captions_audios_tuples = logging_dict["captions_audios"]
                 wandb_media_dict.update(
                     {
@@ -676,10 +1110,10 @@ class HVOSeq_SubSet_Evaluator(object):
                     }
                 )
 
-            if piano_roll_html is True and key in "piano_rolls":
+            if need_piano_rolls is True and key in "piano_rolls":
                 wandb_media_dict.update(
                     {
-                        "piano_roll_html":
+                        "need_piano_rolls":
                             {
                                 self.set_identifier:
                                     wandb.Html(file_html(
