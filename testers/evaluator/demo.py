@@ -101,6 +101,7 @@ if __name__ == "__main__":
     velocity_MSE_non_silent_locs = evaluator_test_set.get_velocity_MSE(ignore_correct_silences=True)
 
     # 2.5 - Get Statistics of utiming distributions
+    offset_distributions = evaluator_test_set.get_offset_distributions()
     statistics_of_offsetocitiy_distributions = evaluator_test_set.get_statistics_of_offset_distributions(
         trim_decimals=1, csv_file="misc/offset_stats.csv")
     offset_MSE_entire_score = evaluator_test_set.get_offset_MSE(ignore_correct_silences=False)
@@ -108,7 +109,6 @@ if __name__ == "__main__":
 
     # 2.5 -
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
-
     evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
     predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()  # This is here just to make sure the code doesnt rely on the model here
     evaluator_test_set.add_predictions(predicted_hvos_array)

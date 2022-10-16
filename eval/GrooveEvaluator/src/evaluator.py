@@ -27,6 +27,7 @@ def flatten(t):
         else:
             return t
 
+
 def get_stats_from_samples_dict(feature_value_dict, trim_decimals=None):
     stats = []  # list of lists stats[i] corresponds to [mean, std, min, max, median, q1, q3]
     labels = []
@@ -59,6 +60,7 @@ def get_stats_from_samples_dict(feature_value_dict, trim_decimals=None):
         df2 = df2.round(trim_decimals)
 
     return df2
+
 
 class Evaluator:
     def __init__(
@@ -321,40 +323,43 @@ class Evaluator:
     #  Evaluation of Hits
     # ==================================================================================================================
     def get_pos_neg_hit_scores(self, hit_weight=1):
-        hit_scores_dict =  {
-        
-            'Accuracy': [
-                accuracy_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                               sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)],
-            'Precision': [
-                precision_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                                sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)],
-            'Recall': [
-                recall_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+        if self._prediction_hvos_array is not None:
+            hit_scores_dict =  {
+
+                'Accuracy': [
+                    accuracy_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                                   sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)],
+                'Precision': [
+                    precision_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                                    sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)],
+                'Recall': [
+                    recall_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
+                                 sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)],
+                'F1-Score': [
+                    f1_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
                              sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)],
-            'F1-Score': [
-                f1_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                         sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)],
-            'MCC (Hit/Silence Classification)': [
-                matthews_corrcoef(true_values[:, :self.num_voices].flatten(),
-                                  predictions[:, :self.num_voices].flatten())
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)],
-            'MCC (Correct Number of Instruments at each step)': [
-                matthews_corrcoef(true_values[:, :self.num_voices].sum(axis=1).flatten(),
-                                  predictions[:, :self.num_voices].sum(axis=1).flatten())
-                for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                      self._prediction_hvos_array)]
-        }
-        
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)],
+                'MCC (Hit/Silence Classification)': [
+                    matthews_corrcoef(true_values[:, :self.num_voices].flatten(),
+                                      predictions[:, :self.num_voices].flatten())
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)],
+                'MCC (Correct Number of Instruments at each step)': [
+                    matthews_corrcoef(true_values[:, :self.num_voices].sum(axis=1).flatten(),
+                                      predictions[:, :self.num_voices].sum(axis=1).flatten())
+                    for (true_values, predictions) in zip(self._gt_hvos_array,
+                                                          self._prediction_hvos_array)]
+            }
+        else:
+            hit_scores_dict = dict()
+
         Actual_P_array = []
         Total_predicted_array = []
         TP_array = []
@@ -365,38 +370,49 @@ class Evaluator:
         FPR_array = []
         FP_over_N = []
         FN_over_P = []
-        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
-            true_values, predictions = np.array(flatten(true_values[:, :self.num_voices])), np.array(flatten(predictions[:, :self.num_voices]))
+
+        n_samples = len(self._gt_hvos_array)
+        prediction_hvos_array = self._prediction_hvos_array if self._prediction_hvos_array is not None else [None] * n_samples
+
+        for (true_values, predictions) in zip(self._gt_hvos_array, prediction_hvos_array):
+            true_values = np.array(flatten(true_values[:, :self.num_voices]))
+            predictions = np.array(flatten(predictions[:, :self.num_voices])) if predictions is not None else None
             flat_size = len(true_values)
             Actual_P = np.count_nonzero(true_values)
             Actual_N = flat_size - Actual_P
-            TP = ((predictions == 1) & (true_values == 1)).sum()
-            FP = ((predictions == 1) & (true_values == 0)).sum()
-            FN = ((predictions == 0) & (true_values == 1)).sum()
-            # https://en.wikipedia.org/wiki/Precision_and_recall
-            PPV_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
-            FDR_array.append(FP / (TP + FP) if (TP + FP) > 0 else 0)
-            TPR_array.append(TP / Actual_P)
-            FPR_array.append(FP / Actual_N)
-            TP_array.append(TP)
-            FP_array.append(FP)
-            FP_over_N.append(FP / Actual_N)
-            FN_over_P.append(FN / Actual_P)
             Actual_P_array.append(Actual_P)
-            Total_predicted_array.append((predictions == 1).sum())
+            if predictions is not None:
+                TP = ((predictions == 1) & (true_values == 1)).sum()
+                FP = ((predictions == 1) & (true_values == 0)).sum()
+                FN = ((predictions == 0) & (true_values == 1)).sum()
+                # https://en.wikipedia.org/wiki/Precision_and_recall
+                PPV_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
+                FDR_array.append(FP / (TP + FP) if (TP + FP) > 0 else 0)
+                TPR_array.append(TP / Actual_P)
+                FPR_array.append(FP / Actual_N)
+                TP_array.append(TP)
+                FP_array.append(FP)
+                FP_over_N.append(FP / Actual_N)
+                FN_over_P.append(FN / Actual_P)
+                Total_predicted_array.append((predictions == 1).sum())
 
-        hit_scores_dict.update({
-            "TPR": TPR_array,
-            "FPR": FPR_array,
-            "PPV": PPV_array,
-            "FDR": FDR_array,
-            "Ratio of Silences Predicted as Hits": FP_over_N,
-            "Ratio of Hits Predicted as Silences": FN_over_P,
-            "Actual Hits": Actual_P_array,
-            "True Hits (Matching GMD)": TP_array,
-            "False Hits (Different from GMD)": FP_array,
-            "Total Hits": Total_predicted_array,
-        })
+        if predictions is not None:
+            hit_scores_dict.update({
+                "TPR": TPR_array,
+                "FPR": FPR_array,
+                "PPV": PPV_array,
+                "FDR": FDR_array,
+                "Ratio of Silences Predicted as Hits": FP_over_N,
+                "Ratio of Hits Predicted as Silences": FN_over_P,
+                "Ground Truth Hits": Actual_P_array,
+                "True Hits (Matching GMD)": TP_array,
+                "False Hits (Different from GMD)": FP_array,
+                "Predicted Hits": Total_predicted_array,
+            })
+        else:
+            hit_scores_dict.update({
+                "Ground Truth Hits": Actual_P_array,
+            })
 
         return hit_scores_dict
 
@@ -423,9 +439,7 @@ class Evaluator:
     # ==================================================================================================================
     def get_velocity_distributions(self):
 
-        velocity_distributions = dict()
 
-        vel_actual = np.array([])
         vel_all_Hits = np.array([])
         vel_TP = np.array([])
         vel_FP = np.array([])
@@ -437,39 +451,49 @@ class Evaluator:
         vel_TP_std = np.array([])
         vel_FP_mean = np.array([])
         vel_FP_std = np.array([])
-        
-        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
-            true_vels = true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, self.num_voices: 2*self.num_voices])]
-            true_vels = np.where(true_vels>0.5, 0.5, true_vels)
-            vel_actual=np.append(vel_actual, true_vels)
+
+        n_samples = len(self._gt_hvos_array)
+        prediction_hvos_array = self._prediction_hvos_array if self._prediction_hvos_array is not None \
+            else [None] * n_samples
+
+        for (true_values, predictions) in zip(self._gt_hvos_array, prediction_hvos_array):
             vel_actual_mean=np.append(vel_actual_mean, np.nanmean(true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, :self.num_voices])]))
             vel_actual_std=np.append(vel_actual_std, np.nanstd(true_values[:, self.num_voices: 2*self.num_voices][np.nonzero(true_values[:, :self.num_voices])]))
-            vels_predicted = np.array(predictions[:, self.num_voices: 2*self.num_voices]).flatten()
             actual_hits = np.array(true_values[:, :self.num_voices]).flatten()
-            predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
-            all_predicted_hit_indices, = (predicted_hits==1).nonzero()
-            vel_all_Hits = np.append(vel_all_Hits, vels_predicted[all_predicted_hit_indices])
-            vel_all_Hits_mean = np.append(vel_all_Hits_mean, np.nanmean(vels_predicted[all_predicted_hit_indices]))
-            vel_all_Hits_std = np.append(vel_all_Hits_std, np.nanstd(vels_predicted[all_predicted_hit_indices]))
-            true_hit_indices, = np.logical_and(actual_hits==1, predicted_hits==1).nonzero()
-            vel_TP = np.append(vel_TP, vels_predicted[true_hit_indices])
-            vel_TP_mean = np.append(vel_TP_mean, np.nanmean(vels_predicted[true_hit_indices]))
-            vel_TP_std = np.append(vel_TP_std, np.nanstd(vels_predicted[true_hit_indices]))
-            false_hit_indices, = np.logical_and(actual_hits==0, predicted_hits==1).nonzero()
-            vel_FP = np.append(vel_FP, vels_predicted[false_hit_indices])
-            vel_FP_mean = np.append(vel_FP_mean, np.nanmean(vels_predicted[false_hit_indices]))
-            vel_FP_std = np.append(vel_FP_std, np.nanstd(vels_predicted[false_hit_indices]))
 
-        velocity_distributions.update(
-            {
-                "All Hits (mean per Loop)": np.nan_to_num(vel_all_Hits_mean),
-                "True Hits (mean per Loop)": np.nan_to_num(vel_TP_mean),
-                "False Hits (mean per Loop)": np.nan_to_num(vel_FP_mean),
-                "All Hits (std per Loop)": np.nan_to_num(vel_all_Hits_std),
-                "True Hits (std per Loop)": np.nan_to_num(vel_TP_std),
-                "False Hits (std per Loop)": np.nan_to_num(vel_FP_std),
-            }
-        )
+
+            if predictions is not None:
+                vels_predicted = np.array(predictions[:, self.num_voices: 2 * self.num_voices]).flatten()
+                predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
+                all_predicted_hit_indices, = (predicted_hits==1).nonzero()
+                vel_all_Hits = np.append(vel_all_Hits, vels_predicted[all_predicted_hit_indices])
+                vel_all_Hits_mean = np.append(vel_all_Hits_mean, np.nanmean(vels_predicted[all_predicted_hit_indices]))
+                vel_all_Hits_std = np.append(vel_all_Hits_std, np.nanstd(vels_predicted[all_predicted_hit_indices]))
+                true_hit_indices, = np.logical_and(actual_hits==1, predicted_hits==1).nonzero()
+                vel_TP = np.append(vel_TP, vels_predicted[true_hit_indices])
+                vel_TP_mean = np.append(vel_TP_mean, np.nanmean(vels_predicted[true_hit_indices]))
+                vel_TP_std = np.append(vel_TP_std, np.nanstd(vels_predicted[true_hit_indices]))
+                false_hit_indices, = np.logical_and(actual_hits==0, predicted_hits==1).nonzero()
+                vel_FP = np.append(vel_FP, vels_predicted[false_hit_indices])
+                vel_FP_mean = np.append(vel_FP_mean, np.nanmean(vels_predicted[false_hit_indices]))
+                vel_FP_std = np.append(vel_FP_std, np.nanstd(vels_predicted[false_hit_indices]))
+
+        velocity_distributions = {
+            "Ground Truth at Hits (mean per Loop)": np.nan_to_num(vel_actual_mean),
+            "Ground Truth at Hits (std per Loop)": np.nan_to_num(vel_actual_std)
+        }
+
+        if self._prediction_hvos_array is not None:
+            velocity_distributions.update(
+                {
+                    "Predictions at All Hits (mean per Loop)": np.nan_to_num(vel_all_Hits_mean),
+                    "Predictions at True Hits (mean per Loop)": np.nan_to_num(vel_TP_mean),
+                    "Predictions at False Hits (mean per Loop)": np.nan_to_num(vel_FP_mean),
+                    "Predictions at All Hits (std per Loop)": np.nan_to_num(vel_all_Hits_std),
+                    "Predictions at True Hits (std per Loop)": np.nan_to_num(vel_TP_std),
+                    "Predictions at False Hits (std per Loop)": np.nan_to_num(vel_FP_std),
+                }
+            )
 
         return velocity_distributions
 
@@ -492,6 +516,7 @@ class Evaluator:
         return df2
 
     def get_velocity_MSE(self, ignore_correct_silences=True):
+        assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
         non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :, :self.num_voices]) > 0
         gt_vels = self._gt_hvos_array[:, :, self.num_voices:2 * self.num_voices]
         pred_vels = self._prediction_hvos_array[:, :, self.num_voices:2 * self.num_voices]
@@ -510,9 +535,6 @@ class Evaluator:
     # ==================================================================================================================
     def get_offset_distributions(self):
 
-        offset_distributions = dict()
-
-        offset_actual = np.array([])
         offset_all_Hits = np.array([])
         offset_TP = np.array([])
         offset_FP = np.array([])
@@ -525,42 +547,51 @@ class Evaluator:
         offset_FP_mean = np.array([])
         offset_FP_std = np.array([])
 
-        for (true_values, predictions) in zip(self._gt_hvos_array, self._prediction_hvos_array):
-            true_offsets = true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, 2 * self.num_voices:])]
-            true_offsets = np.where(true_offsets > 0.5, 0.5, true_offsets)
-            offset_actual = np.append(offset_actual, true_offsets)
+        n_samples = len(self._gt_hvos_array)
+        prediction_hvos_array = self._prediction_hvos_array if self._prediction_hvos_array is not None \
+            else [None] * n_samples
+
+        for (true_values, predictions) in zip(self._gt_hvos_array, prediction_hvos_array):
             offset_actual_mean = np.append(offset_actual_mean, np.nanmean(
                 true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, :self.num_voices])]))
             offset_actual_std = np.append(offset_actual_std, np.nanstd(
                 true_values[:, 2 * self.num_voices:][np.nonzero(true_values[:, :self.num_voices])]))
-            offsets_predicted = np.array(predictions[:, 2 * self.num_voices:]).flatten()
             actual_hits = np.array(true_values[:, :self.num_voices]).flatten()
-            predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
-            all_predicted_hit_indices, = (predicted_hits == 1).nonzero()
-            offset_all_Hits = np.append(offset_all_Hits, offsets_predicted[all_predicted_hit_indices])
-            offset_all_Hits_mean = np.append(offset_all_Hits_mean,
-                                             np.nanmean(offsets_predicted[all_predicted_hit_indices]))
-            offset_all_Hits_std = np.append(offset_all_Hits_std,
-                                            np.nanstd(offsets_predicted[all_predicted_hit_indices]))
-            true_hit_indices, = np.logical_and(actual_hits == 1, predicted_hits == 1).nonzero()
-            offset_TP = np.append(offset_TP, offsets_predicted[true_hit_indices])
-            offset_TP_mean = np.append(offset_TP_mean, np.nanmean(offsets_predicted[true_hit_indices]))
-            offset_TP_std = np.append(offset_TP_std, np.nanstd(offsets_predicted[true_hit_indices]))
-            false_hit_indices, = np.logical_and(actual_hits == 0, predicted_hits == 1).nonzero()
-            offset_FP = np.append(offset_FP, offsets_predicted[false_hit_indices])
-            offset_FP_mean = np.append(offset_FP_mean, np.nanmean(offsets_predicted[false_hit_indices]))
-            offset_FP_std = np.append(offset_FP_std, np.nanstd(offsets_predicted[false_hit_indices]))
 
-        offset_distributions.update(
-            {
-                "All Hits (mean per Loop)": np.nan_to_num(offset_all_Hits_mean),
-                "True Hits (mean per Loop)": np.nan_to_num(offset_TP_mean),
-                "False Hits (mean per Loop)": np.nan_to_num(offset_FP_mean),
-                "All Hits (std per Loop)": np.nan_to_num(offset_all_Hits_std),
-                "True Hits (std per Loop)": np.nan_to_num(offset_TP_std),
-                "False Hits (std per Loop)": np.nan_to_num(offset_FP_std),
-            }
-        )
+            if predictions is not None:
+                offsets_predicted = np.array(predictions[:, 2 * self.num_voices:]).flatten()
+                predicted_hits = np.array(predictions[:, :self.num_voices]).flatten()
+                all_predicted_hit_indices, = (predicted_hits == 1).nonzero()
+                offset_all_Hits = np.append(offset_all_Hits, offsets_predicted[all_predicted_hit_indices])
+                offset_all_Hits_mean = np.append(offset_all_Hits_mean,
+                                                 np.nanmean(offsets_predicted[all_predicted_hit_indices]))
+                offset_all_Hits_std = np.append(offset_all_Hits_std,
+                                                np.nanstd(offsets_predicted[all_predicted_hit_indices]))
+                true_hit_indices, = np.logical_and(actual_hits == 1, predicted_hits == 1).nonzero()
+                offset_TP = np.append(offset_TP, offsets_predicted[true_hit_indices])
+                offset_TP_mean = np.append(offset_TP_mean, np.nanmean(offsets_predicted[true_hit_indices]))
+                offset_TP_std = np.append(offset_TP_std, np.nanstd(offsets_predicted[true_hit_indices]))
+                false_hit_indices, = np.logical_and(actual_hits == 0, predicted_hits == 1).nonzero()
+                offset_FP = np.append(offset_FP, offsets_predicted[false_hit_indices])
+                offset_FP_mean = np.append(offset_FP_mean, np.nanmean(offsets_predicted[false_hit_indices]))
+                offset_FP_std = np.append(offset_FP_std, np.nanstd(offsets_predicted[false_hit_indices]))
+
+        offset_distributions = {
+            "Ground Truth at Hits (mean per Loop)": np.nan_to_num(offset_actual_mean),
+            "Ground Truth at Hits (std per Loop)": np.nan_to_num(offset_actual_std)
+        }
+
+        if self._prediction_hvos_array is not None:
+            offset_distributions.update(
+                {
+                    "Predictions at All Hits (mean per Loop)": np.nan_to_num(offset_all_Hits_mean),
+                    "Predictions at True Hits (mean per Loop)": np.nan_to_num(offset_TP_mean),
+                    "Predictions at False Hits (mean per Loop)": np.nan_to_num(offset_FP_mean),
+                    "Predictions at All Hits (std per Loop)": np.nan_to_num(offset_all_Hits_std),
+                    "Predictions at True Hits (std per Loop)": np.nan_to_num(offset_TP_std),
+                    "Predictions at False Hits (std per Loop)": np.nan_to_num(offset_FP_std),
+                }
+            )
 
         return offset_distributions
 
@@ -583,6 +614,7 @@ class Evaluator:
         return df2
 
     def get_offset_MSE(self, ignore_correct_silences=True):
+        assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
         non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :,
                                                                              :self.num_voices]) > 0
         gt_offsets = self._gt_hvos_array[:, :, 2 * self.num_voices:]
