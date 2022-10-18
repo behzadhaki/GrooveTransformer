@@ -4,7 +4,7 @@
 
 # Table of Contents
 1. [Introduction](#1)
-2. [GrooveEvaluator](#2)
+2. [GrooveEvaluator Basics](#2)
    1. [Prepapre the data used for Evaluation](#2i)
    2. [Initialization](#2_ii)
    3. [Saving and Loading](#2_iii)
@@ -12,10 +12,10 @@
       1. [Get Ground Truth Samples](#2_iv_a)
       2. [Pass Samples to Model](#2_iv_b)
       3. [Add Predictions to Evaluator](#2_iv_c)
-      4. [Get Evaluation Results](#2_iv_d)
-         1. [Results for general inspection](#2_iv_d_i)
-         2. [Get Evaluation Results for `WandB`](#2_iv_d_ii)
-   5. [Ready-to-use Evaluator Templates](#2_v)       # TODO - not implemented yet
+   5. [Accessing Evaluation Results](#2_iv_d)
+      1. [Results for general inspection](#2_iv_d_i)
+      2. [Get Evaluation Results for `WandB`](#2_iv_d_ii)
+   6. [Ready-to-use Evaluator Templates](#2_v)       # TODO - not implemented yet
    
 ## 1. Introduction <a name="1"></a>
 
@@ -130,7 +130,14 @@ evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
 ```
 
 
-### 2.4. Evaluating Predictions <a name="2_iv"></a>
+### 2.4. Preparing Predictions <a name="2_iv"></a>
+
+Some of the available evaluation methods can be run on the ground truth data. However, most of the methods require 
+predictions. As a result, prior to running the evaluation, you need to : 
+    (1) prepare the inputs to the model using the [ground truth data](#2_iv_a) available in the evaluator, 
+    (2) [pass the inputs to a model](#2_iv_b) and format the results as a **[Batch Size, Time Steps, Num Voices * 3]** numpy array, 
+    (3) [pass the formatted results to the evaluator](#2_iv_c) 
+
 
 Here is a visual guide to using the evaluator for evaluating predictions
 <img src="img.png" width="600">
@@ -144,8 +151,10 @@ Get the ground truth samples as a numpy array displaying piano rolls in HVO form
 evaluator_test_set.get_ground_truth_hvos_array()
 ```
 
-> **Warning** In groove transformer models, we don't want to feed this tensor to the model. Instead, we want to feed the tapified versions (monotonic groove).
-> To do so, we can get the ground truth HVO_Sequence samples and use the internal `flatten_voices` method to get the groove.
+> **Warning** In groove transformer models, we don't want to feed this tensor to the model. 
+> Instead, we want to feed the tapified versions (monotonic groove).
+> To do so, we can get the ground truth HVO_Sequence samples and use the internal `flatten_voices` 
+> method to get the groove.
 
 ```python
 import numpy as np
@@ -174,7 +183,8 @@ Get the results using the `get_logging_dict` method.
 _gt_logging_data, _predicted_logging_data = evaluator_test_set.get_logging_dict()
 ```
 
-> **Note** Many times during training, you don't need to re-log the ground truth data. In such cases, you can only get the logging dict for the predicted data.
+> **Note** Many times during training, you don't need to re-log the ground truth data. 
+> In such cases, you can only get the logging dict for the predicted data.
 > ```python
 >     _predicted_logging_data = evaluator_test_set.get_logging_dict(need_groundTruth=False)
 >```
@@ -191,7 +201,8 @@ The resulting dictionaries (`_gt_logging_data`, `_predicted_logging_data`) have 
 }
 ```
 
-> **Note** The above keys are only available if the `need_heatmap`, `need_global_features`, `need_audio`, `need_piano_roll` parameters are set to True during initialization.
+> **Note** The above keys are only available if the `need_heatmap`, `need_global_features`, `need_audio`, 
+> `need_piano_roll` parameters are set to True during initialization.
 
 The `velocity_heatmaps`, `global_feature_pdfs`, `piano_rolls` are all tabulated [bokeh](https://docs.bokeh.org/en/latest/#) plots 
 and the `captions_audios` are tuples where the first element is the caption and the second element is the audio array.

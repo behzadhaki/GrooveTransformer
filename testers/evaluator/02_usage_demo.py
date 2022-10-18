@@ -112,7 +112,7 @@ if __name__ == "__main__":
     evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
     predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()  # This is here just to make sure the code doesnt rely on the model here
     evaluator_test_set.add_predictions(predicted_hvos_array)
-    offsetocitiy_distributions = evaluator_test_set.get_offset_distributions()
+    offset_distributions = evaluator_test_set.get_offset_distributions()
 
     # -----------------  Getting WandB data ----------------- #
     results = evaluator_test_set.get_wandb_logging_media(need_groundTruth=True)    # include ground truth data
