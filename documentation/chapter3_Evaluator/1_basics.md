@@ -15,7 +15,7 @@
 
 ## 2. GrooveEvaluator Basics <a name="2"></a>
 
-Source code available [here](../../testers/evaluator/01_Basics_demo.py)
+### _All codes provided below are also available [here](../../testers/evaluator/01_Basics_demo.py)_
 
 
 ---
