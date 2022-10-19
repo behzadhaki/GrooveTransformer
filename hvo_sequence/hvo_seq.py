@@ -2508,66 +2508,90 @@ class HVO_Sequence(object):
 
     def calculate_all_distances_with(self, hvo_seq_b):
         distances_dictionary = {
-            "l1_distance_hvo": self.calculate_l1_distance_with(hvo_seq_b),
-            "l1_distance_h": self.calculate_l1_distance_with(hvo_seq_b, "h"),
-            "l1_distance_v": self.calculate_l1_distance_with(hvo_seq_b, "v"),
-            "l1_distance_o": self.calculate_l1_distance_with(hvo_seq_b, "o"),
-            "l2_distance_hvo": self.calculate_l2_distance_with(hvo_seq_b),
-            "l2_distance_h": self.calculate_l2_distance_with(hvo_seq_b, "h"),
-            "l2_distance_v": self.calculate_l2_distance_with(hvo_seq_b, "v"),
-            "l2_distance_o": self.calculate_l2_distance_with(hvo_seq_b, "o"),
-            "cosine_distance": self.calculate_cosine_distance_with(hvo_seq_b),
-            "cosine_similarity": self.calculate_cosine_similarity_with(hvo_seq_b),
-            "hamming_distance_all_voices_not_weighted": self.calculate_hamming_distance_with(
+            "l1_distance-hvo": self.calculate_l1_distance_with(hvo_seq_b),
+            "l1_distance-h": self.calculate_l1_distance_with(hvo_seq_b, "h"),
+            "l1_distance-v": self.calculate_l1_distance_with(hvo_seq_b, "v"),
+            "l1_distance-o": self.calculate_l1_distance_with(hvo_seq_b, "o"),
+            "l2_distance-hvo": self.calculate_l2_distance_with(hvo_seq_b),
+            "l2_distance-h": self.calculate_l2_distance_with(hvo_seq_b, "h"),
+            "l2_distance-v": self.calculate_l2_distance_with(hvo_seq_b, "v"),
+            "l2_distance-o": self.calculate_l2_distance_with(hvo_seq_b, "o"),
+            "cosine-distance": self.calculate_cosine_distance_with(hvo_seq_b),
+            "cosine-similarity": self.calculate_cosine_similarity_with(hvo_seq_b),
+            "hamming_distance-all_voices_not_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=None, beat_weighting=False),
-            "hamming_distance_all_voices_weighted": self.calculate_hamming_distance_with(
+            "hamming_distance-all_voices_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=None, beat_weighting=True),
-            "hamming_distance_low_mid_hi_not_weighted": self.calculate_hamming_distance_with(
+            "hamming_distance-low_mid_hi_not_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=False),
-            "hamming_distance_low_mid_hi_weighted": self.calculate_hamming_distance_with(
+            "hamming_distance-low_mid_hi_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=True),
-            "hamming_distance_5partKit_not_weighted": self.calculate_hamming_distance_with(
+            "hamming_distance-5partKit_not_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=False),
-            "hamming_distance_5partKit_weighted": self.calculate_hamming_distance_with(
+            "hamming_distance-5partKit_weighted": self.calculate_hamming_distance_with(
                 hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=True),
-            "fuzzy_hamming_distance_not_weighted": self.calculate_fuzzy_hamming_distance_with(
+            "fuzzy_hamming_distance-not_weighted": self.calculate_fuzzy_hamming_distance_with(
                 hvo_seq_b, beat_weighting=False),
-            "fuzzy_hamming_distance_weighted": self.calculate_fuzzy_hamming_distance_with(
+            "fuzzy_hamming_distance-weighted": self.calculate_fuzzy_hamming_distance_with(
                 hvo_seq_b, beat_weighting=True),
-            "structural_similarity_distance": self.calculate_structural_similarity_distance_with(hvo_seq_b)
+            "structural_similarity-distance": self.calculate_structural_similarity_distance_with(hvo_seq_b)
         }
         return distances_dictionary
 
-    def calculate_l1_distance_with(self, hvo_seq_b, hvo_str="hvo"):
+    def calculate_l1_distance_with(self, hvo_seq_b, hvo_str="hvo", ignore_matching_silences=True):
         """
         :param hvo_seq_b:   Sequence to find l1 norm of euclidean distance with
         :param hvo_str:     String formed with the characters 'h', 'v' and 'o' in any order. It's not necessary
                             to use all of the characters and they can be repeated. E.g. 'ov' or 'hvoh'
+        :param ignore_matching_silences:    If True, silences that are in both sequences are ignored when calculating the distance
         :return:            l1 norm of euclidean distance with hvo_seq_b
         """
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-        a = self.get(hvo_str).flatten()
-        b = hvo_seq_b.get(hvo_str).flatten()
+        idx = None
+        if ignore_matching_silences:
+            h_a = self.get("h")
+            h_b = hvo_seq_b.get("h")
+            idx = np.logical_or(h_a, h_b)
+
+        a = np.array([])
+        b = np.array([])
+        for char in hvo_str:
+            a = np.append(a, self.get(char)[idx].flatten() if ignore_matching_silences else self.get(char).flatten())
+            b = np.append(b, hvo_seq_b.get(char)[idx].flatten() if ignore_matching_silences else hvo_seq_b.get(char).flatten())
+
         return np.linalg.norm((a - b), ord=1)
 
-    def calculate_l2_distance_with(self, hvo_seq_b, hvo_str="hvo"):
+    def calculate_l2_distance_with(self, hvo_seq_b, hvo_str="hvo", ignore_matching_silences=True):
         """
         :param hvo_seq_b:   Sequence to find l2 norm of euclidean distance with
         :param hvo_str:     String formed with the characters 'h', 'v' and 'o' in any order. It's not necessary
                             to use all of the characters and they can be repeated. E.g. 'ov' or 'hvoh'
+        :param ignore_matching_silences:    If True, silences that are in both sequences are ignored when calculating the distance
+
         :return:            l2 norm of euclidean distance with hvo_seq_b
         """
 
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-        a = self.get(hvo_str).flatten()
-        b = hvo_seq_b.get(hvo_str).flatten()
+        idx = None
+        if ignore_matching_silences:
+            h_a = self.get("h")
+            h_b = hvo_seq_b.get("h")
+            idx = np.logical_or(h_a, h_b)
+
+        a = np.array([])
+        b = np.array([])
+        for char in hvo_str:
+            a = np.append(a, self.get(char)[idx].flatten() if ignore_matching_silences else self.get(char).flatten())
+            b = np.append(b,
+                hvo_seq_b.get(char)[idx].flatten() if ignore_matching_silences else hvo_seq_b.get(char).flatten())
+
         return np.linalg.norm((a - b), ord=2)
 
-    def calculate_cosine_similarity_with(self, hvo_seq_b):
+    def calculate_cosine_similarity_with(self, hvo_seq_b, ignore_matching_silences=True):
         """
         Calculates cosine similarity with secondary sequence
         Calculates the cosine of the angle between flattened hvo scores (flatten into 1d)
@@ -2580,18 +2604,18 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-        return cosine_similarity(self, hvo_seq_b)
+        return cosine_similarity(self, hvo_seq_b, ignore_matching_silences)
 
-    def calculate_cosine_distance_with(self, hvo_seq_b):
+    def calculate_cosine_distance_with(self, hvo_seq_b, ignore_matching_silences=True):
         # returns 1 - cosine_similarity
         # returns 0 when equal and 1 when "perpendicular"
 
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-        return cosine_distance(self, hvo_seq_b)
+        return cosine_distance(self, hvo_seq_b, ignore_matching_silences)
 
-    def calculate_hamming_distance_with(self, hvo_seq_b, reduction_map=None, beat_weighting=False):
+    def calculate_hamming_distance_with(self, hvo_seq_b, reduction_map=None, beat_weighting=False, ignore_matching_silences=True):
         """
         Calculates the vanilla hamming distance between the current hvo_seq and a target sequence
 
@@ -2609,6 +2633,8 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
+
+
         if reduction_map is not None:
             groove_a = self.get_with_different_drum_mapping("v", reduction_map)
             groove_b = hvo_seq_b.get_with_different_drum_mapping("v", reduction_map)
@@ -2616,10 +2642,19 @@ class HVO_Sequence(object):
             groove_a = self.get("v")
             groove_b = hvo_seq_b.get("v")
 
+
         if beat_weighting is True:
             groove_a = _weight_groove(groove_a)
             groove_b = _weight_groove(groove_b)
 
+        if ignore_matching_silences:
+            groove_h_a = self.get_with_different_drum_mapping("h", reduction_map) if reduction_map else self.get("h")
+            groove_h_b = hvo_seq_b.get_with_different_drum_mapping("h",
+                                                                   reduction_map) if reduction_map else hvo_seq_b.get(
+                "h")
+            idx = np.logical_or(groove_h_a, groove_h_b)
+            groove_a = groove_a[idx]
+            groove_b = groove_b[idx]
 
         x = (groove_a.flatten() - groove_b.flatten())
 

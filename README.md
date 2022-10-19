@@ -92,4 +92,5 @@ installing the `pyFluidSynth` pip3 package. (check available modules using `modu
       pip3 install colorcet
       pip3 install visual_midi	
       pip3 install pyfluidsynth 
+      pip3 install holoviews
       ```
