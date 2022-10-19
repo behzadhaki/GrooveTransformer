@@ -1,10 +1,11 @@
-# Chapter 3 - Running Evaluations
+# Chapter 3 - Evaluation Tools (Part B - Accessing Evaluation Results)
 
 -----
 
 # Table of Contents
-3. [Running Evaluations](#3)
-      1. [Results for general inspection](#2i)
+3. [Accessing Evaluation Results](#3)
+   1. [Results for general inspection](#3_i)
+   2. [Get Evaluation Results for `WandB`](#3_ii)
       
    
 ## 2. GrooveEvaluator <a name="2"></a>

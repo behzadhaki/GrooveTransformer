@@ -43,6 +43,7 @@ for style in styles:
         {"style_primary": [style], "beat_type": ["beat"], "time_signature": ["4-4"]}
     )
 ```
+
 > **Note**
 > In the above case, "beat_type" and "time_signature" are unnecessary as the original dataset (specified in `dataset_setting.json`) 
 > is already filtered to only include `beat` and `4-4` patterns. However, if you want to inspect a subset of the dataset that is not  
@@ -125,8 +126,13 @@ input = np.array([hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_t
 ```
 
 #### 2.3.2 Pass Samples to Model <a name="2_iii_b"></a>
-```python
+from data.dataLoaders import load_gmd_hvo_sequences
+test_set = load_gmd_hvo_sequences(
+    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "dataset_setting.json", [4],
+    "ROLAND_REDUCED_MAPPING", "train")
 predicted_hvos_array = model.predict(input)
+
+```python
 ```
 
 #### 2.3.3 Add Predictions to Evaluator <a name="2_iii_c"></a>
