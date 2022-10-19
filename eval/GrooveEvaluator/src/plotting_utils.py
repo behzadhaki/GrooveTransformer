@@ -728,7 +728,7 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
 ###
 ##############################################
 
-def tabulated_violin_plot(data_dictionary, save_path=None, width=1200, height=800):
+def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01, width=1200, height=800):
     '''
     Plots the data in a dictionary as violin plots
     {
@@ -777,7 +777,7 @@ def tabulated_violin_plot(data_dictionary, save_path=None, width=1200, height=80
                            ['Group', 'Category'], 'Value')
 
         violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width, violin_color=hv.dim('Category').str(),
-                                         xrotation=45, fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16}), clone=True)
+                                         xrotation=45, fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16}, bandwidth=kernel_bandwidth), clone=True)
         fig = hv.render(violin, backend='bokeh')
         panels.append(Panel(child=fig, title=tab_label))
 

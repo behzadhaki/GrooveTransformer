@@ -42,7 +42,7 @@ if __name__ == "__main__":
     rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=True)
     rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
         tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
-    tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", width=1200, height=800)
+    tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", kernel_bandwidth=0.05, width=1200, height=800)
 
 
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     hit_scores = evaluator_test_set.get_pos_neg_hit_scores()
     statistics_of_hit_scores = evaluator_test_set.get_statistics_of_pos_neg_hit_scores(hit_weight=1, trim_decimals=1, csv_file="misc/hit_scores.csv")
     from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
-    tabs = tabulated_violin_plot(hit_scores, save_path="misc/violinplots/hits_stats", width=1200, height=800)
+    tabs = tabulated_violin_plot(hit_scores, save_path="misc/violinplots/hits_stats", kernel_bandwidth=0.05, width=1200, height=800)
 
     # 2.5 - Get Statistics of velocity distributions
     velocitiy_distributions = evaluator_test_set.get_velocity_distributions()
