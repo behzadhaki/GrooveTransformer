@@ -6,7 +6,7 @@ import colorcet as cc
 from numpy import linspace
 from scipy.stats.kde import gaussian_kde
 
-from bokeh.io import output_file, show
+from bokeh.io import output_file, show, save
 from bokeh.models import ColumnDataSource, FixedTicker, PrintfTickFormatter, Legend, SingleIntervalTicker, LinearAxis
 from bokeh.plotting import figure
 from bokeh.sampledata.perceptions import probly
@@ -17,6 +17,11 @@ from bokeh.models.annotations import Title
 
 import numpy as np
 from bokeh.models.widgets import Tabs, Panel
+
+import holoviews as hv
+from holoviews import opts
+from bokeh.models import Tabs, Panel
+hv.extension('bokeh')
 
 ##############################################
 ###
@@ -716,6 +721,75 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
 
     return [p1, p2]
 
+
+##############################################
+###
+#      Plotting violin plots
+###
+##############################################
+
+def tabulated_violin_plot(data_dictionary, save_path=None, width=1200, height=800):
+    '''
+    Plots the data in a dictionary as violin plots
+    {
+    "tab1-Data_xx": [data1, data2, ...],
+    "tab1-Data_yy": [data1, data2, ...],
+    "tab2-Data_xx": [data1, data2, ...],
+    "tab2-Data_yy": [data1, data2, ...],
+    }
+    :param data_dictionary:  KEYS can include tab title (left of a dash "-") and data class (right of a dash "-")
+    :param save_path: (optional) if given, the figure is saved to the given path
+    :param width:  (optional) width of the figure
+    :param height: (optional) height of the figure
+    :return:    A bokeh figure
+    '''
+    # source https://holoviews.org/reference/elements/bokeh/Violin.html
+
+    groups = []
+    categories = []
+    values = []
+    for key, val in data_dictionary.items():
+        if (isinstance(val, dict)):
+            for k, v_arr in val.items():
+                for v in v_arr:
+                    groups.append(key)
+                    categories.append(k)
+                    values.append(v)
+        else:
+            for v in val:
+                groups.append(key.split("-")[0] if len(key.split("-")) > 1 else " ")
+                categories.append(key.split("-")[1] if len(key.split("-")) > 1 else key)
+                values.append(v)
+
+    tab_labels = set(groups)
+    panels = list()
+    for tab_label in tab_labels:
+        g_ = []
+        c_ = []
+        v_ = []
+        for (group, category, val) in zip(groups, categories, values):
+            if group == tab_label:
+                g_.append(group.replace("_", " "))
+                c_.append(category.replace("_", " "))
+                v_.append(val)
+
+        violin = hv.Violin((g_, c_, v_),
+                           ['Group', 'Category'], 'Value')
+
+        violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width, violin_color=hv.dim('Category').str(),
+                                         xrotation=45, fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16}), clone=True)
+        fig = hv.render(violin, backend='bokeh')
+        panels.append(Panel(child=fig, title=tab_label))
+
+    tabs = Tabs(tabs=panels)
+
+    if save_path is not None:
+        if not save_path.endswith(".html"):
+            save_path += ".html"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save(tabs, save_path)
+
+    return tabs
 
 if __name__ == '__main__':
 

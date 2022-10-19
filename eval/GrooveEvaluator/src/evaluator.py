@@ -322,36 +322,36 @@ class Evaluator:
     # ==================================================================================================================
     #  Evaluation of Hits
     # ==================================================================================================================
-    def get_pos_neg_hit_scores(self, hit_weight=1):
+    def get_pos_neg_hit_scores(self, hit_weight=1, return_as_pandas_df=False):
         if self._prediction_hvos_array is not None:
             hit_scores_dict =  {
 
-                'Accuracy': [
+                'Relative - Accuracy': [
                     accuracy_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
                                    sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
                     for (true_values, predictions) in zip(self._gt_hvos_array,
                                                           self._prediction_hvos_array)],
-                'Precision': [
+                'Relative - Precision': [
                     precision_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
                                     sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
                     for (true_values, predictions) in zip(self._gt_hvos_array,
                                                           self._prediction_hvos_array)],
-                'Recall': [
+                'Relative - Recall': [
                     recall_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
                                  sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
                     for (true_values, predictions) in zip(self._gt_hvos_array,
                                                           self._prediction_hvos_array)],
-                'F1-Score': [
+                'Relative - F1_Score': [
                     f1_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
                              sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
                     for (true_values, predictions) in zip(self._gt_hvos_array,
                                                           self._prediction_hvos_array)],
-                'MCC (Hit/Silence Classification)': [
+                'Relative - MCC (Hit/Silence Classification)': [
                     matthews_corrcoef(true_values[:, :self.num_voices].flatten(),
                                       predictions[:, :self.num_voices].flatten())
                     for (true_values, predictions) in zip(self._gt_hvos_array,
                                                           self._prediction_hvos_array)],
-                'MCC (Correct Number of Instruments at each step)': [
+                'Relative - MCC (Correct Number of Instruments at each step)': [
                     matthews_corrcoef(true_values[:, :self.num_voices].sum(axis=1).flatten(),
                                       predictions[:, :self.num_voices].sum(axis=1).flatten())
                     for (true_values, predictions) in zip(self._gt_hvos_array,
@@ -377,14 +377,16 @@ class Evaluator:
         for (true_values, predictions) in zip(self._gt_hvos_array, prediction_hvos_array):
             true_values = np.array(flatten(true_values[:, :self.num_voices]))
             predictions = np.array(flatten(predictions[:, :self.num_voices])) if predictions is not None else None
-            flat_size = len(true_values)
             Actual_P = np.count_nonzero(true_values)
-            Actual_N = flat_size - Actual_P
+            Actual_N = true_values.size - Actual_P
+
+
             Actual_P_array.append(Actual_P)
             if predictions is not None:
                 TP = ((predictions == 1) & (true_values == 1)).sum()
                 FP = ((predictions == 1) & (true_values == 0)).sum()
                 FN = ((predictions == 0) & (true_values == 1)).sum()
+
                 # https://en.wikipedia.org/wiki/Precision_and_recall
                 PPV_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
                 FDR_array.append(FP / (TP + FP) if (TP + FP) > 0 else 0)
@@ -398,23 +400,26 @@ class Evaluator:
 
         if predictions is not None:
             hit_scores_dict.update({
-                "TPR": TPR_array,
-                "FPR": FPR_array,
-                "PPV": PPV_array,
-                "FDR": FDR_array,
-                "Ratio of Silences Predicted as Hits": FP_over_N,
-                "Ratio of Hits Predicted as Silences": FN_over_P,
-                "Ground Truth Hits": Actual_P_array,
-                "True Hits (Matching GMD)": TP_array,
-                "False Hits (Different from GMD)": FP_array,
-                "Predicted Hits": Total_predicted_array,
+                "Relative - TPR": TPR_array,
+                "Relative - FPR": FPR_array,
+                "Relative - PPV": PPV_array,
+                "Relative - FDR": FDR_array,
+                "Relative - Ratio of Silences Predicted as Hits": FP_over_N,
+                "Relative - Ratio of Hits Predicted as Silences": FN_over_P,
+                "Hit Count - Ground Truth": Actual_P_array,
+                "Hit Count - Total Predictions": Total_predicted_array,
+                "Hit Count - True Predictions (Matching GMD)": TP_array,
+                "Hit Count - False Predictions (Different from GMD)": FP_array,
             })
         else:
             hit_scores_dict.update({
-                "Ground Truth Hits": Actual_P_array,
+                "Hit Count - Ground Truth": Actual_P_array,
             })
 
-        return hit_scores_dict
+        if return_as_pandas_df:
+            return pd.DataFrame(hit_scores_dict)
+        else:
+            return hit_scores_dict
 
     def get_statistics_of_pos_neg_hit_scores(self, hit_weight=1, csv_file=None, trim_decimals=3):
         # make sure that the csv file ends in .csv
@@ -437,7 +442,7 @@ class Evaluator:
     # ==================================================================================================================
     #  Evaluation of Velocities
     # ==================================================================================================================
-    def get_velocity_distributions(self):
+    def get_velocity_distributions(self, return_as_pandas_df=False):
 
 
         vel_all_Hits = np.array([])
@@ -495,7 +500,10 @@ class Evaluator:
                 }
             )
 
-        return velocity_distributions
+        if return_as_pandas_df:
+            return pd.DataFrame(velocity_distributions)
+        else:
+            return velocity_distributions
 
     def get_statistics_of_velocity_distributions(self, csv_file=None, trim_decimals=3):
         # make sure that the csv file ends in .csv
@@ -533,7 +541,7 @@ class Evaluator:
     # ==================================================================================================================
     #  Evaluation of Microtiming
     # ==================================================================================================================
-    def get_offset_distributions(self):
+    def get_offset_distributions(self, return_as_pandas_df=False):
 
         offset_all_Hits = np.array([])
         offset_TP = np.array([])
@@ -593,7 +601,10 @@ class Evaluator:
                 }
             )
 
-        return offset_distributions
+        if return_as_pandas_df:
+            return pd.DataFrame(offset_distributions)
+        else:
+            return offset_distributions
 
     def get_statistics_of_offset_distributions(self, csv_file=None, trim_decimals=3):
         # make sure that the csv file ends in .csv
@@ -632,6 +643,22 @@ class Evaluator:
     # ==================================================================================================================
     #  Evaluation using Global Features Implemented in HVO_Sequence
     # ==================================================================================================================
+    def get_global_features_values(self, return_as_pandas_df=False):
+        '''
+        Returns a dictionary with the global features values for each loop in the ground truth and predicted dataset (if available).
+        :return:
+        '''
+
+        values_dict ={
+            "Ground Truth": self.gt_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True),
+            "Predictions": self.prediction_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True) if self._prediction_hvos_array is not None else None
+        }
+
+        if return_as_pandas_df:
+            return pd.DataFrame(values_dict)
+        else:
+            return values_dict
+
     def get_statistics_of_global_features(self, calc_gt=True, calc_pred=True, csv_file=None, trim_decimals=3):
         '''
         Calculates the mean, median, Q1, Q3 and std of the global features of the ground truth and the prediction.
@@ -700,8 +727,12 @@ class Evaluator:
     #  Evaluation by comparing the rhythmic distances between the ground truth and the prediction
     #  (using multiple distance measures implemented in HVO_Sequence)
     # ==================================================================================================================
-    def get_statistics_of_rhythmic_distances_of_pred_to_gt(self, tag_by_identifier=False, csv_dir=None, trim_decimals=None):
-
+    def get_rhythmic_distances_of_pred_to_gt(self, return_as_pandas_df=False):
+        '''
+        returns a dictionary with the rhythmic distances between the ground truth and the prediction for each of the samples
+        calculated
+        :return:
+        '''
         gt_set = {self._gt_tags[ix]: subset for ix, subset in enumerate(self._gt_subsets)}
         predicted_set = {self._prediction_tags[ix]: subset for ix, subset in enumerate(self._prediction_subsets)}
 
@@ -719,6 +750,21 @@ class Evaluator:
 
                 for key in distances_dictionary.keys():
                     distances_dict[key].append(distances_dictionary[key])
+
+        if return_as_pandas_df:
+            return pd.DataFrame(distances_dict)
+        else:
+            return distances_dict
+
+    def get_statistics_of_rhythmic_distances_of_pred_to_gt(self, tag_by_identifier=False, csv_dir=None, trim_decimals=None):
+        '''
+        Calculates the mean, median, Q1, Q3 and std of the rhythmic distances between the ground truth and the prediction.
+        :param tag_by_identifier:
+        :param csv_dir:
+        :param trim_decimals:
+        :return:
+        '''
+        distances_dict = self.get_rhythmic_distances_of_pred_to_gt()
 
         for key in distances_dict.keys():
             summary = {"mean": np.mean(distances_dict[key]),
@@ -738,7 +784,6 @@ class Evaluator:
             os.makedirs(csv_dir, exist_ok=True)
 
             if tag_by_identifier:
-                print("Jerre")
                 for key in distances_dict.keys():
                     df = pd.DataFrame(distances_dict[key])
                     # round dataframe values to have 3 decimal places
@@ -746,13 +791,14 @@ class Evaluator:
                         df = df.round(trim_decimals)
 
                     df.to_csv(os.path.join(csv_dir, key + ".csv"))
+                    return df
+
             else:
                 df = pd.DataFrame(distances_dict)
                 if trim_decimals is not None:
                     df = df.round(trim_decimals)
                 df.to_csv(os.path.join(csv_dir, self._identifier + ".csv"))
-
-        return distances_dict
+                return df
 
     # ==================================================================================================================
     #  Get ground truth samples in HVO_Sequence format or as a numpy array

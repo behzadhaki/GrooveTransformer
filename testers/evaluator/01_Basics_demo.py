@@ -48,14 +48,23 @@ if __name__ == "__main__":
     predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()   # This is here just to make sure the code doesnt rely on the model here
 
     # 2.3.3 - Add the predictions to the evaluator
-    evaluator_test_set.add_predictions(predicted_hvos_array)
+    from model.modelLoadesSamplers import load_groove_transformer_encoder_model
+    from model.saved.monotonic_groove_transformer_v1.params import model_params
+    import torch
+    import numpy as np
+    model_name = "colorful_sweep_41"
+    model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
+    model_param = model_params[model_name]
+    GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
+    predictions = GrooveTransformer.predict(torch.tensor(evaluator_test_set.get_ground_truth_hvos_array(), dtype=torch.float32))
+    predictions = torch.cat(predictions, -1)
+    evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
     evaluator_test_set.dump(path="path", fname="fname")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
-
     evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
 
 
