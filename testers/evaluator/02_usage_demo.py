@@ -3,6 +3,17 @@ if __name__ == "__main__":
     # Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
     evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    # 2.5 - Calculate rhythmic distances of gt and pred patterns
+    rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=False)
+    rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
+        tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
+    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
+
+    tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", kernel_bandwidth=0.05,
+                                 width=1200, height=800)
+
+
+
 
 
     # 2.5 - Get the results for general inspection
@@ -38,14 +49,11 @@ if __name__ == "__main__":
         calc_gt=True, calc_pred=True, csv_file="misc/global_features_statistics.csv", trim_decimals=3)
 
     # 2.5 - Calculate rhythmic distances of gt and pred patterns
-    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
-    rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=True)
+    rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=False)
     rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
         tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
+    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
     tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", kernel_bandwidth=0.05, width=1200, height=800)
-
-
-
 
 
 

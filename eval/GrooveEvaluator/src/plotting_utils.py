@@ -727,8 +727,7 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
 #      Plotting violin plots
 ###
 ##############################################
-
-def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01, width=1200, height=800):
+def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01, width=1200, height=800, scatter_color='red', scatter_size=10):
     '''
     Plots the data in a dictionary as violin plots
     {
@@ -773,13 +772,22 @@ def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01
                 c_.append(category.replace("_", " "))
                 v_.append(val)
 
-        violin = hv.Violin((g_, c_, v_),
-                           ['Group', 'Category'], 'Value')
+        violin = hv.Violin((c_, v_), ['Category'], 'Value', label='Violin Plots')
 
-        violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width, violin_color=hv.dim('Category').str(),
-                                         xrotation=45, fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16}, bandwidth=kernel_bandwidth), clone=True)
-        fig = hv.render(violin, backend='bokeh')
-        panels.append(Panel(child=fig, title=tab_label))
+        scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
+
+        violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width,
+                                         violin_color=hv.dim('Category').str(),
+                                         xrotation=45,
+                                         fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16},
+                                         bandwidth=kernel_bandwidth), clone=True)
+
+        overlay = (violin * scatter).opts(xlabel=tab_label.replace("_", " "), ylabel=" ")
+        overlay.options(opts.NdOverlay(show_legend=True))
+
+        fig = hv.render(overlay, backend='bokeh')
+        fig.legend.click_policy="hide"
+        panels.append(Panel(child=fig, title=tab_label.replace("_", " ")))
 
     tabs = Tabs(tabs=panels)
 
@@ -790,6 +798,7 @@ def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01
         save(tabs, save_path)
 
     return tabs
+
 
 if __name__ == '__main__':
 
