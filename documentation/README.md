@@ -46,3 +46,5 @@
 
 [Chapter 5 - Training](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter5_Training/README.md)
 ----
+
+{% include_relative ../testers/evaluator/misc/offset_plots.html %}
