@@ -60,3 +60,23 @@
 
 
 <embed type="text/html" src="../../testers/evaluator/misc/offset_plots.html" width="600" height="400"></embed>
+
+
+<div id="code-element">
+<iframe src="offset_plots.html"
+    sandbox="allow-same-origin allow-scripts"
+    width="100%"
+    height="500"
+    scrolling="no"
+    seamless="seamless"
+    frameborder="0">
+</iframe></div>
+
+<iframe src="offset_plots.html"
+    sandbox="allow-same-origin allow-scripts"
+    width="100%"
+    height="500"
+    scrolling="no"
+    seamless="seamless"
+    frameborder="0">
+</iframe>
