@@ -7,7 +7,7 @@ import bz2
 import wandb
 from eval.GrooveEvaluator.src.feature_extractor import Feature_Extractor_From_HVO_SubSets
 from eval.GrooveEvaluator.src.plotting_utils import global_features_plotter, velocity_timing_heatmaps_scatter_plotter
-from eval.GrooveEvaluator.src.plotting_utils import separate_figues_by_tabs
+from eval.GrooveEvaluator.src.plotting_utils import separate_figues_by_tabs, tabulated_violin_plot
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 from data.gmd.src import subsetters  # FIXME add preprocess_data directory
@@ -439,12 +439,16 @@ class Evaluator:
 
         return df2
 
+    def get_pos_neg_hit_plots(self, save_path=None, kernel_bandwidth=0.05, plot_width=1200, plot_height=800):
+        hit_scores_dict = self.get_pos_neg_hit_scores()
+
+        tabulated_violin_plot(hit_scores_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                              width=plot_width, height=plot_height)
+
     # ==================================================================================================================
     #  Evaluation of Velocities
     # ==================================================================================================================
     def get_velocity_distributions(self, return_as_pandas_df=False):
-
-
         vel_all_Hits = np.array([])
         vel_TP = np.array([])
         vel_FP = np.array([])
@@ -484,19 +488,19 @@ class Evaluator:
                 vel_FP_std = np.append(vel_FP_std, np.nanstd(vels_predicted[false_hit_indices]))
 
         velocity_distributions = {
-            "Ground Truth at Hits (mean per Loop)": np.nan_to_num(vel_actual_mean),
-            "Ground Truth at Hits (std per Loop)": np.nan_to_num(vel_actual_std)
+            "Means Per Sample - Total Ground Truth Hits": np.nan_to_num(vel_actual_mean),
+            "STD Per Sample - Total Ground Truth Hits": np.nan_to_num(vel_actual_std)
         }
 
         if self._prediction_hvos_array is not None:
             velocity_distributions.update(
                 {
-                    "Predictions at All Hits (mean per Loop)": np.nan_to_num(vel_all_Hits_mean),
-                    "Predictions at True Hits (mean per Loop)": np.nan_to_num(vel_TP_mean),
-                    "Predictions at False Hits (mean per Loop)": np.nan_to_num(vel_FP_mean),
-                    "Predictions at All Hits (std per Loop)": np.nan_to_num(vel_all_Hits_std),
-                    "Predictions at True Hits (std per Loop)": np.nan_to_num(vel_TP_std),
-                    "Predictions at False Hits (std per Loop)": np.nan_to_num(vel_FP_std),
+                    "Means Per Sample - Total Predicted Hits": np.nan_to_num(vel_all_Hits_mean),
+                    "Means Per Sample - True Predicted Hits": np.nan_to_num(vel_TP_mean),
+                    "Means Per Sample - False Predicted Hits": np.nan_to_num(vel_FP_mean),
+                    "STD Per Sample - Total Predicted Hits": np.nan_to_num(vel_all_Hits_std),
+                    "STD Per Sample - True Predicted Hits": np.nan_to_num(vel_TP_std),
+                    "STD Per Sample - False Predicted Hits": np.nan_to_num(vel_FP_std),
                 }
             )
 
@@ -522,6 +526,11 @@ class Evaluator:
             df2.to_csv(csv_file)
 
         return df2
+
+    def get_velocity_distribution_plots(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+        velocity_distributions = self.get_velocity_distributions()
+        return tabulated_violin_plot(velocity_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                      width=plot_width, height=plot_height)
 
     def get_velocity_MSE(self, ignore_correct_silences=True):
         assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
@@ -585,19 +594,19 @@ class Evaluator:
                 offset_FP_std = np.append(offset_FP_std, np.nanstd(offsets_predicted[false_hit_indices]))
 
         offset_distributions = {
-            "Ground Truth at Hits (mean per Loop)": np.nan_to_num(offset_actual_mean),
-            "Ground Truth at Hits (std per Loop)": np.nan_to_num(offset_actual_std)
+            "Means Per Sample - Total Ground Truth Hits": np.nan_to_num(offset_actual_mean),
+            "STD Per Sample - Total Ground Truth Hits": np.nan_to_num(offset_actual_std)
         }
 
         if self._prediction_hvos_array is not None:
             offset_distributions.update(
                 {
-                    "Predictions at All Hits (mean per Loop)": np.nan_to_num(offset_all_Hits_mean),
-                    "Predictions at True Hits (mean per Loop)": np.nan_to_num(offset_TP_mean),
-                    "Predictions at False Hits (mean per Loop)": np.nan_to_num(offset_FP_mean),
-                    "Predictions at All Hits (std per Loop)": np.nan_to_num(offset_all_Hits_std),
-                    "Predictions at True Hits (std per Loop)": np.nan_to_num(offset_TP_std),
-                    "Predictions at False Hits (std per Loop)": np.nan_to_num(offset_FP_std),
+                    "Means Per Sample - Total Predicted Hits": np.nan_to_num(offset_all_Hits_mean),
+                    "Means Per Sample - True Predicted Hits": np.nan_to_num(offset_TP_mean),
+                    "Means Per Sample - False Predicted Hits": np.nan_to_num(offset_FP_mean),
+                    "STD Per Sample - Total Predicted Hits": np.nan_to_num(offset_all_Hits_std),
+                    "STD Per Sample - True Predicted Hits": np.nan_to_num(offset_TP_std),
+                    "STD Per Sample - False Predicted Hits": np.nan_to_num(offset_FP_std),
                 }
             )
 
@@ -623,6 +632,11 @@ class Evaluator:
             df2.to_csv(csv_file)
 
         return df2
+
+    def get_offset_distribution_plots(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+        offset_distributions = self.get_velocity_distributions()
+        return tabulated_violin_plot(offset_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                     width=plot_width, height=plot_height)
 
     def get_offset_MSE(self, ignore_correct_silences=True):
         assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
@@ -723,6 +737,28 @@ class Evaluator:
 
         return df2
 
+    def get_global_features_plot(self, only_combined_data_needed=False, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+        global_features = self.get_global_features_values()
+        new_dict = {}
+        for set_name, feature_dicts in global_features.items():
+            for feature_name, feature_dict in feature_dicts.items():
+                for genre, value in feature_dict.items():
+                    if only_combined_data_needed is False:
+                        G = genre.replace("[", "").replace("]", "")
+                        new_dict[f"{feature_name.replace('-', ' ')} - {G} || {set_name} "] = value[~np.isnan(value)]
+
+                    if f"{feature_name.replace('-', ' ')} - Combined || {set_name}" not in new_dict.keys():
+                        new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = value[~np.isnan(value)]
+                    else:
+                        new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = \
+                            np.append(new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"], value[~np.isnan(value)])
+
+        # sort dictionary by key
+        new_dict = {k: new_dict[k] for k in sorted(new_dict.keys())}
+
+        return tabulated_violin_plot(new_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                     width=plot_width, height=plot_height, font_size=10)
+
     # ==================================================================================================================
     #  Evaluation by comparing the rhythmic distances between the ground truth and the prediction
     #  (using multiple distance measures implemented in HVO_Sequence)
@@ -799,6 +835,11 @@ class Evaluator:
                     df = df.round(trim_decimals)
                 df.to_csv(os.path.join(csv_dir, self._identifier + ".csv"))
                 return df
+
+    def get_rhythmic_distances_of_pred_to_gt_plot(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+        data_dict = self.get_rhythmic_distances_of_pred_to_gt()
+        return tabulated_violin_plot(data_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                     width=plot_width, height=plot_height)
 
     # ==================================================================================================================
     #  Get ground truth samples in HVO_Sequence format or as a numpy array

@@ -726,20 +726,27 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
 ###
 #      Plotting violin plots
 ###
-##############################################
-def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01, width=1200, height=800, scatter_color='red', scatter_size=10):
+##################################################
+def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01,
+                          width=1200, height=800, scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
     '''
     Plots the data in a dictionary as violin plots
     {
-    "tab1-Data_xx": [data1, data2, ...],
-    "tab1-Data_yy": [data1, data2, ...],
-    "tab2-Data_xx": [data1, data2, ...],
-    "tab2-Data_yy": [data1, data2, ...],
+    "tab1-Data_xx": [data1, data2, ...],            # plots in tab1 -        Title tab1 -       labels as Data_xx
+    "tab1-Data_yy": [data1, data2, ...],            # plots in tab1 -        Title tab1 -       labels as Data_yy
+    "tab2-Data_xx": [data1, data2, ...],            # plots in tab2 -        Title tab2 -       labels as Data_xx
+    "TTL::tab2-Data_yy": [data1, data2, ...],     # plots in TTL -   Title tab2::TTL  -        labels as Data_yy
     }
-    :param data_dictionary:  KEYS can include tab title (left of a dash "-") and data class (right of a dash "-")
+
+    :param data_dictionary:  KEYS can include tab title (left of a dash "-") and data category (right of a dash "-")
     :param save_path: (optional) if given, the figure is saved to the given path
     :param width:  (optional) width of the figure
     :param height: (optional) height of the figure
+    :param scatter_color: (optional) color of the scatter points
+    :param scatter_size: (optional) size of the scatter points
+    :param xrotation: (optional) rotation of the x-axis labels
+    :param font_size: (optional) font size of all the labels
+
     :return:    A bokeh figure
     '''
     # source https://holoviews.org/reference/elements/bokeh/Violin.html
@@ -778,16 +785,16 @@ def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01
 
         violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width,
                                          violin_color=hv.dim('Category').str(),
-                                         xrotation=45,
-                                         fontsize={'xticks': 16, 'yticks': 16, 'xlabel': 16, 'ylabel': 16, 'title': 16},
+                                         xrotation=xrotation,
+                                         fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size, 'ylabel': font_size, 'title': font_size},
                                          bandwidth=kernel_bandwidth), clone=True)
 
-        overlay = (violin * scatter).opts(xlabel=tab_label.replace("_", " "), ylabel=" ")
+        overlay = (violin * scatter).opts(title=tab_label.replace("_", " "), ylabel=" ", xlabel=" ")
         overlay.options(opts.NdOverlay(show_legend=True))
 
         fig = hv.render(overlay, backend='bokeh')
         fig.legend.click_policy="hide"
-        panels.append(Panel(child=fig, title=tab_label.replace("_", " ")))
+        panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
 
     tabs = Tabs(tabs=panels)
 
