@@ -3,18 +3,6 @@ if __name__ == "__main__":
     # Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
     evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
-    # 2.5 - Calculate rhythmic distances of gt and pred patterns
-    rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=False)
-    rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
-        tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
-    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
-
-    tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", kernel_bandwidth=0.05,
-                                 width=1200, height=800)
-
-
-
-
 
     # 2.5 - Get the results for general inspection
     # _gt_logging_data, _predicted_logging_data = evaluator_test_set.get_logging_dict()
@@ -47,30 +35,37 @@ if __name__ == "__main__":
     global_features = evaluator_test_set.get_global_features_values()
     get_statistics_of_global_features_df = evaluator_test_set.get_statistics_of_global_features(
         calc_gt=True, calc_pred=True, csv_file="misc/global_features_statistics.csv", trim_decimals=3)
+    evaluator_test_set.get_global_features_plot(only_combined_data_needed=False,
+                                                save_path="misc/global_features_all.html", plot_width=1200, plot_height=800,
+                                                kernel_bandwidth=0.05)
+    evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
+                                                save_path="misc/global_features_combinedOnly.html", plot_width=1200, plot_height=800,
+                                                kernel_bandwidth=0.05)
 
     # 2.5 - Calculate rhythmic distances of gt and pred patterns
     rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=False)
     rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
         tag_by_identifier=False, csv_dir="misc/distances", trim_decimals=3)
-    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
-    tabs = tabulated_violin_plot(rhythmic_distances, save_path="misc/violinplots/rhythmDistnces", kernel_bandwidth=0.05, width=1200, height=800)
-
-
-
-
-
+    rhythmic_distances_plot = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt_plot(
+        save_path="misc/rhythmic_distances_plots.html", plot_width=1200, plot_height=800, kernel_bandwidth=0.05)
 
     # 2.5 - Get Pos/Neg Hit statistics
     hit_scores = evaluator_test_set.get_pos_neg_hit_scores()
-    statistics_of_hit_scores = evaluator_test_set.get_statistics_of_pos_neg_hit_scores(hit_weight=1, trim_decimals=1, csv_file="misc/hit_scores.csv")
-    from eval.GrooveEvaluator.src.plotting_utils import tabulated_violin_plot
-    tabs = tabulated_violin_plot(hit_scores, save_path="misc/violinplots/hits_stats", kernel_bandwidth=0.05, width=1200, height=800)
+    statistics_of_hit_scores = evaluator_test_set.get_statistics_of_pos_neg_hit_scores(hit_weight=1,
+                                                                                       trim_decimals=1,
+                                                                                       csv_file="misc/hit_scores.csv")
+    pos_neg_hit_plots = evaluator_test_set.get_pos_neg_hit_plots(save_path="misc/pos_neg_hit_plots",
+                                                                 plot_width=1200, plot_height=800,
+                                                                 kernel_bandwidth=0.05)
 
     # 2.5 - Get Statistics of velocity distributions
     velocitiy_distributions = evaluator_test_set.get_velocity_distributions()
-    statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_velocity_distributions(trim_decimals=1, csv_file="misc/vel_stats.csv")
+    statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_velocity_distributions(
+        trim_decimals=1, csv_file="misc/vel_stats.csv")
     velocity_MSE_entire_score = evaluator_test_set.get_velocity_MSE(ignore_correct_silences=False)
     velocity_MSE_non_silent_locs = evaluator_test_set.get_velocity_MSE(ignore_correct_silences=True)
+    velocity_plots = evaluator_test_set.get_velocity_distribution_plots(
+        save_path="misc/velocity_plots.html", plot_width=1200, plot_height=800, kernel_bandwidth=0.05)
 
     # 2.5 - Get Statistics of utiming distributions
     offset_distributions = evaluator_test_set.get_offset_distributions()
@@ -78,6 +73,8 @@ if __name__ == "__main__":
         trim_decimals=1, csv_file="misc/offset_stats.csv")
     offset_MSE_entire_score = evaluator_test_set.get_offset_MSE(ignore_correct_silences=False)
     offset_MSE_non_silent_locs = evaluator_test_set.get_offset_MSE(ignore_correct_silences=True)
+    offset_plots = evaluator_test_set.get_velocity_distribution_plots(
+        save_path="misc/offset_plots.html", plot_width=1200, plot_height=800, kernel_bandwidth=0.05)
 
     # -----------------  Getting WandB data ----------------- #
     results = evaluator_test_set.get_wandb_logging_media(need_groundTruth=True)    # include ground truth data
