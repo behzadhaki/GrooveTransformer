@@ -4,110 +4,76 @@
 
 # Table of Contents
 3. [Accessing Evaluation Results](#3)
-   1. [Results for general inspection](#3_i)
-   2. [Get Evaluation Results for `WandB`](#3_ii)
-      
+   1. [Results as Dictionaries or Pandas.DataFrame](#3_i)
+   2. [Rendering Results as Bokeh Plots](#3_ii)
+   3. [Rendering Piano Rolls/Audio/Midi](#3_ii)
    
-## 2. GrooveEvaluator <a name="2"></a>
+
+   
+## 3. Accessing Evaluation Results <a name="3"></a>
 
 ---
 
-### 2.4. Evaluating Predictions <a name="2_iv"></a>
+The evaluation results can be accesssed in multiple ways. 
+The results can be accessed as a dictionary or a Pandas.DataFrame (Section [3.1](#3_i)), 
+or they can be rendered as Bokeh plots (Section [3.2](#3_ii)). 
+Also, the ground truth samples and the generations can be rendered to piano roll, audio or midi files (Section [3.3](#3_iii)). 
 
-Here is a visual guide to using the evaluator for evaluating predictions
-<img src="img.png" width="600">
+### 3.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>
 
-#### 2.4.1. Get Ground Truth Samples  <a name="2_iv_a"></a>
-Get the ground truth samples as a numpy array displaying piano rolls in HVO format.
-
-```python
-evaluator_test_set.get_ground_truth_hvos_array()
-```
-
-> **Warning** In groove transformer models, we don't want to feed this tensor to the model. 
-> Instead, we want to feed the tapified versions (monotonic groove).
-> To do so, we can get the ground truth HVO_Sequence samples and use the internal `flatten_voices` 
-> method to get the groove.
-
-```python
-import numpy as np
-input = np.array([hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_test_set.get_ground_truth_hvo_sequences()])
-```
-
-#### 2.4.2 Pass Samples to Model <a name="2_iv_b"></a>
-```python
-predicted_hvos_array = model.predict(input)
-```
-
-#### 2.4.3 Add Predictions to Evaluator <a name="2_iv_c"></a>
-
-```python
-evaluator_test_set.add_predictions(predicted_hvos_array)
-```
-
-#### 2.4.4. Get Evaluation Results <a name="2_iv_d"></a>
-The evaluation results can be obtained as a dictionary to be further inspected. Also, they can be obtained as a WANDB ready dictionary to be logged to WANDB.
+The evaluation results can be accessed as a dictionary or a Pandas.DataFrame. 
+The following numerical results are automatically computed and compiled into a dictionary or pandas dataframe:
 
 
-##### 2.4.4.1 Results for general inspection <a name="2_iv_d_i"></a>
-Get the results using the `get_logging_dict` method.
+   1. [Quality of Hits](a): Hit counts for gt and pred samples, as well as, cross comparison of hits (accuracy, PPV, ...)
+   2. [Quality of Velocities](b): Velocity distributions for gt and pred samples
+   3. [Quality of Offsets](c): Offset distributions for gt and pred samples
+   4. [Rhythmic Distances](d): Distance of pred samples from gt samples using the rhythm distance metrics implemented in HVO_Sequence (l1, l2, cosine, hamming, ...)
+   5. [Global features](e): Global features of the gt and pred samples, these features are the features implemented in HVO_Sequence (NoI, Midness, ...)
 
-```python
-_gt_logging_data, _predicted_logging_data = evaluator_test_set.get_logging_dict()
-```
+These results can be accessed as raw data, that is, per sample values extracted from the evaluation, 
+or as aggregated statistics, that is, the mean and standard deviation of the per sample values. 
 
-> **Note** Many times during training, you don't need to re-log the ground truth data. 
-> In such cases, you can only get the logging dict for the predicted data.
-> ```python
->     _predicted_logging_data = evaluator_test_set.get_logging_dict(need_groundTruth=False)
->```
+### Quality of Hits <a name="a"></a>
 
+### Quality of Velocities <a name="b"></a>
 
-The resulting dictionaries (`_gt_logging_data`, `_predicted_logging_data`) have the following format:
+### Quality of Offsets <a name="c"></a>
 
-``` python
-{
-    'velocity_heatmaps': bokeh.models.layouts.Tabs Figure,
-     'global_feature_pdfs': bokeh.models.layouts.Tabs Figure, 
-     'piano_rolls': bokeh.models.layouts.Tabs Figure,
-     'captions_audios': tuple(str, numpy.ndarray), 
-}
-```
+### Rhythmic Distances <a name="d"></a>
 
-> **Note** The above keys are only available if the `need_heatmap`, `need_global_features`, `need_audio`, 
-> `need_piano_roll` parameters are set to True during initialization.
-
-The `velocity_heatmaps`, `global_feature_pdfs`, `piano_rolls` are all tabulated [bokeh](https://docs.bokeh.org/en/latest/#) plots 
-and the `captions_audios` are tuples where the first element is the caption and the second element is the audio array.
-
-Here is an example to display the plots or save the audio files
-```python
-# Show bokeh figures
-from bokeh.io import show
-show(_predicted_logging_data['velocity_heatmaps'])
-show(_predicted_logging_data['global_feature_pdfs'])
-show(_predicted_logging_data['piano_rolls'])
+### Global features <a name="e"></a>
 
 
-# Save audio files
-import os
-import soundfile as sf
-def save_wav_file(filename, data, sample_rate):
-    # make directories if filename has directories
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    # save file
-    sf.write(filename, data, sample_rate)
-
-sample_audio_tuple = _predicted_logging_data['captions_audios'][0]
-fname = sample_audio_tuple[0]
-data = sample_audio_tuple[1]
-save_wav_file(os.path.join("misc", fname), data, 44100)
-```
 
 
-##### 2.4.4.2 Results for `WandB` <a name="2_iv_d_ii"></a>
-Same as above, but the results are in a format that can be directly logged to `WandB` using the `wandb.log` method.
 
-# # TODO: HERE
+### 3.2 Rendering Results as Bokeh Plots <a name="3_ii"></a>
+
+The results in section [3.1](#3_i) can also be automatically rendered as Bokeh plots. 
+These plots are violin plots, super-imposed with boxplots and the raw scatter data. The plots are separated by Tabs 
+for each set of analysis results.
+
+### Quality of Hits <a name="a2"></a>
+
+### Quality of Velocities <a name="b2"></a>
+
+### Quality of Offsets <a name="c2"></a>
+
+### Rhythmic Distances <a name="d2"></a>
+
+### Global features <a name="e2"></a>
+
+
+### 3.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
+
+
+### Piano Rolls <a name="a3"></a>
+
+
+### Audio <a name="b3"></a>
+
+
+### Midi <a name="c3"></a>
 
 

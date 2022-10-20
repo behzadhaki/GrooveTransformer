@@ -1,7 +1,0 @@
-,cosine-distance,cosine-similarity,fuzzy_hamming_distance-not_weighted,fuzzy_hamming_distance-weighted,hamming_distance -5partKit_not_weighted ,hamming_distance -5partKit_weighted ,hamming_distance -all_voices_not_weighted ,hamming_distance -all_voices_weighted ,hamming_distance -low_mid_hi_not_weighted ,hamming_distance -low_mid_hi_weighted ,l1_distance -h,l1_distance -hvo,l1_distance -o,l1_distance -v,l2_distance -h,l2_distance -hvo,l2_distance -o,l2_distance -v,structural_similarity-structural_similarity
-mean,,,3.808,1.918,3.237,1.636,3.644,1.833,2.839,1.433,60.95,96.73,7.595,28.185,7.653,8.594,1.102,3.644,2.762
-min,,,2.182,1.002,1.688,0.743,2.13,0.992,1.281,0.53,26.0,46.523,2.237,15.609,5.099,6.373,0.516,2.13,1.429
-max,,,6.005,3.515,4.81,2.432,5.892,3.075,4.704,2.42,139.0,222.749,13.505,71.215,11.79,13.235,1.652,5.892,3.783
-median,,,3.9,1.919,3.325,1.798,3.609,1.882,2.978,1.589,57.0,84.937,7.311,21.925,7.55,8.271,1.086,3.609,2.939
-q1,,,3.054,1.491,2.422,1.216,2.873,1.491,2.26,1.019,41.25,66.168,5.424,19.41,6.422,7.309,0.922,2.873,2.259
-q3,,,4.196,2.198,3.833,1.987,3.932,2.094,3.39,1.729,71.0,116.115,9.552,32.577,8.424,9.424,1.306,3.932,3.331

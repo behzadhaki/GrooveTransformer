@@ -40,49 +40,13 @@
       2. [Pass Samples to Model](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_basics.md#232-pass-samples-to-model-)
       3. [Add Predictions to Evaluator](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_basics.md#233-add-predictions-to-evaluator-)
    4. [Saving and Loading](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_basics.md#24-saving-and-loading-) 
-
+3. [Accessing Evaluation Results](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_results.md#3-accessing-evaluation-results-)
+   1. [Results as Dictionaries or Pandas.DataFrame](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_results.md#31-results-as-dictionaries-or-pandasdataframe-)
+   2. [Rendering Results as Bokeh Plots](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_results.md#32-rendering-results-as-bokeh-plots-)
+   3. [Rendering Piano Rolls/Audio/Midi](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_results.md#33-rendering-piano-rollsaudiomidi-)
 [Chapter 4 - WANDB](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter4_WANDB/README.md)
 ----
 
 [Chapter 5 - Training](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter5_Training/README.md)
 ----
 
-#### Test 1
-
-<embed type="text/html" src="https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/testers/evaluator/misc/offset_plots.html" width="600" height="400"></embed>
-
-#### Test 2
-
-<embed type="text/html" src="offset_plots.html" width="600" height="400"></embed>
-
-
-#### Test 3
-
-
-<embed type="text/html" src="../../testers/evaluator/misc/offset_plots.html" width="600" height="400"></embed>
-
-
-
-
-
-<div id="code-element">
-<iframe src="offset_plots.html"
-    sandbox="allow-same-origin allow-scripts"
-    width="100%"
-    height="500"
-    scrolling="no"
-    seamless="seamless"
-    frameborder="0">
-</iframe></div>
-
-
-
-
-<iframe src="offset_plots.html"
-    sandbox="allow-same-origin allow-scripts"
-    width="100%"
-    height="500"
-    scrolling="no"
-    seamless="seamless"
-    frameborder="0">
-</iframe>
