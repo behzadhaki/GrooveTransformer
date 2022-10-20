@@ -1,0 +1,3 @@
+,drummer,session,loop_id,master_id,style_primary,style_secondary,bpm,beat_type,time_signature,full_midi_filename,full_audio_filename
+0,drummer8,session2,drummer8/session2/16:000:001:002:003:004:005:006:007:008:009:010:011:012:013:014:015:016:017:018:019:020:021:022:023:024:025:026:027:028:029:030:031:032,drummer8/session2/16,funk,None,95,beat,4-4,drummer8/session2/16_funk_95_beat_4-4.mid,nan
+1,drummer8,session1,drummer8/session1/8:000:001:002:003:004:005:006:007:008:009:010:011:012:013:014:015:016:017:018:019:020:021:022:023:024:025:026:027:028:029:030:031:032:033:034:035:036:037:038:039:040:041:042:043:044:045:046:047:048:049:050:051,drummer8/session1/8,funk,None,96,beat,4-4,drummer8/session1/8_funk_96_beat_4-4.mid,drummer8/session1/8_funk_96_beat_4-4.wav

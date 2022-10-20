@@ -1,0 +1,8 @@
+,Means Per Sample - Total Ground Truth Hits,STD Per Sample - Total Ground Truth Hits,Means Per Sample - Total Predicted Hits,Means Per Sample - True Predicted Hits,Means Per Sample - False Predicted Hits,STD Per Sample - Total Predicted Hits,STD Per Sample - True Predicted Hits,STD Per Sample - False Predicted Hits
+mean,-0.0,0.2,-0.1,-0.1,-0.0,0.1,0.1,0.1
+std,0.1,0.1,0.1,0.1,0.1,0.0,0.1,0.0
+min,-0.2,0.1,-0.2,-0.2,-0.2,0.0,0.0,0.0
+max,0.0,0.3,0.0,0.0,0.0,0.2,0.2,0.2
+median,-0.1,0.1,-0.0,-0.1,-0.0,0.1,0.1,0.1
+q1,-0.1,0.1,-0.1,-0.1,-0.1,0.1,0.1,0.0
+q3,0.0,0.2,-0.0,-0.0,0.0,0.1,0.1,0.1

@@ -1,0 +1,8 @@
+,Relative - Accuracy,Relative - Precision,Relative - Recall,Relative - F1_Score,Relative - MCC (Hit/Silence Classification),Relative - MCC (Correct Number of Instruments at each step),Relative - TPR,Relative - FPR,Relative - PPV,Relative - FDR,Relative - Ratio of Silences Predicted as Hits,Relative - Ratio of Hits Predicted as Silences,Hit Count - Ground Truth,Hit Count - Total Predictions,Hit Count - True Predictions (Matching GMD),Hit Count - False Predictions (Different from GMD)
+mean,0.8,0.2,0.5,0.3,0.2,0.1,0.5,0.2,0.2,0.6,0.2,0.5,34.4,61.3,17.4,44.0
+std,0.1,0.1,0.3,0.2,0.1,0.1,0.3,0.1,0.1,0.3,0.1,0.3,11.5,42.7,12.3,32.0
+min,0.5,0.0,0.0,0.0,0.0,-0.0,0.0,0.0,0.0,0.0,0.0,0.1,20.0,0.0,0.0,0.0
+max,0.9,0.4,0.9,0.5,0.5,0.4,0.9,0.5,0.4,0.8,0.5,1.0,56.0,166.0,42.0,130.0
+median,0.8,0.3,0.6,0.3,0.3,0.1,0.6,0.2,0.3,0.7,0.2,0.4,35.5,64.0,17.5,47.0
+q1,0.8,0.2,0.3,0.3,0.2,0.0,0.3,0.1,0.2,0.6,0.1,0.3,22.0,33.0,8.8,24.2
+q3,0.9,0.3,0.7,0.4,0.4,0.3,0.7,0.2,0.3,0.8,0.2,0.7,45.0,84.2,23.5,55.0
