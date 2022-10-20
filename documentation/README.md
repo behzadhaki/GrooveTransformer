@@ -53,7 +53,7 @@
 
 #### Test 2
 
-<embed type="text/html" src="../testers/evaluator/misc/offset_plots.html" width="600" height="400"></embed>
+<embed type="text/html" src="offset_plots.html" width="600" height="400"></embed>
 
 
 #### Test 3
