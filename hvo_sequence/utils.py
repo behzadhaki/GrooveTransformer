@@ -84,7 +84,7 @@ def create_grid_for_n_bars(n_bars, time_signature, tempo):
     return np.unique(grid_lines), beginning_of_next_bar
 
 
-def cosine_similarity(hvo_seq_a, hvo_seq_b, ignore_matching_silences=True):
+def cosine_similarity(hvo_seq_a, hvo_seq_b):
     assert hvo_seq_a.hvo.shape[-1] == hvo_seq_b.hvo.shape[-1], "the two sequences must have the same last dimension"
     assert len(hvo_seq_a.tempos) == 1 and len(hvo_seq_a.time_signatures) == 1, \
         "Input A Currently doesn't support multiple tempos or time_signatures"
@@ -94,25 +94,17 @@ def cosine_similarity(hvo_seq_a, hvo_seq_b, ignore_matching_silences=True):
     # Ensure a and b have same length by Padding the shorter sequence to match the longer one
     max_len = max(hvo_seq_a.hvo.shape[0], hvo_seq_b.hvo.shape[0])
 
-    # Ignore matching silences
-    if ignore_matching_silences:
-        h_a = hvo_seq_a.get("h")
-        h_b = hvo_seq_b.get("h")
-        idx = np.logical_or(h_a, h_b)
-        idx = np.concatenate((idx, idx, idx), -1)
-        hvo_a = hvo_seq_a.hvo[idx].flatten()
-        hvo_b = hvo_seq_b.hvo[idx].flatten()
-    else:
-        hvo_a = hvo_seq_a.hvo.flatten()
-        hvo_b = hvo_seq_b.hvo.flatten()
+
+    hvo_a = hvo_seq_a.hvo.flatten()
+    hvo_b = hvo_seq_b.hvo.flatten()
 
     # Calculate cosine similarity
 
     return 1-np.dot(hvo_a, hvo_b)/(np.linalg.norm(hvo_a)*np.linalg.norm(hvo_b))
 
 
-def cosine_distance(hvo_seq_a, hvo_seq_b,  ignore_matching_silences=True):
-    return 1-cosine_similarity(hvo_seq_a, hvo_seq_b,  ignore_matching_silences)
+def cosine_distance(hvo_seq_a, hvo_seq_b,  ):
+    return 1-cosine_similarity(hvo_seq_a, hvo_seq_b)
 
 
 def fuzzy_Hamming_distance(velocity_grooveA, utiming_grooveA,
