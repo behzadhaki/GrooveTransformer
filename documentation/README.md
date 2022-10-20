@@ -48,3 +48,12 @@
 ----
 
 {% include_relative ../testers/evaluator/misc/offset_plots.html %}
+
+<iframe 
+  width="660"
+  height="375"
+  src="https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/testers/evaluator/misc/offset_plots.html"
+  frameborder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen>
+</iframe>
