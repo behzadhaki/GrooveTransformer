@@ -1,3 +1,0 @@
-,drummer,session,loop_id,master_id,style_primary,style_secondary,bpm,beat_type,time_signature,full_midi_filename,full_audio_filename
-0,drummer8,session2,drummer8/session2/40:000:001:002:003:004:005:006:007:008:009:010:011:012:013:014:015:016:017:018,drummer8/session2/40,rock,indie,104,beat,4-4,drummer8/session2/40_rock-indie_104_beat_4-4.mid,nan
-1,drummer1,session2,drummer1/session2/110:000:001:002:003:004:005:006:007:008:009:010:011:012,drummer1/session2/110,rock,prog,190,beat,4-4,drummer1/session2/110_rock-prog_190_beat_4-4.mid,drummer1/session2/110_rock-prog_190_beat_4-4.wav

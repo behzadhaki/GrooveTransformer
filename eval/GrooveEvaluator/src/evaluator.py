@@ -18,7 +18,10 @@ import copy
 from eval.post_training_evaluations.src.mgeval_rytm_utils import flatten_subset_genres
 import pandas as pd
 from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_score, matthews_corrcoef
+from scipy.io.wavfile import write
 
+from bokeh.models.widgets import Panel, Tabs
+from bokeh.io import save
 
 def flatten(t):
     if len(t) >=1:
@@ -63,6 +66,7 @@ def get_stats_from_samples_dict(feature_value_dict, trim_decimals=None):
 
 
 class Evaluator:
+
     def __init__(
             self,
             hvo_sequences_list,
@@ -151,9 +155,78 @@ class Evaluator:
         self.audio_sample_locations = self.get_sample_indices(n_samples_to_synthesize)
         self.piano_roll_sample_locations = self.get_sample_indices(n_samples_to_draw_pianorolls)
 
-        self._gt_logged_once = False  # Flag will be set to True when ground truth data is once evaluated
-        self._gt_logged_once_wandb = False  # Flag will be set to True when ground truth data is once evaluated
-        # for WANDB
+        self._cached_gt_logging_data = None  # Cached data for ground truth logging
+        self._cached_predicted_logging_data = None  # Cached data for predicted logging
+        self._cached_gt_logging_data_wandb = None  # Cached data for ground truth logging
+        self._cached_predicted_logging_data_wandb = None  # Cached data for predicted logging
+
+    def __getstate__(self):
+        need_states = (self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, self.disable_tqdm)
+        gt_subset_states = (self._gt_tags, self._gt_subsets)
+        pd_prediction_hvos_array = self._prediction_hvos_array
+        general_states = (self._identifier, self._identifier)
+        audio_pianoroll_states = (self.audio_sample_locations, self.piano_roll_sample_locations)
+
+        return (need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states)
+
+    def __setstate__(self, state):
+        # reload the states
+        need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states = state
+        self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, self.disable_tqdm = need_states
+        self._gt_tags, self._gt_subsets = gt_subset_states
+        self._prediction_hvos_array = pd_prediction_hvos_array
+        self._identifier, self._identifier = general_states
+        self.audio_sample_locations, self.piano_roll_sample_locations = audio_pianoroll_states
+
+        # initialize the rest of the states
+        self._gt_hvo_sequences = []
+        self._gt_hvos_array_tags, self._gt_hvos_array, self._prediction_hvo_seq_templates = [], [], []
+        for subset_ix, tag in enumerate(self._gt_tags):
+            for sample_ix, sample_hvo in enumerate(self._gt_subsets[subset_ix]):
+                self._gt_hvo_sequences.append(sample_hvo)
+                self._gt_hvos_array_tags.append(tag)
+                self._gt_hvos_array.append(sample_hvo.get("hvo"))
+                self._prediction_hvo_seq_templates.append(sample_hvo.copy_empty())
+
+        self._gt_hvos_array = np.stack(self._gt_hvos_array)
+
+        # Subset evaluator for ground_truth data
+        self.gt_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
+            self._gt_subsets,  # Ground Truth typically
+            self._gt_tags,
+            "{}_Ground_Truth".format(self._identifier),  # a name for the subset
+            disable_tqdm=self.disable_tqdm,
+            group_by_minor_keys=True,
+            need_heatmap=self.need_heatmap,
+            need_global_features=self.need_global_features
+        )
+
+        # Empty place holder for predictions, also Placeholder Subset evaluator for predicted data
+        self._prediction_tags, self._prediction_subsets = None, None
+        self.prediction_SubSet_Evaluator = None
+
+        if self._prediction_hvos_array is not None:
+            self._prediction_tags, self._prediction_subsets = \
+                subsetters.convert_hvos_array_to_subsets(
+                    self._gt_hvos_array_tags,
+                    self._prediction_hvos_array,
+                    self._prediction_hvo_seq_templates
+                )
+
+            self.prediction_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
+                self._prediction_subsets,
+                self._prediction_tags,
+                "{}_Predictions".format(self._identifier),  # a name for the subset
+                disable_tqdm=self.disable_tqdm,
+                group_by_minor_keys=True,
+                need_heatmap=self.need_heatmap,
+                need_global_features=self.need_global_features
+            )
+
+        self._cached_gt_logging_data = None  # Cached data for ground truth logging
+        self._cached_predicted_logging_data = None  # Cached data for predicted logging
+        self._cached_gt_logging_data_wandb = None  # Cached data for ground truth logging
+        self._cached_predicted_logging_data_wandb = None  # Cached data for predicted logging
 
     # ==================================================================================================================
     #  Get Logging dict or WandB Artifacts for ground truth data and/or predictions
@@ -179,10 +252,9 @@ class Evaluator:
         need_piano_rolls = self.need_piano_roll if "default" in need_piano_rolls else need_piano_rolls
         need_audio_files = self.need_audio if "default" in need_audio_files else need_audio_files
 
-        _gt_logging_data = None
         # Get logging data for ground truth data
-        if recalculate_ground_truth is True or self._gt_logged_once is False:
-            _gt_logging_data = self.gt_SubSet_Evaluator.get_logging_dict(
+        if recalculate_ground_truth is True or self._cached_gt_logging_data is None:
+            self._cached_gt_logging_data = self.gt_SubSet_Evaluator.get_logging_dict(
                 need_velocity_heatmap=need_velocity_heatmap,
                 need_global_features=need_global_features,
                 need_piano_rolls=need_piano_rolls,
@@ -191,9 +263,8 @@ class Evaluator:
                 for_audios_use_specific_samples_at=self.audio_sample_locations,
                 for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
             )
-            self._gt_logged_once = True
 
-        _predicted_logging_data = self.prediction_SubSet_Evaluator.get_logging_dict(
+        self._cached_predicted_logging_data = self.prediction_SubSet_Evaluator.get_logging_dict(
             need_velocity_heatmap=need_velocity_heatmap,
             need_global_features=need_global_features,
             need_piano_rolls=need_piano_rolls,
@@ -203,10 +274,8 @@ class Evaluator:
             for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
         ) if self.prediction_SubSet_Evaluator is not None else None
 
-        if need_groundTruth is True:
-            return _gt_logging_data, _predicted_logging_data
-        else:
-            return _predicted_logging_data
+        return self._cached_gt_logging_data, self._cached_predicted_logging_data
+
 
     def get_wandb_logging_media(self, need_velocity_heatmap="default", need_global_features="default",
                                 need_piano_rolls="default", need_audio_files="default",
@@ -226,9 +295,9 @@ class Evaluator:
 
         # Get logging data for ground truth data
         if need_groundTruth is True:
-            if recalculate_ground_truth is True or self._gt_logged_once_wandb is False:
+            if recalculate_ground_truth is True or self._cached_gt_logging_data_wandb is None:
 
-                gt_logging_media = self.gt_SubSet_Evaluator.get_wandb_logging_media(
+                self._cached_gt_logging_data_wandb = self.gt_SubSet_Evaluator.get_wandb_logging_media(
                     need_velocity_heatmap=need_velocity_heatmap,
                     need_global_features=need_global_features,
                     need_piano_rolls=need_piano_rolls,
@@ -236,11 +305,8 @@ class Evaluator:
                     sf_paths=sf_paths,
                     use_specific_samples_at=self.audio_sample_locations
                 )
-                self._gt_logged_once_wandb = True
-            else:
-                gt_logging_media = {}
 
-        predicted_logging_media = self.prediction_SubSet_Evaluator.get_wandb_logging_media(
+        self._cached_predicted_logging_data_wandb = self.prediction_SubSet_Evaluator.get_wandb_logging_media(
             need_velocity_heatmap=need_velocity_heatmap,
             need_global_features=need_global_features,
             need_piano_rolls=need_piano_rolls,
@@ -249,14 +315,14 @@ class Evaluator:
             use_specific_samples_at=self.audio_sample_locations
         ) if self.prediction_SubSet_Evaluator is not None else {}
 
-        results = {x: {} for x in gt_logging_media.keys()}
-        results.update({x: {} for x in predicted_logging_media.keys()})
+        results = {x: {} for x in self._cached_gt_logging_data_wandb.keys()}
+        results.update({x: {} for x in self._cached_predicted_logging_data_wandb.keys()})
 
         for key in results.keys():
-            if key in gt_logging_media.keys():
-                results[key].update(gt_logging_media[key])
-            if key in predicted_logging_media.keys():
-                results[key].update(predicted_logging_media[key])
+            if key in self._cached_gt_logging_data_wandb.keys():
+                results[key].update(self._cached_gt_logging_data_wandb[key])
+            if key in self._cached_predicted_logging_data_wandb.keys():
+                results[key].update(self._cached_predicted_logging_data_wandb[key])
 
         return results
 
@@ -318,6 +384,55 @@ class Evaluator:
             prediction_subsets_tags = self._prediction_tags
             prediction_subset_tag = "prediction"
             subset_to_midi(prediction_subset_tag, prediction_subsets_tags, prediction_subsets, directory)
+
+    # ==================================================================================================================
+    #  Export to Audio
+    # ==================================================================================================================
+    def get_audio_tuples(self, sf_path=None, save_directory=None, concatenate_gt_and_pred=True):
+        """
+        :param sf_path: path to soundfont
+        :param save_directory: directory to save audio files
+        :param concatenate_gt_and_pred: concatenate ground truth and prediction audio files
+        :return: list of tuples of (filename, audio array)
+        """
+
+        if sf_path is None:
+            sf_path = "hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"
+            if os.path.exists(sf_path) is False:
+                sf_path = "../" + sf_path
+                if os.path.exists(sf_path) is False:
+                    sf_path = "../../" + sf_path
+                else:
+                    raise Exception("Soundfont not found. Please provide a valid path to a soundfont.")
+
+        gt_tuples = self.gt_SubSet_Evaluator.get_audios([sf_path])
+        pred_tuples = self.prediction_SubSet_Evaluator.get_audios([sf_path])
+
+        compiled_tuples = []
+        for i, _ in enumerate(gt_tuples):
+            if concatenate_gt_and_pred is False:
+                title = gt_tuples[i][0].replace(".wav", "").replace("Ground_Truth", "")
+                compiled_tuples.append((title + "_gt.wav", gt_tuples[i][1]))
+                if self._prediction_subsets is not None:
+                    compiled_tuples.append((title + "_pred.wav", pred_tuples[i][1]))
+            else:
+                title = gt_tuples[i][0].replace(".wav", "").replace("Ground_Truth", "") + "_gt_silence_pred.wav"
+                gt_audio = gt_tuples[i][1]
+                pred_audio = pred_tuples[i][1]
+                silence = np.zeros(44100)
+                np.concatenate((gt_audio, silence, pred_audio), axis=0)
+                compiled_tuples.append((title, np.concatenate((gt_tuples[i][1], np.zeros(44100), pred_tuples[i][1]))))
+
+        if save_directory is not None:
+            def save_audio(path, array, sr=44100):
+                write(path, sr, array)
+
+            os.makedirs(save_directory, exist_ok=True)
+
+            for title, audio in compiled_tuples:
+                save_audio(os.path.join(save_directory, title), audio)
+
+        return compiled_tuples
 
     # ==================================================================================================================
     #  Evaluation of Hits
@@ -851,6 +966,49 @@ class Evaluator:
         return copy.deepcopy(self._gt_hvos_array)
 
     # ==================================================================================================================
+    #  Get Piano Roll HTML Figures
+    def get_piano_rolls(self, save_path=None, x_range_pad=0.5, y_range_pad=None):
+        gt = {k: v for k, v in sorted(zip(self._gt_tags, self._gt_subsets))}
+        pred = {k: v for k, v in sorted(
+            zip(self._prediction_tags, self._prediction_subsets))} if self._prediction_subsets is not None else None
+
+        full_figure = []
+        for k in gt.keys():
+            subset_panels = []
+            for sample_i in range(len(gt[k])):
+                sample_panels = list()
+                gt_proll = gt[k][sample_i].to_html_plot()
+                gt_proll.x_range.range_padding = x_range_pad
+                if y_range_pad is not None:
+                    gt_proll.y_range.range_padding = y_range_pad
+                sample_panels.append(Panel(child=gt_proll, title="GT"))
+                if pred is not None:
+                    pred_proll = pred[k][sample_i].to_html_plot()
+                    pred_proll.x_range = gt_proll.x_range
+                    pred_proll.y_range = gt_proll.y_range
+                    sample_panels.append(Panel(child=pred_proll, title="Pred"))
+                sample_tabs = Tabs(tabs=sample_panels)
+                title = gt[k][sample_i].metadata["master_id"] if "master_id" in gt[k][
+                    sample_i].metadata.keys() else "Sample {}".format(sample_i)
+                subset_panels.append(Panel(child=sample_tabs, title=title))
+            full_figure.append(Panel(child=Tabs(tabs=subset_panels), title=k))
+
+        final_tabs = Tabs(tabs=full_figure)
+
+        if save_path is not None:
+            # make sure file ends with .html
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+
+            # make sure directory exists
+            if not os.path.exists(os.path.dirname(save_path)):
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            save(final_tabs, save_path)
+
+        return final_tabs
+
+    # ==================================================================================================================
     #  Add predictions to the evaluator
     # ==================================================================================================================
     def add_predictions(self, prediction_hvos_array):
@@ -904,6 +1062,7 @@ class Evaluator:
                 sample_locations[tags[subset_ix]].append(i)
 
         return sample_locations
+
 
 PATH_DICT_TEMPLATE = {
     "root_dir": "",  # ROOT_DIR to save data
@@ -1067,7 +1226,8 @@ class HVOSeq_SubSet_Evaluator(object):
             scale_y=False, resolution=resolution)
         tabs = separate_figues_by_tabs(p, tab_titles=list(self.global_features_dict.keys()))
         return tabs
-
+    
+    
     def get_hvo_samples_located_at(self, use_specific_samples_at, force_get=False):
         tags, subsets = self.tags_subsets
 

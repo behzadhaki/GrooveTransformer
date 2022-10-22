@@ -85,7 +85,7 @@ The results are available as a pandas dataframe and can be also stored to a csv 
       [7 rows x 16 columns]
 
 
-<img src="assets/images/hit_scores.png" width="600">
+<img src="assets/images/hit_scores.png" width="900">
 
 
 ### Quality of Velocities <a name="b"></a>
@@ -129,7 +129,7 @@ statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_vel
         trim_decimals=1, csv_file="testers/evaluator/misc/vel_stats.csv")
 ```
 
-<img src="assets/images/vel_stats.png" width="600">
+<img src="assets/images/vel_stats.png" width="900">
 
 
 ### Quality of Offsets <a name="c"></a>
@@ -175,7 +175,7 @@ rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic
    tag_by_identifier=False, csv_dir="testers/evaluator/misc/distances", trim_decimals=3)
 ```
 
-<img src="assets/images/DISTANCES.png" width="600">
+<img src="assets/images/DISTANCES.png" width="900">
 
 
 ### Global features <a name="e"></a>
@@ -219,7 +219,7 @@ get_statistics_of_global_features_df = evaluator_test_set.get_statistics_of_glob
   calc_gt=True, calc_pred=True, csv_file="testers/evaluator/misc/global_features_statistics.csv", trim_decimals=3)
 ```
 
-<img src="assets/images/global_features_statistics.png" width="600">
+<img src="assets/images/global_features_statistics.png" width="900">
 
 ### 3.2 Rendering Results as Bokeh Plots <a name="3_ii"></a>
 
@@ -235,17 +235,25 @@ for each set of analysis results.
 
 ### Rhythmic Distances <a name="d2"></a>
 
-### Global features <a name="e2"></a>
+### Global Features Distributions <a name="e2"></a>
+#### **AS RIDGE PLOTS**
+!!!! COMBINE THE GT AND PREDICTIONS 
+
+#### **AS VIOLEN PLOTS**
+
+#### Distributions
+
+### Velocity Heatmaps
 
 
 ### 3.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
 
 
 ### Piano Rolls <a name="a3"></a>
-
+!!!! COMBINE THE GT AND PREDICTIONS 
 
 ### Audio <a name="b3"></a>
-
+!!!! COMBINE THE GT AND PREDICTIONS  (First half GT, Second Half Pred)
 
 ### Midi <a name="c3"></a>
 
