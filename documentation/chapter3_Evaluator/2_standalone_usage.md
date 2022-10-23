@@ -340,4 +340,8 @@ audio_tuples = evaluator_test_set.get_audio_tuples(
 
 ### Midi <a name="c3"></a>
 
+```python
+evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="testers/evaluator/misc/midi")
+```
 
+<img src="assets/images/midi_files.png" width="300">

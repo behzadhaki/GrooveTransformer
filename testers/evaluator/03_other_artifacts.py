@@ -19,3 +19,5 @@ if __name__ == "__main__":
         save_directory="testers/evaluator/misc/audios",
         concatenate_gt_and_pred=True)
 
+    # store midi files
+    evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="testers/evaluator/misc/midi")
