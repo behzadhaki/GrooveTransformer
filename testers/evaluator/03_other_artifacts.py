@@ -18,3 +18,4 @@ if __name__ == "__main__":
         sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2",
         save_directory="testers/evaluator/misc/audios",
         concatenate_gt_and_pred=True)
+

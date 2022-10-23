@@ -6,17 +6,12 @@ import colorcet as cc
 from numpy import linspace
 from scipy.stats.kde import gaussian_kde
 
-from bokeh.io import output_file, show, save
-from bokeh.models import ColumnDataSource, FixedTicker, PrintfTickFormatter, Legend, SingleIntervalTicker, LinearAxis
+import numpy as np
+from bokeh.io import output_file, save
+from bokeh.models import ColumnDataSource, Span, Legend, SingleIntervalTicker
 from bokeh.plotting import figure
-from bokeh.sampledata.perceptions import probly
-
-from bokeh.layouts import layout, column, row
 
 from bokeh.models.annotations import Title
-
-import numpy as np
-from bokeh.models.widgets import Tabs, Panel
 
 import holoviews as hv
 from holoviews import opts
@@ -78,6 +73,7 @@ def heat_map_plot(x, y, s, bins=[32*10, 127]):
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
     return heatmap.T, extent
 
+
 def velocity_timing_heatmaps_scatter_plotter(
         heatmaps_dict,
         scatters_dict,
@@ -85,14 +81,14 @@ def velocity_timing_heatmaps_scatter_plotter(
         number_of_unique_performances_per_subset_dict=None,
         organized_by_drum_voice=True,               # denotes that the first key in heatmap and dict corresponds to drum voices
         title_prefix="",
-        plot_width=1200, plot_height_per_set=400,legend_fnt_size="12px",
+        plot_width=1200, plot_height_per_set=100,legend_fnt_size="12px",
         synchronize_plots=True,
         downsample_heat_maps_by=1
 ):
 
     # Create a separate figure for first keys
-    major_keys = list(heatmaps_dict.keys())                     # (either drum voice or subset tag)
-    minor_keys = list(heatmaps_dict[major_keys[0]].keys())      # (either drum voice or subset tag)
+    major_keys = sorted(list(heatmaps_dict.keys()))                    # (either drum voice or subset tag)
+    minor_keys = sorted(list(heatmaps_dict[major_keys[0]].keys()))      # (either drum voice or subset tag)
 
     if organized_by_drum_voice is True:
         # Majors are drum voice and minors are subset tags
@@ -153,6 +149,7 @@ def velocity_timing_heatmaps_scatter_plotter(
         t.text = major_titles[major_ix]
         p.title = t
 
+        vel_lines = []  # horizontal lines to show 0, 127 velocity limits
         for minor_ix, minor_key in enumerate(minor_keys):
             scatter_times, scatter_vels = scatters_dict[major_key][minor_key]
             heatmap_data, heatmap_extents = heatmaps_dict[major_key][minor_key]
@@ -172,6 +169,18 @@ def velocity_timing_heatmaps_scatter_plotter(
                 palette="Spectral11", level="image"
             )
             histogram_figures.append(im)
+
+            # ygrid and yaxis settings
+            vline_0vel = Span(location=minor_ix * (1.02 * 127), dimension='width', line_color='gray', line_width=0.55)
+            #vline_127vel = Span(location=minor_ix * (1.02 * 127) + 127, dimension='width', line_color='black', line_width=0.55)
+            vel_lines.extend([vline_0vel])
+
+        # last vel line
+        vline_127vel = Span(location=minor_ix * (1.02 * 127) + 127, dimension='width', line_color='black',
+                            line_width=0.55)
+        vel_lines.extend([vline_127vel])
+        # add vel lines
+        p.renderers.extend(vel_lines)
 
         # Legend stuff here
         legend_it.append(("Hide Heat Maps", histogram_figures))
@@ -198,6 +207,7 @@ def velocity_timing_heatmaps_scatter_plotter(
         ticker = SingleIntervalTicker(interval=4, num_minor_ticks=4)
         p.xaxis.ticker = ticker
         p.xgrid.ticker = p.xaxis.ticker
+
 
         final_figure_layout.append(p)
     return final_figure_layout

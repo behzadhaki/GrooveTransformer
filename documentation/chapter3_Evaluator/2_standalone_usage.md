@@ -19,6 +19,9 @@ The results can be accessed as a dictionary or a Pandas.DataFrame (Section [3.1]
 or they can be rendered as Bokeh plots (Section [3.2](#3_ii)). 
 Also, the ground truth samples and the generations can be rendered to piano roll, audio or midi files (Section [3.3](#3_iii)). 
 
+> **Note** All codes provided below in this section is available [here](../../testers/evaluator/01_Basics_demo.py)
+
+
 ### 3.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>
 
 The evaluation results can be accessed as a dictionary or a Pandas.DataFrame. 
@@ -227,33 +230,113 @@ The results in section [3.1](#3_i) can also be automatically rendered as Bokeh p
 These plots are violin plots, super-imposed with boxplots and the raw scatter data. The plots are separated by Tabs 
 for each set of analysis results.
 
+> **Note** All codes provided below in this section is available [here](../../testers/evaluator/02_accessing_evaluation_results.py)
+
+
 ### Quality of Hits <a name="a2"></a>
+```python
+pos_neg_hit_plots = evaluator_test_set.get_pos_neg_hit_plots(
+        save_path="testers/evaluator/misc/pos_neg_hit_plots.html",
+        plot_width=1200, plot_height=800,
+        kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/pos_neg_hit_plots.png" width="900">
 
 ### Quality of Velocities <a name="b2"></a>
 
+```python
+velocity_plots = evaluator_test_set.get_velocity_distribution_plots(
+        save_path="testers/evaluator/misc/velocity_plots.html", plot_width=1200, plot_height=800,
+        kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/velocity_plots.png" width="900">
+
 ### Quality of Offsets <a name="c2"></a>
+```python
+offset_plots = evaluator_test_set.get_velocity_distribution_plots(
+        save_path="testers/evaluator/misc/offset_plots.html", plot_width=1200, plot_height=800,
+        kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/offset_plots.png" width="900">
 
 ### Rhythmic Distances <a name="d2"></a>
+```python
+rhythmic_distances_plot = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt_plot(
+        save_path="testers/evaluator/misc/rhythmic_distances_plots.html", plot_width=1200, plot_height=800,
+        kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/rhythmic_distances_plots.png" width="900">
 
 ### Global Features Distributions <a name="e2"></a>
-#### **AS RIDGE PLOTS**
-!!!! COMBINE THE GT AND PREDICTIONS 
-
-#### **AS VIOLEN PLOTS**
 
 #### Distributions
+```python
+evaluator_test_set.get_global_features_plot(only_combined_data_needed=False,
+                                                save_path="testers/evaluator/misc/global_features_all.html",
+                                                plot_width=1200, plot_height=800,
+                                                kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/global_features_all.png" width="900">
+
+```python
+evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
+                                                save_path="testers/evaluator/misc/global_features_combinedOnly.html",
+                                                plot_width=1200, plot_height=800,
+                                                kernel_bandwidth=0.05)
+```
+
+<img src="assets/images/global_features_combinedOnly.png" width="900">
 
 ### Velocity Heatmaps
+```python
+evaluator_test_set.get_velocity_heatmaps(
+        s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True,
+        save_path="testers/evaluator/misc/velocity_heatmaps.html")
+```
 
+<img src="assets/images/velocity_heatmaps.png" width="900">
 
 ### 3.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
+> **Note** All codes provided below in this section is available [here](../../testers/evaluator/03_other_artifacts.py)
+
 
 
 ### Piano Rolls <a name="a3"></a>
-!!!! COMBINE THE GT AND PREDICTIONS 
+```python
+piano_rolls = evaluator_test_set.get_piano_rolls(save_path="testers/evaluator/misc/piano_rolls.html")
+```
+
+<img src="assets/images/pianorolls.png" width="900">
 
 ### Audio <a name="b3"></a>
-!!!! COMBINE THE GT AND PREDICTIONS  (First half GT, Second Half Pred)
+You can render ground truth and predicted audio files as seperate files, or as a single file 
+where the gt audio is followed by 1 sec of silence and then the generated pattern. 
+```python
+# get audios - separate files for ground truth and predictions
+audio_tuples = evaluator_test_set.get_audio_tuples(
+   sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2",
+   save_directory="testers/evaluator/misc/audios",
+   concatenate_gt_and_pred=False)
+```
+
+<img src="assets/images/audios_separated.png" width="900">
+
+```python
+
+# get audios - a single file containing ground truth and predictions with a 1sec silence in between
+audio_tuples = evaluator_test_set.get_audio_tuples(
+   sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2",
+   save_directory="testers/evaluator/misc/audios",
+   concatenate_gt_and_pred=True)
+```
+
+<img src="assets/images/audios_singleFile.png" width="900">
+
 
 ### Midi <a name="c3"></a>
 

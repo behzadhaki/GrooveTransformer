@@ -770,6 +770,79 @@ class Evaluator:
         return ((gt - pred) ** 2).mean(axis=-1).mean()
 
     # ==================================================================================================================
+    #   Velocity Heatmaps
+    # ==================================================================================================================
+    def get_velocity_heatmaps(self, s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True, save_path=None):
+        '''
+
+        :param s: used for heatmap smoothing
+        :param bins: [x_bins, y_bins] used for the heatmap bins
+        :param regroup_by_drum_voice: if True, the heatmap will be grouped by drum voice, otherwise it will display voices in each figure
+        :param save_path: if not None, the heatmap will be saved to this path
+        :return: final bokeh figure with all the tabs
+        '''
+
+        # get vel/timing heatmaps
+
+        gt_heatmaps_dict, gt_scatter_velocities_and_timings_dict = \
+            self.gt_SubSet_Evaluator.feature_extractor.get_velocity_timing_heatmap_dicts(
+                s=s, bins=bins, regroup_by_drum_voice=regroup_by_drum_voice)
+        gt_number_of_loops_per_subset_dict = self.gt_SubSet_Evaluator.feature_extractor.number_of_loops_in_sets
+        gt_number_of_unique_performances_in_sets = self.gt_SubSet_Evaluator.feature_extractor.number_of_unique_performances_in_sets
+
+        if self.prediction_SubSet_Evaluator is not None:
+            pred_heatmaps_dict, pred_scatter_velocities_and_timings_dict = \
+                self.prediction_SubSet_Evaluator.feature_extractor.get_velocity_timing_heatmap_dicts(
+                    s=s, bins=bins, regroup_by_drum_voice=regroup_by_drum_voice)
+            prediction_number_of_loops_per_subset_dict = self.prediction_SubSet_Evaluator.feature_extractor.number_of_loops_in_sets
+            prediction_number_of_unique_performances_in_sets = self.prediction_SubSet_Evaluator.feature_extractor.number_of_unique_performances_in_sets
+
+        gt_figs = velocity_timing_heatmaps_scatter_plotter(
+            heatmaps_dict=gt_heatmaps_dict,
+            scatters_dict=gt_scatter_velocities_and_timings_dict,
+            number_of_loops_per_subset_dict=gt_number_of_loops_per_subset_dict,
+            number_of_unique_performances_per_subset_dict=gt_number_of_unique_performances_in_sets,
+            organized_by_drum_voice=regroup_by_drum_voice
+        )
+
+        prediction_figs = [None] * len(gt_figs)
+        if self.prediction_SubSet_Evaluator is not None:
+            prediction_figs = velocity_timing_heatmaps_scatter_plotter(
+                heatmaps_dict=pred_heatmaps_dict,
+                scatters_dict=pred_scatter_velocities_and_timings_dict,
+                number_of_loops_per_subset_dict=prediction_number_of_loops_per_subset_dict,
+                number_of_unique_performances_per_subset_dict=prediction_number_of_unique_performances_in_sets,
+                organized_by_drum_voice=regroup_by_drum_voice
+            )
+
+        tabs = []
+        for gt_fig, pred_fig in zip(gt_figs, prediction_figs):
+            if pred_fig is not None:
+                pred_fig.x_range = gt_fig.x_range
+                pred_fig.y_range = gt_fig.y_range
+                p2 = Panel(child=pred_fig, title="Prediction")
+                p1 = Panel(child=gt_fig, title="Ground Truth")
+            else:
+                p1 = Panel(child=gt_fig, title=gt_fig.title.text)
+
+            tabs.append(
+                Panel(child=Tabs(tabs=[p1, p2]), title=gt_fig.title.text)) if pred_fig is not None else tabs.append(p1)
+
+        final_fig = Tabs(tabs=tabs)
+
+        if save_path is not None:
+            # make sure save path ends with .html
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+
+            # make directory if it doesn't exist
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            save(final_fig, save_path)
+
+        return final_fig
+
+    # ==================================================================================================================
     #  Evaluation using Global Features Implemented in HVO_Sequence
     # ==================================================================================================================
     def get_global_features_values(self, return_as_pandas_df=False):
@@ -1203,7 +1276,7 @@ class HVOSeq_SubSet_Evaluator(object):
         p = velocity_timing_heatmaps_scatter_plotter(
             self.vel_heatmaps_dict,
             self.vel_scatters_dict,
-            number_of_loops_per_subset_dict=self.feature_extractor.number_of_loops_in_sets,
+            number_of_loops_per_subset_dict=self.feature_extractor.number_of_loops_in_setsnumber_of_loops_in_sets,
             number_of_unique_performances_per_subset_dict=self.feature_extractor.number_of_unique_performances_in_sets,
             organized_by_drum_voice=self.group_by_minor_keys,
             title_prefix=self.set_identifier,
