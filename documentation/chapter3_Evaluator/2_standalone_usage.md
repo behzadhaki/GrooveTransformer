@@ -88,7 +88,7 @@ The results are available as a pandas dataframe and can be also stored to a csv 
       [7 rows x 16 columns]
 
 
-<img src="assets/images/hit_scores.png" width="900">
+<img src="assets/images/hit_scores.png" width="600">
 
 
 ### Quality of Velocities <a name="b"></a>
@@ -132,7 +132,7 @@ statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_vel
         trim_decimals=1, csv_file="testers/evaluator/misc/vel_stats.csv")
 ```
 
-<img src="assets/images/vel_stats.png" width="900">
+<img src="assets/images/vel_stats.png" width="600">
 
 
 ### Quality of Offsets <a name="c"></a>
@@ -178,7 +178,7 @@ rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic
    tag_by_identifier=False, csv_dir="testers/evaluator/misc/distances", trim_decimals=3)
 ```
 
-<img src="assets/images/DISTANCES.png" width="900">
+<img src="assets/images/DISTANCES.png" width="600">
 
 
 ### Global features <a name="e"></a>
@@ -222,7 +222,7 @@ get_statistics_of_global_features_df = evaluator_test_set.get_statistics_of_glob
   calc_gt=True, calc_pred=True, csv_file="testers/evaluator/misc/global_features_statistics.csv", trim_decimals=3)
 ```
 
-<img src="assets/images/global_features_statistics.png" width="900">
+<img src="assets/images/global_features_statistics.png" width="600">
 
 ### 3.2 Rendering Results as Bokeh Plots <a name="3_ii"></a>
 
@@ -241,7 +241,7 @@ pos_neg_hit_plots = evaluator_test_set.get_pos_neg_hit_plots(
         kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/pos_neg_hit_plots.png" width="900">
+<img src="assets/images/pos_neg_hit_plots.png" width="600">
 
 ### Quality of Velocities <a name="b2"></a>
 
@@ -251,7 +251,7 @@ velocity_plots = evaluator_test_set.get_velocity_distribution_plots(
         kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/velocity_plots.png" width="900">
+<img src="assets/images/velocity_plots.png" width="600">
 
 ### Quality of Offsets <a name="c2"></a>
 ```python
@@ -260,7 +260,7 @@ offset_plots = evaluator_test_set.get_velocity_distribution_plots(
         kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/offset_plots.png" width="900">
+<img src="assets/images/offset_plots.png" width="600">
 
 ### Rhythmic Distances <a name="d2"></a>
 ```python
@@ -269,7 +269,7 @@ rhythmic_distances_plot = evaluator_test_set.get_rhythmic_distances_of_pred_to_g
         kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/rhythmic_distances_plots.png" width="900">
+<img src="assets/images/rhythmic_distances_plots.png" width="600">
 
 ### Global Features Distributions <a name="e2"></a>
 
@@ -281,7 +281,7 @@ evaluator_test_set.get_global_features_plot(only_combined_data_needed=False,
                                                 kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/global_features_all.png" width="900">
+<img src="assets/images/global_features_all.png" width="600">
 
 ```python
 evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
@@ -290,7 +290,7 @@ evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
                                                 kernel_bandwidth=0.05)
 ```
 
-<img src="assets/images/global_features_combinedOnly.png" width="900">
+<img src="assets/images/global_features_combinedOnly.png" width="600">
 
 ### Velocity Heatmaps
 ```python
@@ -299,7 +299,7 @@ evaluator_test_set.get_velocity_heatmaps(
         save_path="testers/evaluator/misc/velocity_heatmaps.html")
 ```
 
-<img src="assets/images/velocity_heatmaps.png" width="900">
+<img src="assets/images/velocity_heatmaps.png" width="600">
 
 ### 3.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
 > **Note** All codes provided below in this section is available [here](../../testers/evaluator/03_other_artifacts.py)
@@ -311,7 +311,7 @@ evaluator_test_set.get_velocity_heatmaps(
 piano_rolls = evaluator_test_set.get_piano_rolls(save_path="testers/evaluator/misc/piano_rolls.html")
 ```
 
-<img src="assets/images/pianorolls.png" width="900">
+<img src="assets/images/pianorolls.png" width="600">
 
 ### Audio <a name="b3"></a>
 You can render ground truth and predicted audio files as seperate files, or as a single file 
@@ -324,7 +324,7 @@ audio_tuples = evaluator_test_set.get_audio_tuples(
    concatenate_gt_and_pred=False)
 ```
 
-<img src="assets/images/audios_separated.png" width="900">
+<img src="assets/images/audios_separated.png" width="300">
 
 ```python
 
@@ -335,7 +335,7 @@ audio_tuples = evaluator_test_set.get_audio_tuples(
    concatenate_gt_and_pred=True)
 ```
 
-<img src="assets/images/audios_singleFile.png" width="900">
+<img src="assets/images/audios_singleFile.png" width="300">
 
 
 ### Midi <a name="c3"></a>
