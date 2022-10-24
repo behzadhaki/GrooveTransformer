@@ -28,7 +28,7 @@ for style in styles:
     list_of_filter_dicts_for_subsets.append({"style_primary": [style], "beat_type": ["beat"], "time_signature": ["4-4"]})
 
 list_of_filter_dicts_for_subsets
-tags_by_style_and_beat, subsets_by_style_and_beat = subsetters.GrooveMidiSubsetter(
+tags_by_style_and_beat, subsets_by_style_and_beat = subsetters.HVOSetSubsetter(
     pickle_source_path="../preprocessed_dataset/datasets_extracted_locally/GrooveMidi/hvo_0.4.2/"
                        "Processed_On_17_05_2021_at_22_32_hrs",
     subset="GrooveMIDI_processed_train",

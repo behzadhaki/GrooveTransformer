@@ -9,20 +9,6 @@ from eval.GrooveEvaluator.src.back_compatible_loader import load_evaluator
 
 import pickle
 
-# MAGENTA MAPPING
-ROLAND_REDUCED_MAPPING = {
-    "KICK": [36],
-    "SNARE": [38, 37, 40],
-    "HH_CLOSED": [42, 22, 44],
-    "HH_OPEN": [46, 26],
-    "TOM_3_LO": [43, 58],
-    "TOM_2_MID": [47, 45],
-    "TOM_1_HI": [50, 48],
-    "CRASH": [49, 52, 55, 57],
-    "RIDE":  [51, 53, 59]
-}
-ROLAND_REDUCED_MAPPING_VOICES = ['/KICK', '/SNARE', '/HH_CLOSED', '/HH_OPEN', '/TOM_3_LO', '/TOM_2_MID', '/TOM_1_HI', '/CRASH', '/RIDE']
-
 
 def load_model(model_name, model_path):
 
@@ -81,3 +67,21 @@ if __name__ == '__main__':
     gmd_eval.add_predictions(prediction_hvos.detach().numpy())
 
     gmd_eval.dump(f"eval/saved/monotonic_groove_transformer_v1/post_training_validation_set_evaluator_run_{model_name}.Eval")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

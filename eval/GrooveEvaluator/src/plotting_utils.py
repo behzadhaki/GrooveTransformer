@@ -6,17 +6,17 @@ import colorcet as cc
 from numpy import linspace
 from scipy.stats.kde import gaussian_kde
 
-from bokeh.io import output_file, show
-from bokeh.models import ColumnDataSource, FixedTicker, PrintfTickFormatter, Legend, SingleIntervalTicker, LinearAxis
+import numpy as np
+from bokeh.io import output_file, save
+from bokeh.models import ColumnDataSource, Span, Legend, SingleIntervalTicker
 from bokeh.plotting import figure
-from bokeh.sampledata.perceptions import probly
-
-from bokeh.layouts import layout, column, row
 
 from bokeh.models.annotations import Title
 
-import numpy as np
-from bokeh.models.widgets import Tabs, Panel
+import holoviews as hv
+from holoviews import opts
+from bokeh.models import Tabs, Panel
+hv.extension('bokeh')
 
 ##############################################
 ###
@@ -73,6 +73,7 @@ def heat_map_plot(x, y, s, bins=[32*10, 127]):
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
     return heatmap.T, extent
 
+
 def velocity_timing_heatmaps_scatter_plotter(
         heatmaps_dict,
         scatters_dict,
@@ -80,14 +81,14 @@ def velocity_timing_heatmaps_scatter_plotter(
         number_of_unique_performances_per_subset_dict=None,
         organized_by_drum_voice=True,               # denotes that the first key in heatmap and dict corresponds to drum voices
         title_prefix="",
-        plot_width=1200, plot_height_per_set=400,legend_fnt_size="12px",
+        plot_width=1200, plot_height_per_set=100,legend_fnt_size="12px",
         synchronize_plots=True,
         downsample_heat_maps_by=1
 ):
 
     # Create a separate figure for first keys
-    major_keys = list(heatmaps_dict.keys())                     # (either drum voice or subset tag)
-    minor_keys = list(heatmaps_dict[major_keys[0]].keys())      # (either drum voice or subset tag)
+    major_keys = sorted(list(heatmaps_dict.keys()))                    # (either drum voice or subset tag)
+    minor_keys = sorted(list(heatmaps_dict[major_keys[0]].keys()))      # (either drum voice or subset tag)
 
     if organized_by_drum_voice is True:
         # Majors are drum voice and minors are subset tags
@@ -148,6 +149,7 @@ def velocity_timing_heatmaps_scatter_plotter(
         t.text = major_titles[major_ix]
         p.title = t
 
+        vel_lines = []  # horizontal lines to show 0, 127 velocity limits
         for minor_ix, minor_key in enumerate(minor_keys):
             scatter_times, scatter_vels = scatters_dict[major_key][minor_key]
             heatmap_data, heatmap_extents = heatmaps_dict[major_key][minor_key]
@@ -167,6 +169,18 @@ def velocity_timing_heatmaps_scatter_plotter(
                 palette="Spectral11", level="image"
             )
             histogram_figures.append(im)
+
+            # ygrid and yaxis settings
+            vline_0vel = Span(location=minor_ix * (1.02 * 127), dimension='width', line_color='gray', line_width=0.55)
+            #vline_127vel = Span(location=minor_ix * (1.02 * 127) + 127, dimension='width', line_color='black', line_width=0.55)
+            vel_lines.extend([vline_0vel])
+
+        # last vel line
+        vline_127vel = Span(location=minor_ix * (1.02 * 127) + 127, dimension='width', line_color='black',
+                            line_width=0.55)
+        vel_lines.extend([vline_127vel])
+        # add vel lines
+        p.renderers.extend(vel_lines)
 
         # Legend stuff here
         legend_it.append(("Hide Heat Maps", histogram_figures))
@@ -193,6 +207,7 @@ def velocity_timing_heatmaps_scatter_plotter(
         ticker = SingleIntervalTicker(interval=4, num_minor_ticks=4)
         p.xaxis.ticker = ticker
         p.xgrid.ticker = p.xaxis.ticker
+
 
         final_figure_layout.append(p)
     return final_figure_layout
@@ -715,6 +730,91 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
     p2.y_range = p1.y_range
 
     return [p1, p2]
+
+
+##############################################
+###
+#      Plotting violin plots
+###
+##################################################
+def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01,
+                          width=1200, height=800, scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
+    '''
+    Plots the data in a dictionary as violin plots
+    {
+    "tab1-Data_xx": [data1, data2, ...],            # plots in tab1 -        Title tab1 -       labels as Data_xx
+    "tab1-Data_yy": [data1, data2, ...],            # plots in tab1 -        Title tab1 -       labels as Data_yy
+    "tab2-Data_xx": [data1, data2, ...],            # plots in tab2 -        Title tab2 -       labels as Data_xx
+    "TTL::tab2-Data_yy": [data1, data2, ...],     # plots in TTL -   Title tab2::TTL  -        labels as Data_yy
+    }
+
+    :param data_dictionary:  KEYS can include tab title (left of a dash "-") and data category (right of a dash "-")
+    :param save_path: (optional) if given, the figure is saved to the given path
+    :param width:  (optional) width of the figure
+    :param height: (optional) height of the figure
+    :param scatter_color: (optional) color of the scatter points
+    :param scatter_size: (optional) size of the scatter points
+    :param xrotation: (optional) rotation of the x-axis labels
+    :param font_size: (optional) font size of all the labels
+
+    :return:    A bokeh figure
+    '''
+    # source https://holoviews.org/reference/elements/bokeh/Violin.html
+
+    groups = []
+    categories = []
+    values = []
+    for key, val in data_dictionary.items():
+        if (isinstance(val, dict)):
+            for k, v_arr in val.items():
+                for v in v_arr:
+                    groups.append(key)
+                    categories.append(k)
+                    values.append(v)
+        else:
+            for v in val:
+                groups.append(key.split("-")[0] if len(key.split("-")) > 1 else " ")
+                categories.append(key.split("-")[1] if len(key.split("-")) > 1 else key)
+                values.append(v)
+
+    tab_labels = set(groups)
+    panels = list()
+    for tab_label in tab_labels:
+        g_ = []
+        c_ = []
+        v_ = []
+        for (group, category, val) in zip(groups, categories, values):
+            if group == tab_label:
+                g_.append(group.replace("_", " "))
+                c_.append(category.replace("_", " "))
+                v_.append(val)
+
+        violin = hv.Violin((c_, v_), ['Category'], 'Value', label='Violin Plots')
+
+        scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
+
+        violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width,
+                                         violin_color=hv.dim('Category').str(),
+                                         xrotation=xrotation,
+                                         fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size, 'ylabel': font_size, 'title': font_size},
+                                         bandwidth=kernel_bandwidth), clone=True)
+
+        overlay = (violin * scatter).opts(title=tab_label.replace("_", " "), ylabel=" ", xlabel=" ")
+        overlay.options(opts.NdOverlay(show_legend=True))
+
+        fig = hv.render(overlay, backend='bokeh')
+        fig.legend.click_policy="hide"
+        panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
+
+    tabs = Tabs(tabs=panels)
+
+    if save_path is not None:
+        if not save_path.endswith(".html"):
+            save_path += ".html"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save(tabs, save_path)
+
+    return tabs
 
 
 if __name__ == '__main__':

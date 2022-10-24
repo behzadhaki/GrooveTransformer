@@ -28,6 +28,7 @@ def get_stats_from_samples(feature_value_dict, csv_file=None):
 
     return df2
 
+
 def get_stats_from_evaluator(evaluator_, calc_gt=True, calc_pred=True, csv_file=None):
     gt_df = get_stats_from_samples(
         evaluator_.gt_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True), None
@@ -35,7 +36,7 @@ def get_stats_from_evaluator(evaluator_, calc_gt=True, calc_pred=True, csv_file=
 
     pd_df = get_stats_from_samples(
         evaluator_.prediction_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True), None
-    ) if (calc_gt and evaluator_.prediction_SubSet_Evaluator is not None) else None
+    ) if (calc_pred and evaluator_.prediction_SubSet_Evaluator is not None) else None
 
     keys = []
     if gt_df is not None:

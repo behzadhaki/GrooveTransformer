@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import note_seq
 from note_seq.protobuf import music_pb2
@@ -263,7 +265,18 @@ class HVO_Sequence(object):
 
         return hvo_reset, hvo_reset_comp
 
+    def random(self, length, num_voices):
+        '''
+        generates a random sequence with `length` number of steps
 
+        :param length: number of timesteps
+        :param num_voices: number of voices
+        :return: None
+        '''
+        h_ran = np.random.random_integers(0, 1, (length, num_voices))
+        v_ran = np.random.ranf((length, num_voices)) * h_ran
+        o_ran = (np.random.ranf((length, num_voices)) - 0.5) * h_ran
+        self.hvo = np.concatenate([h_ran, v_ran, o_ran], axis=-1)
 
 
     def flatten_voices(self, offset_aggregator_modes=3, velocity_aggregator_modes=1, get_velocities=True, reduce_dim=False, voice_idx=2):
@@ -1494,6 +1507,8 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
         ns = self.to_note_sequence(midi_track_n=midi_track_n)
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         pm.write(filename)
@@ -2492,36 +2507,42 @@ class HVO_Sequence(object):
     # ######################################################################
 
     def calculate_all_distances_with(self, hvo_seq_b):
-        distances_dictionary = {
-            "l1_distance_hvo": self.calculate_l1_distance_with(hvo_seq_b),
-            "l1_distance_h": self.calculate_l1_distance_with(hvo_seq_b, "h"),
-            "l1_distance_v": self.calculate_l1_distance_with(hvo_seq_b, "v"),
-            "l1_distance_o": self.calculate_l1_distance_with(hvo_seq_b, "o"),
-            "l2_distance_hvo": self.calculate_l2_distance_with(hvo_seq_b),
-            "l2_distance_h": self.calculate_l2_distance_with(hvo_seq_b, "h"),
-            "l2_distance_v": self.calculate_l2_distance_with(hvo_seq_b, "v"),
-            "l2_distance_o": self.calculate_l2_distance_with(hvo_seq_b, "o"),
-            "cosine_distance": self.calculate_cosine_distance_with(hvo_seq_b),
-            "cosine_similarity": self.calculate_cosine_similarity_with(hvo_seq_b),
-            "hamming_distance_all_voices_not_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=None, beat_weighting=False),
-            "hamming_distance_all_voices_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=None, beat_weighting=True),
-            "hamming_distance_low_mid_hi_not_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=False),
-            "hamming_distance_low_mid_hi_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=True),
-            "hamming_distance_5partKit_not_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=False),
-            "hamming_distance_5partKit_weighted": self.calculate_hamming_distance_with(
-                hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=True),
-            "fuzzy_hamming_distance_not_weighted": self.calculate_fuzzy_hamming_distance_with(
-                hvo_seq_b, beat_weighting=False),
-            "fuzzy_hamming_distance_weighted": self.calculate_fuzzy_hamming_distance_with(
-                hvo_seq_b, beat_weighting=True),
-            "structural_similarity_distance": self.calculate_structural_similarity_distance_with(hvo_seq_b)
-        }
-        return distances_dictionary
+        distances_dictionary = \
+            {
+                "l1_distance -hvo": self.calculate_l1_distance_with(hvo_seq_b),
+                "l1_distance -h": self.calculate_l1_distance_with(hvo_seq_b, "h"),
+                "l1_distance -v": self.calculate_l1_distance_with(hvo_seq_b, "v"),
+                "l1_distance -o": self.calculate_l1_distance_with(hvo_seq_b, "o"),
+                "l2_distance -hvo": self.calculate_l2_distance_with(hvo_seq_b),
+                "l2_distance -h": self.calculate_l2_distance_with(hvo_seq_b, "h"),
+                "l2_distance -v": self.calculate_l2_distance_with(hvo_seq_b, "v"),
+                "l2_distance -o": self.calculate_l2_distance_with(hvo_seq_b, "o"),
+                "cosine-distance": self.calculate_cosine_distance_with(hvo_seq_b),
+                "cosine-similarity": self.calculate_cosine_similarity_with(hvo_seq_b),
+                "hamming_distance -all_voices_not_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=None, beat_weighting=False),
+                "hamming_distance -all_voices_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=None, beat_weighting=True),
+                "hamming_distance -low_mid_hi_not_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=False),
+                "hamming_distance -low_mid_hi_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=Groove_Toolbox_3Part_keymap, beat_weighting=True),
+                "hamming_distance -5partKit_not_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=False),
+                "hamming_distance -5partKit_weighted ": self.calculate_hamming_distance_with(
+                    hvo_seq_b, reduction_map=Groove_Toolbox_5Part_keymap, beat_weighting=True),
+                "fuzzy_hamming_distance-not_weighted": self.calculate_fuzzy_hamming_distance_with(
+                    hvo_seq_b, beat_weighting=False),
+                "fuzzy_hamming_distance-weighted": self.calculate_fuzzy_hamming_distance_with(
+                    hvo_seq_b, beat_weighting=True),
+                "structural_similarity-structural_similarity": self.calculate_structural_similarity_distance_with(
+                    hvo_seq_b)
+            }
+        
+
+        sorted_dict = {key: value for key, value in sorted(distances_dictionary.items())}
+
+        return sorted_dict
 
     def calculate_l1_distance_with(self, hvo_seq_b, hvo_str="hvo"):
         """
@@ -2535,6 +2556,7 @@ class HVO_Sequence(object):
 
         a = self.get(hvo_str).flatten()
         b = hvo_seq_b.get(hvo_str).flatten()
+
         return np.linalg.norm((a - b), ord=1)
 
     def calculate_l2_distance_with(self, hvo_seq_b, hvo_str="hvo"):
@@ -2542,6 +2564,7 @@ class HVO_Sequence(object):
         :param hvo_seq_b:   Sequence to find l2 norm of euclidean distance with
         :param hvo_str:     String formed with the characters 'h', 'v' and 'o' in any order. It's not necessary
                             to use all of the characters and they can be repeated. E.g. 'ov' or 'hvoh'
+
         :return:            l2 norm of euclidean distance with hvo_seq_b
         """
 
@@ -2550,6 +2573,7 @@ class HVO_Sequence(object):
 
         a = self.get(hvo_str).flatten()
         b = hvo_seq_b.get(hvo_str).flatten()
+
         return np.linalg.norm((a - b), ord=2)
 
     def calculate_cosine_similarity_with(self, hvo_seq_b):
@@ -2594,6 +2618,8 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
+
+
         if reduction_map is not None:
             groove_a = self.get_with_different_drum_mapping("v", reduction_map)
             groove_b = hvo_seq_b.get_with_different_drum_mapping("v", reduction_map)
@@ -2601,10 +2627,10 @@ class HVO_Sequence(object):
             groove_a = self.get("v")
             groove_b = hvo_seq_b.get("v")
 
+
         if beat_weighting is True:
             groove_a = _weight_groove(groove_a)
             groove_b = _weight_groove(groove_b)
-
 
         x = (groove_a.flatten() - groove_b.flatten())
 

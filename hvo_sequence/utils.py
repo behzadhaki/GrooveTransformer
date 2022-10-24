@@ -93,18 +93,17 @@ def cosine_similarity(hvo_seq_a, hvo_seq_b):
 
     # Ensure a and b have same length by Padding the shorter sequence to match the longer one
     max_len = max(hvo_seq_a.hvo.shape[0], hvo_seq_b.hvo.shape[0])
-    shape = max_len*hvo_seq_a.hvo.shape[-1]     # Flattened shape
-
-    a = np.zeros(shape)
-    b = np.zeros(shape)
-
-    a[:(hvo_seq_a.hvo.shape[0]*hvo_seq_a.hvo.shape[1])] = hvo_seq_a.hvo.flatten()
-    b[:hvo_seq_b.hvo.shape[0]*hvo_seq_b.hvo.shape[1]] = hvo_seq_b.hvo.flatten()
-
-    return 1-np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
 
 
-def cosine_distance(hvo_seq_a, hvo_seq_b):
+    hvo_a = hvo_seq_a.hvo.flatten()
+    hvo_b = hvo_seq_b.hvo.flatten()
+
+    # Calculate cosine similarity
+
+    return 1-np.dot(hvo_a, hvo_b)/(np.linalg.norm(hvo_a)*np.linalg.norm(hvo_b))
+
+
+def cosine_distance(hvo_seq_a, hvo_seq_b,  ):
     return 1-cosine_similarity(hvo_seq_a, hvo_seq_b)
 
 
@@ -778,3 +777,5 @@ def get_hvo_idxs_for_voice(voice_idx, n_voices):
     o_idx = [_ + 2 * n_voices for _ in voice_idx]
 
     return h_idx, v_idx, o_idx
+
+

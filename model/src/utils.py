@@ -3,6 +3,8 @@ import torch
 # --------------------------------------------------------------------------------
 # ------------             Output Utils                      ---------------------
 # --------------------------------------------------------------------------------
+
+
 def get_hits_activation(_h, use_thres=True, thres=0.5, use_pd=False):
     _h = torch.sigmoid(_h)
 
@@ -14,5 +16,4 @@ def get_hits_activation(_h, use_thres=True, thres=0.5, use_pd=False):
         h = torch.where(_h > pd, 1, 0)
 
     return h
-
 
