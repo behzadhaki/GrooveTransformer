@@ -1,4 +1,7 @@
 from data.src.utils import *
+import numpy as np
+import torch
+from torch.utils.data import Dataset
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
@@ -44,6 +47,57 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
     return data
 
+
+class MonotonicGrooveDataset(Dataset):
+    def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2, collapse_tapped_sequence=False):
+        """
+
+        :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
+        :param subset_tag:                [str] whether to load the train/test/validation set
+        :param max_len:              [int] maximum length of the sequences to be loaded
+        :param tapped_voice_idx:    [int] index of the voice to be tapped (default is 2 which is usually closed hat)
+        :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
+        """
+
+        # Get processed inputs, outputs and hvo sequences
+        self.inputs = []
+        self.outputs = []
+        self.hvo_sequences = []
+
+        subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
+
+        for idx, hvo_seq in enumerate(tqdm(subset)):
+            all_zeros = not np.any(hvo_seq.hvo.flatten())
+            if not all_zeros:
+                # Ensure all have a length of max_len
+                pad_count = max(max_len - hvo_seq.hvo.shape[0], 0)
+                hvo_seq.hvo = np.pad(hvo_seq.hvo, ((0, pad_count), (0, 0)), "constant")
+                hvo_seq.hvo = hvo_seq.hvo[:max_len, :]  # in case seq exceeds max len
+                self.hvo_sequences.append(hvo_seq)
+
+                flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
+                self.inputs.append(flat_seq)
+                self.outputs.append(hvo_seq.hvo)
+
+        # wandb.config.update({"set_length": len(self.sequences)})
+        print(f"{subset_tag} Dataset loaded\n")
+
+    def __len__(self):
+        return len(self.hvo_sequences)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.outputs[idx], idx
+
+    def get_hvo_sequences_at(self, idx):
+        return self.hvo_sequences[idx]
+
+    def get_inputs_at(self, idx):
+        return self.inputs[idx]
+
+    def get_outputs_at(self, idx):
+        return self.outputs[idx]
+
+
 if __name__ == "__main__":
 
     dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
@@ -55,4 +109,13 @@ if __name__ == "__main__":
     # hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
     # pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
 
-    train_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag)
+    #train_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag)
+
+
+    # load dataset as torch.utils.data.Dataset
+    training_dataset = MonotonicGrooveDataset(
+        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+        subset_tag="train",
+        max_len=32,
+        tapped_voice_idx=2,
+        collapse_tapped_sequence=False)

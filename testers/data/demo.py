@@ -25,3 +25,29 @@ train_set = load_gmd_hvo_sequences(
     dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
     subset_tag="train",
     force_regenerate=False)
+
+
+# =================================================================================================
+# Load dataset as torch.utils.data.Dataset
+from data.dataLoaders import MonotonicGrooveDataset
+
+# load dataset as torch.utils.data.Dataset
+training_dataset = MonotonicGrooveDataset(
+    dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+    subset_tag="train",
+    max_len=32,
+    tapped_voice_idx=2,
+    collapse_tapped_sequence=False)
+
+
+# use the above dataset in the training pipeline, you need to use torch.utils.data.DataLoader
+from torch.utils.data import DataLoader
+train_dataloader = DataLoader(training_dataset, batch_size=32, shuffle=True)
+
+
+epochs = 10
+for epoch in range(epochs):
+    # in each epoch we iterate over the entire dataset
+    for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
+        print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
+              f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
