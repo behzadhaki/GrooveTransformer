@@ -12,16 +12,15 @@
       1. [Load dataset as a dictionary](#3_1_1)
       2. [Extract `HVO_Sequence` objects from dataset dictionaries](#3_1_2)
       3. [**_Load GMD Dataset in `HVO_Sequence` format using a single command !!!_**](#3_1_3)
+   2. [Process and Load as torch.utils.data.Dataset](#3_2)
 
-
-
-
-
+   
 ## 1. Introduction <a name="1"></a>
 
 ---
 
 
+<!--- ====================================================================================================== -->
 
 ## 2. Data Representation <a name="2"></a>
 
@@ -72,7 +71,8 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 
 ### 2.2 Example Code <a name="2_2"></a>
 
-Source code available [here](../../testers/HVO_Sequence/demo.py)
+> **Note:** All the code examples in this section are available  [here](../../testers/HVO_Sequence/demo.py)
+
 
 #### **create a score** <a name="createHVO"></a>
 
@@ -161,6 +161,8 @@ hvo_seq = midi_to_hvo_sequence('misc/test.mid', ROLAND_REDUCED_MAPPING, [4])
 
 ----
 
+<!--- ====================================================================================================== -->
+
 ## 3. Datasets <a name="3"></a>
 
 ### 3.1 Groove Midi Dataset <a name="3_1"></a>
@@ -209,14 +211,16 @@ These files are simply dictionaries of the following format
 
 #### 3.1.1 Load dataset as a dictionary <a name="3_1_1"></a>       
 
-Source code available [here](../../testers/data/demo.py)
+> **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
+
 
 ```
-   from data.dataLoaders import load_original_gmd_dataset_pickle
+from data.dataLoaders import load_original_gmd_dataset_pickle
 
 # Load 2bar gmd dataset as a dictionary
-gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
-gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path)
+gmd_dict = load_original_gmd_dataset_pickle(
+    gmd_pickle_path="data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle")
+
 
 gmd_dict.keys()
 # dict_keys(['train', 'test', 'validation'])
@@ -230,13 +234,18 @@ gmd_dict['train'].keys()
  
 
 #### 3.1.2 Extract `HVO_Sequence` objects from dataset dictionaries above  <a name="3_1_2"></a>
-Source code available [here](../../testers/data/demo.py)
+
+> **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
+
 
 ```
 # Extract HVO_Sequences from the dictionaries
 from data.dataLoaders import extract_hvo_sequences_dict, get_drum_mapping_using_label
 
-hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
+hvo_dict = extract_hvo_sequences_dict (
+    gmd_dict=gmd_dict,
+    beat_division_factor=[4],
+    drum_mapping=get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
 ```
 
 The resulting `hvo_dict` is a dictionary of the following format
@@ -252,21 +261,18 @@ The resulting `hvo_dict` is a dictionary of the following format
 ```
 
 #### 3.1.3 Load GMD Dataset in `HVO_Sequence` format using a single command !!!  <a name="3_1_3"></a>
-Source code available [here](../../testers/data/demo.py)
+
+> **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
+
 
 ```
 from data.dataLoaders import load_gmd_hvo_sequences
 
-gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
-dataset_tag = "gmd"
-dataset_setting_json_path = "dataset_setting.json"
-subset_tag = "train"
-force_regenerate = False        # set true if you don't want to use the cached version
-
 train_set = load_gmd_hvo_sequences(
-    gmd_pickle_path, dataset_tag, dataset_setting_json_path,
-    subset_tag, force_regenerate)
+    dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json", 
+    subset_tag = "train", 
+    force_regenerate=False)
 ```
 
-
+### 3.2 Process and Load as torch.utils.data.Dataset <a name="3_2"></a>
 

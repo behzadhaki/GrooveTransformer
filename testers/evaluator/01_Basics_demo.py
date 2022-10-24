@@ -2,7 +2,7 @@ from data.dataLoaders import load_gmd_hvo_sequences
 
 if __name__ == "__main__":
     # 2.1 - Load test set dataset
-    dataset_setting_json_path = "dataset_setting.json"
+    dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
 
     test_set = load_gmd_hvo_sequences(
         "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle",

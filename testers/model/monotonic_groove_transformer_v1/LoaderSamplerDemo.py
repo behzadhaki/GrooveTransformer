@@ -16,7 +16,7 @@ checkpoint = torch.load(model_path, map_location=model_param['device'])
 #   5.1 Grab a random groove from the test set
 from data.dataLoaders import load_gmd_hvo_sequences
 test_set = load_gmd_hvo_sequences(
-    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "dataset_setting.json", [4],
+    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "data/dataset_json_settings/4_4_Beats_gmd.json", [4],
     "ROLAND_REDUCED_MAPPING", "train")
 input_hvo_seq = test_set[np.random.randint(0, len(test_set))]
 input_groove_hvo = torch.tensor(input_hvo_seq.flatten_voices(), dtype=torch.float32)

@@ -19,16 +19,19 @@ def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE
 def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path):
     """
     returns the directory path from which the data corresponding to the
-    specified dataset_setting.json file is located or should be stored
+    specified data/dataset_json_settings/4_4_Beats_gmd.json file is located or should be stored
 
-    :param dataset_tag: [str] (use "gmd" for groove midi dataset)
-    :param dataset_setting_json_path: [file.json path] (path to dataset_setting.json or similar filter jsons)
+    :param dataset_tag: [str] (use "gmd" for groove midi dataset - must match the key in json file located in the data/dataset_json_settings)
+    :param dataset_setting_json_path: [file.json path] (path to data/dataset_json_settings/4_4_Beats_gmd.json or similar filter jsons)
     :return: path to save/load from the train.pickle/test.pickle/validation.pickle hvo_sequence subsets
     """
     main_path = f"data/{dataset_tag}/resources/cached/"
     last_directory = ""
-    filter_dict = json.load(open(dataset_setting_json_path, "r"))[dataset_tag]
+    filter_dict = json.load(open(dataset_setting_json_path, "r"))["settings"][dataset_tag]
+    print("filter_dict: ", filter_dict)
     global_dict = json.load(open(dataset_setting_json_path, "r"))["global"]
+    print("global_dict: ", global_dict)
+
     for key_, val_ in global_dict.items():
         main_path += f"{key_}_{val_}/"
 
@@ -45,7 +48,7 @@ def pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path):
 
     :param hvo_dict: [dict] dict of format {"train": [hvo_seqs], "test": [hvo_seqs], "validation": [hvo_seqs]}
     :param dataset_tag: [str] (use "gmd" for groove midi dataset)
-    :param dataset_setting_json_path: [file.json path] (path to dataset_setting.json or similar filter jsons)
+    :param dataset_setting_json_path: [file.json path] (path to data/dataset_json_settings/4_4_Beats_gmd.json or similar filter jsons)
     """
 
 
@@ -77,12 +80,13 @@ def load_original_gmd_dataset_pickle(gmd_pickle_path):
 
 
 def extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping):
-    """
+    """ extracts hvo_sequences from the original gmd_dict
 
-    :param gmd_dict:
-    :param beat_division_factor:
-    :param use_cached:
-    :return:
+    :param gmd_dict: [dict] dict of format {"train": [note_sequences], "test": [note_sequences], "validation": [note_sequences]}
+    :param gmd_dict: [dict] dict of format {"train": [note_sequences], "test": [note_sequences], "validation": [note_sequences]}
+    :param beat_division_factor: list of ints (e.g. [4] for 16th note resolution)
+    :param drum_mapping: [dict] (e.g. get_drum_mapping_using_label("gmd"))
+    :return: [dict] dict of format {"train": [hvo_sequences], "test": [hvo_sequences], "validation": [hvo_sequences]}
     """
     gmd_hvo_seq_dict = dict()
 
@@ -114,9 +118,9 @@ def extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping):
 
 if __name__ == "__main__":
 
-    gmd_pickle_path = "gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
+    gmd_pickle_path = "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
     dataset_tag = "gmd"
-    dataset_setting_json_path = "dataset_setting.json"
+    dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
     beat_division_factor = [4]
     drum_mapping_label = "ROLAND_REDUCED_MAPPING"
     subset_tag = "train"

@@ -26,7 +26,7 @@ First, Load the dataset (read more about loading the dataset [here](https://gith
 ```python
 from data.dataLoaders import load_gmd_hvo_sequences
 
-dataset_setting_json_path = "dataset_setting.json"
+dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
 test_set = load_gmd_hvo_sequences(
     "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle",
     "gmd", dataset_setting_json_path, "test")
@@ -45,7 +45,7 @@ for style in styles:
 ```
 
 > **Note**
-> In the above case, "beat_type" and "time_signature" are unnecessary as the original dataset (specified in `dataset_setting.json`) 
+> In the above case, "beat_type" and "time_signature" are unnecessary as the original dataset (specified in `data/dataset_json_settings/4_4_Beats_gmd.json`) 
 > is already filtered to only include `beat` and `4-4` patterns. However, if you want to inspect a subset of the dataset that is not  
 > filtered in the original dataset, you can specify the filters here. As a result, in this example, it makes more sense to use the following filters
 > 
@@ -128,7 +128,7 @@ input = np.array([hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_t
 #### 2.3.2 Pass Samples to Model <a name="2_iii_b"></a>
 from data.dataLoaders import load_gmd_hvo_sequences
 test_set = load_gmd_hvo_sequences(
-    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "dataset_setting.json", [4],
+    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "data/dataset_json_settings/4_4_Beats_gmd.json", [4],
     "ROLAND_REDUCED_MAPPING", "train")
 predicted_hvos_array = model.predict(input)
 
