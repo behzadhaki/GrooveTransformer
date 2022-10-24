@@ -112,6 +112,9 @@ class GrooveTransformerEncoder(torch.nn.Module):
         # model Nx32xembedding_size_src
         x = self.InputLayerEncoder(src)  # Nx32xd_model
         memory = self.Encoder(x)  # Nx32xd_model
+
+
+
         out = self.OutputLayer(
             memory)  # (Nx32xembedding_size_tgt/3,Nx32xembedding_size_tgt/3,Nx32xembedding_size_tgt/3)
 

@@ -149,3 +149,56 @@ class OutputLayer(torch.nn.Module):
 
         return h, v, o
 
+# --------------------------------------------------------------------------------
+# ------------         VARIAIONAL REPARAMETERIZE BLOCK       ---------------------
+# --------------------------------------------------------------------------------
+class reparameterize(torch.nn.Module):
+    """
+   :param input: (Tensor) Input tensor to REPARAMETERIZE [Nx32xd_model]
+   :return: (Tensor) [B x D]
+   """
+
+    def __init__(self, max_len, d_model, latent_dim):
+        super(reparameterize, self).__init__()
+
+        self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
+        self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
+
+    def forward(self, src):
+        result = torch.flatten(src, start_dim=1)
+        # Split the result into mu and var components
+        # of the latent Gaussian distribution
+        mu = self.fc_mu(result)
+        log_var = self.fc_var(result)
+
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        z = eps * std + mu
+        return mu, log_var, z
+
+# --------------------------------------------------------------------------------
+# ------------       RECONTRUCTION DECODER IMPUT             ---------------------
+# --------------------------------------------------------------------------------
+class deco_imput(torch.nn.Module):
+    """
+    reshape the input tensor to fix dimensions with decoder
+
+   :param input: (Tensor) Input tensor distribution [Nx(latent_dim)]
+   :return: (Tensor) [N x max_len x d_model]
+   """
+
+    def __init__(self, max_len, d_model, latent_dim):
+        super(deco_imput, self).__init__()
+
+        self.max_len = max_len
+        self.d_model = d_model
+
+        self.updims = torch.nn.Linear(latent_dim, int(max_len * d_model))
+
+    def forward(self, src):
+
+        uptensor = self.updims(src)
+
+        result = uptensor.view(-1, self.max_len, self.d_model)
+
+        return result

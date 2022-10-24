@@ -1,15 +1,20 @@
 import os
 import torch
-import wandb
+#import wandb
 import re
 import numpy as np
 from model.src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
 
 
-def calculate_loss(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
+def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
 
     y_h, y_v, y_o = torch.split(y, int(y.shape[2] / 3), 2)  # split in voices
-    pred_h, pred_v, pred_o = prediction
+
+    preds, mu, log_var = prediction
+    pred_h, pred_v, pred_o = preds
+
+    #mu, log_var = variation
+
 
     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
 
@@ -25,10 +30,11 @@ def calculate_loss(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
     mse_o_sum_voices = torch.sum(mse_o, dim=2)
     mse_offsets = mse_o_sum_voices.mean()
 
+    kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
 
 
 
-    total_loss = bce_hits + mse_velocities + mse_offsets
+    total_loss = bce_hits + mse_velocities + mse_offsets + kld_loss
 
     _h = torch.sigmoid(pred_h)
     h = torch.where(_h > 0.5, 1, 0)  # batch=64, timesteps=32, n_voices=9
