@@ -65,6 +65,9 @@ def get_stats_from_samples_dict(feature_value_dict, trim_decimals=None):
     return df2
 
 
+# ======================================================================================================================
+#  Evaluator Class
+# ======================================================================================================================
 class Evaluator:
 
     def __init__(
@@ -1137,14 +1140,9 @@ class Evaluator:
         return sample_locations
 
 
-PATH_DICT_TEMPLATE = {
-    "root_dir": "",  # ROOT_DIR to save data
-    "project_name": '',  # GROOVE_TRANSFORMER_INFILL or GROOVE_TRANSFORMER_TAP2DRUM
-    "run_name": '',  # WANDB RUN NAME run = wandb.init(...
-    "set_identifier": '',  # TRAIN OR TEST
-    "epoch": '',
-}
-
+# ======================================================================================================================
+#  HVOSeq_SubSet_Evaluator
+# ======================================================================================================================
 
 class HVOSeq_SubSet_Evaluator(object):
     # todo 1. From Training Subsets, grab n_samples and pass to model

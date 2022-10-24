@@ -51,3 +51,4 @@ for epoch in range(epochs):
     for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
         print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
               f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
+
