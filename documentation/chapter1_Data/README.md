@@ -76,7 +76,7 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 
 #### **create a score** <a name="createHVO"></a>
 
-```
+```python
 from hvo_sequence.hvo_seq import HVO_Sequence
 from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING
 from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
@@ -103,8 +103,7 @@ hvo_seq.random(32, 9)
 ```
 
 #### **Access data using the .get() or .hvo method**
-```
-
+```python
 # ----------------------------------------------------------------
 # -----------           Access Data                 --------------
 # ----------------------------------------------------------------
@@ -117,7 +116,7 @@ hvo_seq.get("hv0")    # get hvwith offsets replaced as 0
 hvo_seq.get("ovhhv0")    # use h v o and 0 to create any tensor
 ```
 #### **Plot piano roll** <a name="pianoroll"></a>
-```
+```python
 # ----------------------------------------------------------------
 # -----------           Plot PianoRoll              --------------
 # ----------------------------------------------------------------
@@ -125,7 +124,7 @@ hvo_seq.to_html_plot("test.html", show_figure=True)
 ```
 
 #### **save to midi** <a name="saveMidi"></a>
-```
+```python
 # ----------------------------------------------------------------
 # -----------           Synthesize/Export           --------------
 # ----------------------------------------------------------------
@@ -134,17 +133,17 @@ hvo_seq.save_hvo_to_midi("misc/test.mid")
 ```
 
 #### **convert to note_sequence**   <a name="toNoteSequence"></a>
-```
+```python
 # Export to note_sequece
 hvo_seq.to_note_sequence(midi_track_n=10)
 ```
 
 #### **Synthesize to (or save as) audio using a SoundFont** <a name="synthesize"></a>
-```
+```python
 # Synthesize to audio
 audio = hvo_seq.synthesize(sr=44100, sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
 ```
-```
+```python
 # Synthesize to audio and auto save
 hvo_seq.save_audio(filename="misc/temp.wav", sr=44100,
                    sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
@@ -188,7 +187,7 @@ Access these pickled dictionaries [here](../../data/gmd/resources/storedDicts):
 ```
 
 These files are simply dictionaries of the following format
-```
+```python
 {
     'train', 'test' or 'validation':
         {
@@ -214,7 +213,7 @@ These files are simply dictionaries of the following format
 > **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
 
 
-```
+```python
 from data.dataLoaders import load_original_gmd_dataset_pickle
 
 # Load 2bar gmd dataset as a dictionary
@@ -238,7 +237,7 @@ gmd_dict['train'].keys()
 > **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
 
 
-```
+```python
 # Extract HVO_Sequences from the dictionaries
 from data.dataLoaders import extract_hvo_sequences_dict, get_drum_mapping_using_label
 
@@ -249,7 +248,7 @@ hvo_dict = extract_hvo_sequences_dict (
 ```
 
 The resulting `hvo_dict` is a dictionary of the following format
-```
+```json lines
 {
     'train':
         list of HVO_Seqs corresponding to gmd_dict['train']['midi'][idx]
@@ -265,7 +264,7 @@ The resulting `hvo_dict` is a dictionary of the following format
 > **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
 
 
-```
+```python
 from data.dataLoaders import load_gmd_hvo_sequences
 
 train_set = load_gmd_hvo_sequences(
@@ -273,6 +272,47 @@ train_set = load_gmd_hvo_sequences(
     subset_tag = "train", 
     force_regenerate=False)
 ```
+
+The loader requires a specific json file to be passed as an argument. The content of the json file is as follows. 
+
+
+
+``` json lines
+{
+  "global":
+  {
+    "beat_division_factor": [4],
+    "drum_mapping_label": "ROLAND_REDUCED_MAPPING"
+  },
+  "raw_data_pickle_path":
+    {
+      "gmd": "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
+    },
+  "settings":
+  {
+    "gmd":
+    {
+      "drummer": null,
+      "session": null,
+      "loop_id": null,
+      "master_id": null,
+      "style_primary": null,
+      "style_secondary": null,
+      "bpm": null,
+      "beat_type": ["beat"],
+      "time_signature": ["4-4"],
+      "full_midi_filename": null,
+      "full_audio_filename": null,
+      "number_of_instruments": null
+    }
+  }
+}
+```
+
+
+> **Warning** It is highly recommended to place your custom dataset setting json files in the `data/dataset_json_settings` folder.
+
+
 
 ### 3.2 Process and Load as torch.utils.data.Dataset <a name="3_2"></a>
 
