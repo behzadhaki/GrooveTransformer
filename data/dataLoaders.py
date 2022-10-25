@@ -60,12 +60,18 @@ class MonotonicGrooveDataset(Dataset):
         """
 
         # Get processed inputs, outputs and hvo sequences
-        self.inputs = []
-        self.outputs = []
-        self.hvo_sequences = []
+        self.inputs = list()
+        self.outputs = list()
+        self.hvo_sequences = list()
+        self.info = {
+            "style_primary": list(),
+            "master_id": list(),
+            "bpm": list(),
+        }
 
         subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
 
+        # collect input tensors, output tensors, and hvo_sequences
         for idx, hvo_seq in enumerate(tqdm(subset)):
             all_zeros = not np.any(hvo_seq.hvo.flatten())
             if not all_zeros:
@@ -78,6 +84,9 @@ class MonotonicGrooveDataset(Dataset):
                 flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
                 self.inputs.append(flat_seq)
                 self.outputs.append(hvo_seq.hvo)
+
+        # find voice and genre distributions
+
 
         # wandb.config.update({"set_length": len(self.sequences)})
         print(f"{subset_tag} Dataset loaded\n")

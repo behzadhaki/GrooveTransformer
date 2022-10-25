@@ -1,0 +1,288 @@
+from eval.MultiSetEvaluator.src.utils import *
+from bokeh.plotting import figure, output_file, show, save
+from bokeh.models import Panel
+import pickle, bz2
+import os
+
+class MultiSetEvaluator:
+    def __init__(self, groove_evaluator_sets, ignore_feature_keys=None, reference_set_label = "GT", anchor_set_label = None):
+        """
+        :param groove_evaluator_sets: dictionary of GrooveEvaluator objects to compare, example:
+               groove_evaluator_sets = {
+                                "groovae":
+                                    GrooveEvaluator(...),
+                                "rosy":
+                                    GrooveEvaluator(...),
+                                "hopeful":
+                                    GrooveEvaluator(...),
+                            }
+
+        
+        :param ignore_feature_keys: list of keys to ignore when comparing the GrooveEvaluators
+                        (["Statistical::NoI", "Statistical::Total Step Density", "Statistical::Avg Voice Density",
+                        "Statistical::Lowness", "Statistical::Midness", "Statistical::Hiness",
+                        "Statistical::Vel Similarity Score", "Statistical::Weak to Strong Ratio",
+                        "Syncopation::Lowsync", "Syncopation::Midsync", "Syncopation::Hisync",
+                        "Syncopation::Lowsyness", "Syncopation::Midsyness", "Syncopation::Hisyness",
+                        "Syncopation::Complexity"])
+        """
+
+        # ======================== INITIALIZATION ========================
+        # =========     Static/Picklaable Attributes
+        self.ignore_feature_keys = ignore_feature_keys
+        self.groove_evaluator_sets = groove_evaluator_sets
+
+        assert reference_set_label == "GT" or reference_set_label in self.groove_evaluator_sets.keys(), \
+            f"Reference set label >>> {anchor_set_label} <<< not found in the set labels. " \
+            f"Use either 'GT or one of the following: " \
+            f"{self.groove_evaluator_sets.keys()}"
+        self.reference_set_label = reference_set_label
+
+        self.anchor_set_label = list(self.groove_evaluator_sets.keys())[0] if anchor_set_label is None else anchor_set_label
+        assert self.anchor_set_label in self.groove_evaluator_sets.keys(), \
+            f"Anchor set label >>> {self.anchor_set_label} <<< not found in the set labels. " \
+            f"Use one of the following: " \
+            f"{self.groove_evaluator_sets.keys()}"
+
+        # =========     Dynamically Constructed Attributes
+        self.feature_sets = dict()
+        self.iid = dict()
+        self.compile_necessary_attributes()
+
+    # ================================================================
+    # =========     Pickling Methods
+    # ================================================================
+    def __getstate__(self):
+        state = {
+            'ignore_feature_keys': self.ignore_feature_keys,
+            'groove_evaluator_sets': self.groove_evaluator_sets,
+            'reference_set_label': self.reference_set_label,
+            'anchor_set_label': self.anchor_set_label
+        }
+        return state
+
+    def __setstate__(self, state):
+        # stored attributes
+        self.ignore_feature_keys = state['ignore_feature_keys']
+        self.groove_evaluator_sets = state['groove_evaluator_sets']
+        self.reference_set_label = state['reference_set_label']
+        self.anchor_set_label = state['anchor_set_label']
+
+        # compute the rest of the attributes
+        self.eval_labels = list()   # list of lists of set labels to compare
+        self.feature_sets = dict()  # dict of dicts of features
+        self.iid = dict()           # dict of dicts of inter intra distances and their stats
+        self.compile_necessary_attributes()
+
+    def compile_necessary_attributes(self):
+        # ======================== Compile Feature Dicts for Each Set ========================
+        # attributes to dynamically construct using the static data that are picklable
+        # (to use in constructor and __setstate__)
+        self.feature_sets = {
+            "GT": flatten_subset_genres(get_gt_feats_from_evaluator(list(self.groove_evaluator_sets.values())[0]))}
+        self.feature_sets.update({
+            set_name: flatten_subset_genres(get_pd_feats_from_evaluator(eval)) for (set_name, eval) in
+            self.groove_evaluator_sets.items()
+        })
+
+        allowed_analysis = list(self.feature_sets['GT'].keys())
+        # remove ignored keys from allowed analysis
+        if self.ignore_feature_keys is not None:
+            for key in self.ignore_feature_keys:
+                allowed_analysis.remove(key) if key in allowed_analysis else print(
+                    f"Can't ignore requested Key [`{key}`] as is not found in the feature set")
+
+        for set_name in self.feature_sets.keys():
+            for key in list(self.feature_sets[set_name].keys()):
+                if key not in allowed_analysis:
+                    self.feature_sets[set_name].pop(key)
+
+        # ======================== Compile Eval Labels ========================
+        if len(self.groove_evaluator_sets.keys()) > 1:
+            self.eval_labels = [[self.reference_set_label, self.anchor_set_label, k]
+                                for k in self.groove_evaluator_sets.keys()
+                           if k != self.anchor_set_label]
+        else:
+            self.eval_labels = [[self.reference_set_label, self.anchor_set_label]]
+
+        # ======================== Compile Inter Intra Distances ========================
+        self.calculate_inter_intra_distances()
+
+    def dump(self, path):
+        # check path ends with .MSEval.bz2
+        if not path.endswith(".MSEval.bz2"):
+            path += ".MSEval.bz2"
+
+        # make sure path is a valid path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with bz2.BZ2File(path, 'w') as f:
+            pickle.dump(self, f)
+
+    # ================================================================
+    # =========     Inter Intra Statistics
+    # ================================================================
+    def calculate_inter_intra_distances(self):
+        for set_labels in self.eval_labels:
+            gt = self.feature_sets[set_labels[0]]
+            set1 = self.feature_sets[set_labels[1]]
+            set2 = self.feature_sets[set_labels[2]] if len(set_labels) > 2 else None
+
+            distance_set_key = f"{set_labels[0]}_{set_labels[1]}_{set_labels[2]}" if len(set_labels) > 2 else \
+                f"{set_labels[0]}_{set_labels[1]}"
+
+            df, raw_data = compare_two_sets_against_ground_truth(gt, set1, set2, set_labels=set_labels)
+
+            self.iid.update({distance_set_key: {"df": df, "raw_data": raw_data}})
+
+    def save_statistics_of_inter_intra_distances(self, dir_path):
+
+        # make sure path is a valid path
+        os.makedirs(dir_path, exist_ok=True)
+        dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
+
+        # save the statistics of the inter intra distances
+        for set_tag, data in self.iid.items():
+            data['df'].to_csv(os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
+            print("Saved statistics of inter intra distances to: ", os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
+
+    def get_inter_intra_pdf_plots(self, dir_path=None):
+        """
+        """
+        inter_intra_pdf_tabs = []
+        inter_intra_pdf_tab_labels = []
+
+        for set_labels in self.eval_labels:
+            # get precalculated inter intra distances
+            distance_set_key = f"{set_labels[0]}_{set_labels[1]}_{set_labels[2]}" if len(set_labels) > 2 else \
+                f"{set_labels[0]}_{set_labels[1]}"
+            raw_data = self.iid[distance_set_key]['raw_data']
+
+            # plot inter/intra pdfs
+
+            bokeh_figs = plot_inter_intra_distance_distributions(
+                raw_data, set_labels, ncols=3, figsize=(400, 300), legend_fs="6pt")
+
+            # save figure
+            inter_intra_pdf_tabs.append(bokeh_figs)
+            inter_intra_pdf_tab_labels.append(" Vs. ".join(set_labels))
+
+        tabs = Tabs(tabs=[Panel(child=inter_intra_pdf_tabs[i], title=inter_intra_pdf_tab_labels[i]) for i in
+                          range(len(inter_intra_pdf_tabs))])
+
+        if dir_path is not None:
+            # make sure path is a valid path
+            os.makedirs(dir_path, exist_ok=True)
+            dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
+            save(tabs, filename=os.path.join(dir_path, "inter_intra_pdf_plots.html"))
+
+        return tabs
+
+
+# def get_kl_oa_plots(self, dir_path=None):
+#     """
+#     """
+#
+#     kl_oa_figs = []
+#     kl_oa_fig_labels = []
+#
+#     for set_labels in enumerate(self.eval_labels):
+#         # get precalculated inter intra distances
+#         distance_set_key = f"{set_labels[0]}_{set_labels[1]}_{set_labels[2]}" if len(set_labels) > 2 else \
+#             f"{set_labels[0]}_{set_labels[1]}"
+#
+#         df = self.iid[distance_set_key]['df']
+#
+#         # plot inter/intra pdfs
+#
+#         bokeh_figs = get_KL_OA_plot(
+#                 df, fig_path, set_labels, show=False, ncols=4, figsize=(8, 5), max_features_in_plot=28,
+#                 legend_fs=20, fs=24, add_legend=False, add_text=True, min_line_len_for_text=.2,
+#                 set1_name=set_labels[1], set2_name=set2_name, legend_ncols=7, force_xlim=(0, 4),
+#                 force_ylim=(0.65, 1))
+#
+#         #     kl_oa_figs.append(fig_1)
+#
+#         # save figure
+#         kl_oa_figs.append(bokeh_figs)
+#         kl_oa_fig_labels.append(" Vs. ".join(set_labels))
+#
+#     tabs = Tabs(tabs=[Panel(child=inter_intra_pdf_tabs[i], title=inter_intra_pdf_tab_labels[i]) for i in
+#                       range(len(inter_intra_pdf_tabs))])
+#
+#     if dir_path is not None:
+#         # make sure path is a valid path
+#         os.makedirs(dir_path, exist_ok=True)
+#         dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
+#         save(tabs, filename=os.path.join(dir_path, "inter_intra_pdf_plots.html")
+#
+#     return tabs
+
+
+
+
+
+def load_multi_set_evaluator(path):
+    with bz2.BZ2File(path, 'rb') as f:
+        return pickle.load(f)
+
+
+if __name__ == '__main__':
+    from eval.GrooveEvaluator.src.evaluator import load_evaluator
+
+    # prepare input data
+    eval_1 = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    eval_2 = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    eval_3 = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    groove_evaluator_sets = { "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 }
+    # groove_evaluator_sets = {"groovae": eval_1}
+
+    # ignore_feature_keys = ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
+    ignore_feature_keys = None
+
+    # construct MultiSetEvaluator
+    msEvaluator = MultiSetEvaluator(
+        groove_evaluator_sets= { "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # groove_evaluator_sets,
+        ignore_feature_keys=None, # ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
+        reference_set_label="GT",
+        anchor_set_label = None # "groovae"
+    )
+
+    # dump MultiSetEvaluator
+    msEvaluator.dump("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
+
+    # load MultiSetEvaluator
+    # msEvaluator = load_multi_set_evaluator("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
+
+    # save statistics
+    msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
+
+
+    # save inter intra pdf plots
+    iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(dir_path="testers/evaluator/misc/multi_set_evaluator")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # # Generate inter-intra distance plots
+        # generate_these = True
+        # if generate_these is True:
+        #     set2_name = None if len(set_labels) < 3 else set_labels[2]
+        #     fig_1, axes_1 = get_KL_OA_plot(
+        #         df, fig_path, set_labels, show=False, ncols=4, figsize=(8, 5), max_features_in_plot=28,
+        #         legend_fs=20, fs=24, add_legend=False, add_text=True, min_line_len_for_text=.2,
+        #         set1_name=set_labels[1], set2_name=set2_name, legend_ncols=7, force_xlim=(0, 4),
+        #         force_ylim=(0.65, 1))
+        #
+        #     kl_oa_figs.append(fig_1)
