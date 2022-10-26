@@ -192,6 +192,7 @@ class Evaluator:
                 self._prediction_hvo_seq_templates.append(sample_hvo.copy_empty())
 
         self._gt_hvos_array = np.stack(self._gt_hvos_array)
+        self.num_voices = int(self._gt_hvos_array.shape[-1] / 3)
 
         # Subset evaluator for ground_truth data
         self.gt_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
