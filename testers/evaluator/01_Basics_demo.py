@@ -5,8 +5,7 @@ if __name__ == "__main__":
     dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
 
     test_set = load_gmd_hvo_sequences(
-        "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle",
-        "gmd", dataset_setting_json_path, "test")
+        dataset_setting_json_path, "test")
 
     # 2.1 - Create the Subsetter filters to divide up the dataset into subsets
     list_of_filter_dicts_for_subsets = []
@@ -52,6 +51,7 @@ if __name__ == "__main__":
     from model.saved.monotonic_groove_transformer_v1.params import model_params
     import torch
     import numpy as np
+
     model_name = "colorful_sweep_41"
     model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
     model_param = model_params[model_name]
@@ -61,11 +61,11 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="path", fname="fname")
+    evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
-    evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
 
 

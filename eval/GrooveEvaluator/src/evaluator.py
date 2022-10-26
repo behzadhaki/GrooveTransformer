@@ -1116,11 +1116,14 @@ class Evaluator:
         if not os.path.exists(path):
             os.makedirs(path)
 
-        ofile = bz2.BZ2File(os.path.join(path, f"{self._identifier}_{fname}.Eval.bz2"), 'wb')
+        if not fname.endswith(".Eval.bz2"):
+            fname += ".Eval.bz2"
+
+        ofile = bz2.BZ2File(os.path.join(path, f"{self._identifier}_{fname}"), 'wb')
         pickle.dump(self, ofile)
         ofile.close()
 
-        print(f"Dumped Evaluator to {os.path.join(path, f'{self._identifier}_{fname}.Eval.bz2')}")
+        print(f"Dumped Evaluator to {os.path.join(path, f'{self._identifier}_{fname}')}")
 
     # ==================================================================================================================
     #  Utils
