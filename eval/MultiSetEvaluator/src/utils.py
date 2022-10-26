@@ -494,7 +494,12 @@ def overlap_area(A, B, pdf_A, pdf_B, max_sample_size=100):
 def convert_multi_feature_distances_to_pdf(distances_features_dict):
     pdf_dict = {}
     for feature_key, distances_for_feature in distances_features_dict.items():
-        pdf_dict[feature_key] = stats.gaussian_kde(distances_for_feature)
+        try:
+            pdf_dict[feature_key] = stats.gaussian_kde(distances_for_feature)
+        except:
+            print(f"SINGULAR MATRIX Error calculating pdf for feature {feature_key}")
+            print(f"distribution for key {feature_key} is {distances_for_feature}")
+            print(f" pdf_dict so far are {pdf_dict}")
     return pdf_dict
 
 
@@ -610,6 +615,12 @@ def plot_inter_intra_distance_distributions(raw_data, set_labels, ncols=3, figsi
 
 
     for i, key in tqdm(enumerate(gt_intra.keys())):
+        if set2_intra is not None:
+            if key not in pdf_set2_intra.keys() or key not in pdf_set2_inter_gt.keys():
+                continue
+        if key not in pdf_set1_intra.keys():
+            continue
+
         p = figure(width=figsize[0], height=figsize[1], title = key.split("::")[-1])
         associated_tab_labels.append(key.split("::")[0])
 

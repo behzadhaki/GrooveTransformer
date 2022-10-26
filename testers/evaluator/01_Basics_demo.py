@@ -52,6 +52,7 @@ if __name__ == "__main__":
     import torch
     import numpy as np
 
+
     model_name = "colorful_sweep_41"
     model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
     model_param = model_params[model_name]

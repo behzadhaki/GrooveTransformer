@@ -253,7 +253,7 @@ if __name__ == '__main__':
 
     # construct MultiSetEvaluator
     msEvaluator = MultiSetEvaluator(
-        groove_evaluator_sets= { "groovae": eval_2, "Model 1": eval_2, "Model 2": eval_2}, #{ "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # { "groovae": eval_1}
+        groove_evaluator_sets= { "Model 1": eval_1, "Model 2": eval_2, "Model 3": eval_2}, #{ "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # { "groovae": eval_1}
         ignore_feature_keys=None, # ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
         reference_set_label="GT",
         anchor_set_label = None # "groovae"
@@ -262,13 +262,13 @@ if __name__ == '__main__':
     # dump MultiSetEvaluator
     msEvaluator.dump("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
 
-    # # load MultiSetEvaluator
+    # load MultiSetEvaluator
     # msEvaluator = load_multi_set_evaluator("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
-    #
-    # # save statistics
-    # msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
-    #
-    # # save inter intra pdf plots
+
+    # save statistics
+    msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
+
+    # save inter intra pdf plots
     iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(filename="testers/evaluator/misc/multi_set_evaluator/iid_pdfs.html")
 
     # save kl oa plots
