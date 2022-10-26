@@ -146,7 +146,7 @@ class MultiSetEvaluator:
             data['df'].to_csv(os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
             print("Saved statistics of inter intra distances to: ", os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
 
-    def get_inter_intra_pdf_plots(self, dir_path=None):
+    def get_inter_intra_pdf_plots(self, filename=None):
         """
         """
         inter_intra_pdf_tabs = []
@@ -170,53 +170,67 @@ class MultiSetEvaluator:
         tabs = Tabs(tabs=[Panel(child=inter_intra_pdf_tabs[i], title=inter_intra_pdf_tab_labels[i]) for i in
                           range(len(inter_intra_pdf_tabs))])
 
-        if dir_path is not None:
+        if filename is not None:
+            # make sure filename is html
+            if not filename.endswith(".html"):
+                filename = os.path.join(filename, "inter_intra_pdf_plots.html")
+
             # make sure path is a valid path
-            os.makedirs(dir_path, exist_ok=True)
-            dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
-            save(tabs, filename=os.path.join(dir_path, "inter_intra_pdf_plots.html"))
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            save(tabs, filename=filename)
+
+        return tabs
+
+    def get_kl_oa_plots(self, filename=None, figsize=(1200, 1000)):
+        """
+        """
+
+        kl_oa_tabs = []
+        kl_oa_tab_labels = []
+
+        for set_labels in self.eval_labels:
+            title = f"intra({set_labels[1]}) to inter {set_labels[0]}" if len(
+                set_labels) <= 2 else f"intra({set_labels[1]}/{set_labels[2]}) to inter {set_labels[0]}"
+            kl_oa_tab_labels.append(title)
+
+            # get precalculated inter intra distances
+            distance_set_key = f"{set_labels[0]}_{set_labels[1]}_{set_labels[2]}" if len(set_labels) > 2 else \
+                f"{set_labels[0]}_{set_labels[1]}"
+
+            # get inter intra pdf plot for current set
+            bokeh_figs = get_KL_OA_plot(self.iid[distance_set_key]['df'], set_labels, figsize=figsize)
+
+            kl_oa_tabs.append(Panel(child=bokeh_figs, title=title))
+
+        tabs = Tabs(tabs=kl_oa_tabs)
+
+        if filename is not None:
+            # make sure filename is html
+            if not filename.endswith(".html"):
+                filename = os.path.join(filename, "kl_oa_plots.html")
+
+            # make sure path is a valid path
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+            save(tabs, filename=filename)
 
         return tabs
 
 
-# def get_kl_oa_plots(self, dir_path=None):
-#     """
-#     """
-#
-#     kl_oa_figs = []
-#     kl_oa_fig_labels = []
-#
-#     for set_labels in enumerate(self.eval_labels):
-#         # get precalculated inter intra distances
-#         distance_set_key = f"{set_labels[0]}_{set_labels[1]}_{set_labels[2]}" if len(set_labels) > 2 else \
-#             f"{set_labels[0]}_{set_labels[1]}"
-#
-#         df = self.iid[distance_set_key]['df']
-#
-#         # plot inter/intra pdfs
-#
-#         bokeh_figs = get_KL_OA_plot(
-#                 df, fig_path, set_labels, show=False, ncols=4, figsize=(8, 5), max_features_in_plot=28,
-#                 legend_fs=20, fs=24, add_legend=False, add_text=True, min_line_len_for_text=.2,
-#                 set1_name=set_labels[1], set2_name=set2_name, legend_ncols=7, force_xlim=(0, 4),
-#                 force_ylim=(0.65, 1))
-#
-#         #     kl_oa_figs.append(fig_1)
-#
-#         # save figure
-#         kl_oa_figs.append(bokeh_figs)
-#         kl_oa_fig_labels.append(" Vs. ".join(set_labels))
-#
-#     tabs = Tabs(tabs=[Panel(child=inter_intra_pdf_tabs[i], title=inter_intra_pdf_tab_labels[i]) for i in
-#                       range(len(inter_intra_pdf_tabs))])
-#
-#     if dir_path is not None:
-#         # make sure path is a valid path
-#         os.makedirs(dir_path, exist_ok=True)
-#         dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
-#         save(tabs, filename=os.path.join(dir_path, "inter_intra_pdf_plots.html")
-#
-#     return tabs
+        #     # save figure
+        #     kl_oa_figs.append(bokeh_figs)
+        #     kl_oa_fig_labels.append(" Vs. ".join(set_labels))
+        #
+        # tabs = Tabs(tabs=[Panel(child=inter_intra_pdf_tabs[i], title=inter_intra_pdf_tab_labels[i]) for i in
+        #                   range(len(inter_intra_pdf_tabs))])
+        #
+        # if dir_path is not None:
+        #     # make sure path is a valid path
+        #     os.makedirs(dir_path, exist_ok=True)
+        #     dir_path = dir_path if os.path.isdir(dir_path) else os.path.dirname(dir_path)
+        #     save(tabs, filename=os.path.join(dir_path, "inter_intra_pdf_plots.html"))
+        #
+        # return tabs
 
 
 
@@ -231,18 +245,15 @@ if __name__ == '__main__':
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
 
     # prepare input data
-    eval_1 = load_evaluator("path/test_set_full_fname.Eval.bz2")
-    eval_2 = load_evaluator("path/test_set_full_fname.Eval.bz2")
-    eval_3 = load_evaluator("path/test_set_full_fname.Eval.bz2")
-    groove_evaluator_sets = { "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 }
-    # groove_evaluator_sets = {"groovae": eval_1}
+    eval_1 = load_evaluator("testers/evaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
+    eval_2 = load_evaluator("testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
     # ignore_feature_keys = ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
     ignore_feature_keys = None
 
     # construct MultiSetEvaluator
     msEvaluator = MultiSetEvaluator(
-        groove_evaluator_sets= { "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # groove_evaluator_sets,
+        groove_evaluator_sets= { "groovae": eval_2, "Model 1": eval_2, "Model 2": eval_2}, #{ "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # { "groovae": eval_1}
         ignore_feature_keys=None, # ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
         reference_set_label="GT",
         anchor_set_label = None # "groovae"
@@ -251,15 +262,21 @@ if __name__ == '__main__':
     # dump MultiSetEvaluator
     msEvaluator.dump("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
 
-    # load MultiSetEvaluator
+    # # load MultiSetEvaluator
     # msEvaluator = load_multi_set_evaluator("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
+    #
+    # # save statistics
+    # msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
+    #
+    # # save inter intra pdf plots
+    iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(filename="testers/evaluator/misc/multi_set_evaluator/iid_pdfs.html")
 
-    # save statistics
-    msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
+    # save kl oa plots
+    KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/evaluator/misc/multi_set_evaluator")
 
 
-    # save inter intra pdf plots
-    iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(dir_path="testers/evaluator/misc/multi_set_evaluator")
+
+
 
 
 

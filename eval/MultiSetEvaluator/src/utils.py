@@ -11,7 +11,8 @@ from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_sc
 from datetime import datetime
 from bokeh.plotting import figure, output_file, show, save
 from bokeh.layouts import gridplot
-from bokeh.models import Panel, Tabs
+from bokeh.models import Panel, Tabs, HoverTool, Legend
+from bokeh.palettes import Magma, Inferno, Plasma, Viridis, Cividis
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
@@ -646,119 +647,44 @@ def plot_inter_intra_distance_distributions(raw_data, set_labels, ncols=3, figsi
     return Tabs(tabs=tabs)
 
 
-def get_KL_OA_plot(analysis_dataframe, fig_path, set_labels, set1_name='First Model', set2_name='Second Model',
-                   show=False, ncols=2, figsize=(20, 10), max_features_in_plot=7, legend_fs=6, fs=8, add_legend=False,
-                   add_text=True, min_line_len_for_text=1, legend_ncols=1, force_xlim=None, force_ylim=None):
+def get_KL_OA_plot(df, set_labels, figsize=(1200, 1000)):
 
-    df = analysis_dataframe
+    title = f"Intra ( {set_labels[1]} ⟁ )  to Inter {set_labels[0]}" if len(set_labels) <= 2 else f"Intra ( {set_labels[1]} ⟁ OR {set_labels[2]} ⃞ ) to Inter {set_labels[0]}"
 
-    cmap = get_cmap(max_features_in_plot, name="Dark2")
-    lines = ['-', '--', '-.', ':']
-    linecycler = cycle(lines)
+    p = figure(width=figsize[0], height=figsize[1], title = title)
 
-    nfeatures = len(analysis_dataframe.index)
-    nplots = int(np.ceil(nfeatures/max_features_in_plot))
-    ncols = min(ncols, nplots)
-    nrows = int(np.ceil(nplots/ncols))
+    print(f"len(df.index) = {len(df.index)}")
+    palette = Magma[256]
 
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, sharey=False, sharex=True)
+    # divide up palette into df.index.size number of colors
+    colors = [palette[int(x)] for x in np.linspace(0, 255, len(df.index))]
 
-    handles, labels = [], []
+    legend_it = []
 
     for i, index in tqdm(enumerate(df.index)):
 
-
-        handles = [] if i % max_features_in_plot == 0 else handles
-        labels = [] if i % max_features_in_plot == 0 else labels
-        ax_ = None
-
-        if nrows > 1 and ncols>1:
-            print([i//(ncols*max_features_in_plot)], [i//max_features_in_plot])
-            row_ix = i//(ncols*max_features_in_plot)
-            ax_ = axes[row_ix][i//(max_features_in_plot)//nrows]
-        if nrows == 1 and ncols == 1:
-            ax_ = axes
-        if nrows > 1 and ncols == 1:
-            ax_ = axes[i//(ncols*max_features_in_plot)]
-        if nrows == 1 and ncols > 1:
-            ax_ = axes[i//max_features_in_plot]
+        handlers = []
 
         x1 = df[(set_labels[1], 'Inter-set', 'KL')][index]
         y1 = df[(set_labels[1], 'Inter-set', 'OA')][index]
 
-
-        ax_.scatter(x1, y1, c=cmap(i % max_features_in_plot), marker="^")
+        handlers.append(p.triangle(x=x1, y=y1, color=colors[i], name=f"{index} ({set_labels[1]})"))
 
         if len(set_labels) > 2:
             x2 = df[(set_labels[2], 'Inter-set', 'KL')][index]
             y2 = df[(set_labels[2], 'Inter-set', 'OA')][index]
-            ax_.scatter(x2, y2, c=cmap(i % max_features_in_plot), marker="s")
+            handlers.append(p.square(x=x2, y=y2, color=colors[i], name=f"{index} ({set_labels[2]})"))
+            handlers.append(p.line(x=[x1, x2], y=[y1, y2], line_width=2, line_color=colors[i], name=f"{index} ({set_labels[1]} vs {set_labels[2]})"))
 
-        if add_text is True and len(set_labels)>2:
-            if ((x2-x1)**2-(y2-y1)**2)**0.5 >= min_line_len_for_text:
-                dy = (y2 - y1)
-                dx = (x2 - x1)
-                right_point = (x1, y1) if x1 > x2 else (x2, y2)
-                center_point = ((x1+x2)/2, (y1+y2)/2)
-                center_point = ((right_point[0]+center_point[0])/2, (right_point[1]+center_point[1])/2)
-                center_point = ((right_point[0] + center_point[0]) / 2, (right_point[1] + center_point[1]) / 2)
-                loc = ((right_point[0] + center_point[0]) / 2, (right_point[1] + center_point[1]) / 2)
-                rotn = np.degrees(np.arctan2(dy, dx))
-                rotn = (rotn + 180.0) if 90 < rotn < 270 else rotn
+        title = f"{index} ({set_labels[1]})" if len(set_labels) <= 2 else f"{index} ({set_labels[1]} vs {set_labels[2]})"
+        legend_it.append((title, handlers))
 
-                ax_.text(*right_point, index.split("::")[-1], c=cmap(i % max_features_in_plot), fontsize=legend_fs)
+    legend = Legend(items=legend_it)
+    legend.click_policy = "hide"
+    p.add_layout(legend, 'right')
 
-            h_, = ax_.plot([x1, x2], [y1, y2], c=cmap(i % max_features_in_plot), label=index.split("::")[-1],
-                           linestyle=next(linecycler))  # , linewidth=.3*(i+1))
+    p.add_tools(HoverTool(tooltips=[
+        ('Feature', '$name'),
+    ]))
 
-        else:
-            h_, = ax_.plot([x1], [y1], c=cmap(i % max_features_in_plot), label=index.split("::")[-1],
-                     linestyle=next(linecycler))  # , linewidth=.3*(i+1))
-
-        handles.append(h_)
-        labels.append(index.split("::")[-1] if index.split("::")[0]=="Statistical" else index.replace("::", " "))
-
-        if add_legend is True:
-            ax_.legend(handles, labels, loc='lower right', prop={'size': legend_fs}, mode="expand", ncol=legend_ncols)
-
-        ax_.set_xlabel("KL", fontsize=fs)
-        ax_.set_ylabel("OA", fontsize=fs)
-
-    if ncols > 1 and nrows > 1 :
-        for ax in axes:
-            y_min, y_max = ax.get_ylim()
-            x_min, x_max = ax.get_xlim()
-            if add_legend is True:
-                ax.set_xlim(x_min - 0.1 * (x_max - x_min), max(x_max * 1.2, 1))
-                ax.set_ylim(y_min - 1 * (y_max - y_min), min(y_max* 1.2, 1.1) )
-    else:
-        ax = axes
-        y_min, y_max = ax.get_ylim()
-        x_min, x_max = ax.get_xlim()
-        if add_legend is True:
-            ax.set_xlim(x_min - 0.1 * (x_max - x_min), x_max * 1.2)
-            ax.set_ylim(y_min - 1 * (y_max - y_min), min(y_max * 1.2, 1.1))
-
-    if force_xlim is not None:
-        ax.set_xlim(force_xlim[0], force_xlim[1])
-    if force_ylim is not None:
-        ax.set_ylim(force_ylim[0], force_ylim[1])
-
-    fig.suptitle(r'$\bigtriangleup$' + "  " + f"{set1_name}" + "    " + r'$\boxdot$' + "  " + f"{set2_name}",
-                 fontsize=20)
-
-    if fig_path is not None:
-        os.makedirs(fig_path, exist_ok=True)
-        now = datetime.now()
-        time_txt = f"{now.day}_{now.month}_{now.year}-{now.hour}-{now.min}-{now.second}"
-        filename = os.path.join(
-            fig_path, f"inter({set_labels[1]},{set_labels[0]})_inter({set_labels[2]},{set_labels[0]})"
-                      f"_vs_Intra({set_labels[0]})_at_{time_txt}") \
-            if len(set_labels)>2 else \
-            os.path.join(fig_path, f"inter({set_labels[1]},{set_labels[0]})_vs_Intra({set_labels[0]})_at_{time_txt}")
-        fig.savefig(filename)
-
-    if show is True:
-        fig.show()
-
-    return fig, axes
+    return p
