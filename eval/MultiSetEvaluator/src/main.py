@@ -252,7 +252,9 @@ class MultiSetEvaluator:
 
         return tabs
 
-    def get_pos_neg_hit_score_plots(self, filename=None):
+    def get_pos_neg_hit_score_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+                                    kernel_bandwidth=0.1,
+                                    scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         pos_neg_hit_scores = dict()
         for set_label, groove_eval in self.groove_evaluator_sets.items():
             temp = groove_eval.get_pos_neg_hit_scores()
@@ -273,8 +275,9 @@ class MultiSetEvaluator:
             for feat_label, feat_dict in tab_dict.items():
                 figs.append(
                     get_violin_bokeh_plot(
-                        feat_label, feat_dict, kernel_bandwidth=0.1,
-                        scatter_color='red', scatter_size=10, xrotation=45, font_size=10))
+                        feat_label, feat_dict, kernel_bandwidth=kernel_bandwidth,
+                        scatter_color=scatter_color, scatter_size=scatter_size, xrotation=xrotation,
+                        font_size=font_size))
 
             # sync axes
             y_max = max([fig.y_range.end for fig in figs])
@@ -287,7 +290,7 @@ class MultiSetEvaluator:
                 fig.x_range = figs[0].x_range
                 fig.y_range = figs[0].y_range
 
-            tab_grid.append(Panel(child=gridplot(figs, ncols=4, plot_width=400, plot_height=400), title=tab_label))
+            tab_grid.append(Panel(child=gridplot(figs, ncols=ncols, plot_width=plot_width, plot_height=plot_height), title=tab_label))
 
         tabs = Tabs(tabs=tab_grid)
 
@@ -303,7 +306,9 @@ class MultiSetEvaluator:
 
         return tabs
 
-    def get_velocity_distribution_plots(self, filename=None):
+    def get_velocity_distribution_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+                                        kernel_bandwidth=0.1,
+                                        scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         velocity_distributions = dict()
         for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
             temp = groove_eval.get_velocity_distributions()
@@ -324,8 +329,9 @@ class MultiSetEvaluator:
             for feat_label, feat_dict in tab_dict.items():
                 figs.append(
                     get_violin_bokeh_plot(
-                        feat_label, feat_dict, kernel_bandwidth=0.1,
-                        scatter_color='red', scatter_size=10, xrotation=45, font_size=10))
+                        feat_label, feat_dict, kernel_bandwidth=kernel_bandwidth,
+                        scatter_color=scatter_color, scatter_size=scatter_size, xrotation=xrotation,
+                        font_size=font_size))
 
             # sync axes
             for fig in figs:
@@ -337,7 +343,7 @@ class MultiSetEvaluator:
                 fig.x_range = figs[0].x_range
                 fig.y_range = figs[0].y_range
 
-            tab_grid.append(Panel(child=gridplot(figs, ncols=4, plot_width=400, plot_height=400), title=tab_label))
+            tab_grid.append(Panel(child=gridplot(figs, ncols=ncols, plot_width=plot_width, plot_height=plot_height), title=tab_label))
 
         tabs = Tabs(tabs=tab_grid)
 
@@ -355,7 +361,9 @@ class MultiSetEvaluator:
 
         return tabs
 
-    def get_offset_distribution_plots(self, filename=None):
+    def get_offset_distribution_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+                                      kernel_bandwidth=0.1,
+                                      scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         offset_distributions = dict()
         for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
             temp = groove_eval.get_offset_distributions()
@@ -376,8 +384,8 @@ class MultiSetEvaluator:
             for feat_label, feat_dict in tab_dict.items():
                 figs.append(
                     get_violin_bokeh_plot(
-                        feat_label, feat_dict, kernel_bandwidth=0.1,
-                        scatter_color='red', scatter_size=10, xrotation=45, font_size=10))
+                        feat_label, feat_dict, kernel_bandwidth=kernel_bandwidth,
+                        scatter_color=scatter_color, scatter_size=scatter_size, xrotation=xrotation, font_size=font_size))
 
             # sync axes
             for fig in figs:
@@ -389,7 +397,7 @@ class MultiSetEvaluator:
                 fig.x_range = figs[0].x_range
                 fig.y_range = figs[0].y_range
 
-            tab_grid.append(Panel(child=gridplot(figs, ncols=4, plot_width=400, plot_height=400), title=tab_label))
+            tab_grid.append(Panel(child=gridplot(figs, ncols=ncols, plot_width=plot_width, plot_height=plot_height), title=tab_label))
 
         tabs = Tabs(tabs=tab_grid)
 
@@ -445,14 +453,15 @@ if __name__ == '__main__':
     #KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/evaluator/misc/multi_set_evaluator")
 
     # get pos neg hit score plots
-    # pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(filename="testers/evaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
+    pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(filename="testers/evaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
 
     # get velocity distribution plots
-    # velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(filename="testers/evaluator/misc/multi_set_evaluator/velocity_distributions.html")
+    velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(filename="testers/evaluator/misc/multi_set_evaluator/velocity_distributions.html")
 
     # get offset distribution plots
     offset_distribution_plots = msEvaluator.get_offset_distribution_plots(filename="testers/evaluator/misc/multi_set_evaluator/offset_distributions.html")
 
+    # get
 
     # velocity_distributions = dict()
     # for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
