@@ -45,7 +45,7 @@ from torch.utils.data import DataLoader
 train_dataloader = DataLoader(training_dataset, batch_size=32, shuffle=True)
 
 
-epochs = 10
+epochs = 1
 for epoch in range(epochs):
     # in each epoch we iterate over the entire dataset
     for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):

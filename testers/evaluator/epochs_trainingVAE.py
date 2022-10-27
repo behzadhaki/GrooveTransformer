@@ -1,11 +1,31 @@
 import torch
 from model.src.BasicGrooveTransformer_VAE import *
 from helpers.BasicGrooveTransformer_train_VAE import *
+
+### encoder params
+nhead_enc = 1
+nhead_dec = 1
+d_model_enc = 2
+d_model_dec = 2
+embedding_size_src = 27
+embedding_size_tgt = 27
+dim_feedforward = 2048
+dropout = 0.4
+num_encoder_layers = 1
+num_decoder_layers = 1
+max_len = 32
+device = 0
+
+latent_dim = 16#int((max_len * d_model_enc)/4)
+
+groove_transformer = GrooveTransformerEncoderVAE(d_model_enc, d_model_dec, embedding_size_src, embedding_size_tgt,
+                 nhead_enc, nhead_dec, dim_feedforward, dropout, num_encoder_layers, latent_dim,
+                 num_decoder_layers, max_len, device)
+
+
+# =================================================================================================
 # Load dataset as torch.utils.data.Dataset
 from data.dataLoaders import MonotonicGrooveDataset
-from torch.utils.data import DataLoader
-
-
 
 # load dataset as torch.utils.data.Dataset
 training_dataset = MonotonicGrooveDataset(
@@ -16,27 +36,12 @@ training_dataset = MonotonicGrooveDataset(
     collapse_tapped_sequence=False)
 
 
-### encoder params
-nhead_enc = 3
-nhead_dec = 3
-d_model_enc = 27
-d_model_dec = 30
-embedding_size_src = 27
-embedding_size_tgt = 27
-dim_feedforward = 2048
-dropout = 0.4
-num_encoder_layers = 2
-num_decoder_layers = 2
-max_len = 32
-device = 0
+# use the above dataset in the training pipeline, you need to use torch.utils.data.DataLoader
+from torch.utils.data import DataLoader
+train_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True) #int(32/4)
 
-latent_dim = int((max_len * d_model_enc)/4)
+# =================== optimezer and loss ============
 
-### call VAE encoder
-
-groove_transformer = GrooveTransformerEncoderVAE(d_model_enc, d_model_dec, embedding_size_src, embedding_size_tgt,
-                 nhead_enc, nhead_dec, dim_feedforward, dropout, num_encoder_layers, latent_dim,
-                 num_decoder_layers, max_len, device)
 
 optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
 #inputs = torch.rand(20, max_len, embedding_size_src)
@@ -47,24 +52,10 @@ bce_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
 mse_fn = torch.nn.MSELoss(reduction='none')
 hit_loss_penalty = 0.1
 
-# run one epoch
-groove_transformer.train()  # train mode
-optimizer.zero_grad()
-# forward + backward + optimize
-#output_net = groove_transformer(inputs)
-
-# loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs, bce_fn,
-#                                                                                        mse_fn,
-#                                                                                        hit_loss_penalty)
-#
-# loss.backward()
-# optimizer.step()
-
-
-
-### epochs for
 LOSS = []
-epochs = 1 #10
+
+epochs = 1
+groove_transformer.train()  # train mode
 
 for epoch in range(epochs):
     # in each epoch we iterate over the entire dataset
@@ -73,17 +64,16 @@ for epoch in range(epochs):
               f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
 
         inputs = inputs.float()
-        # run one epoch
-        groove_transformer.train()  # train mode
         optimizer.zero_grad()
+
         # forward + backward + optimize
         output_net = groove_transformer(inputs)
         # loss = calculate_loss_VAE(outputs, labels)
 
-        loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs, bce_fn,
+        loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs,
+                                                                                               bce_fn,
                                                                                                mse_fn,
                                                                                                hit_loss_penalty)
-
         loss.backward()
         optimizer.step()
 
@@ -92,4 +82,3 @@ for epoch in range(epochs):
 ## plot loss
 import matplotlib.pyplot as plt
 plt.plot(LOSS)
-
