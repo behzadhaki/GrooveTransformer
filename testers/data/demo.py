@@ -1,4 +1,4 @@
-from data.dataLoaders import load_original_gmd_dataset_pickle
+from data import load_original_gmd_dataset_pickle
 
 # Load 2bar gmd dataset as a dictionary
 gmd_dict = load_original_gmd_dataset_pickle(
@@ -10,7 +10,7 @@ gmd_dict['train'].keys()        #dict_keys(['drummer', 'session', 'loop_id', 'ma
 
 # Extract HVO_Sequences from the dictionaries
 
-from data.dataLoaders import extract_hvo_sequences_dict, get_drum_mapping_using_label
+from data import extract_hvo_sequences_dict, get_drum_mapping_using_label
 
 hvo_dict = extract_hvo_sequences_dict (
     gmd_dict=gmd_dict,
@@ -19,8 +19,7 @@ hvo_dict = extract_hvo_sequences_dict (
 
 
 # Load GMD Dataset in `HVO_Sequence` format using a single command
-
-from data.dataLoaders import load_gmd_hvo_sequences
+from data import load_gmd_hvo_sequences
 train_set = load_gmd_hvo_sequences(
     dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
     subset_tag="train",
@@ -29,7 +28,7 @@ train_set = load_gmd_hvo_sequences(
 
 # =================================================================================================
 # Load dataset as torch.utils.data.Dataset
-from data.dataLoaders import MonotonicGrooveDataset
+from data import MonotonicGrooveDataset
 
 # load dataset as torch.utils.data.Dataset
 training_dataset = MonotonicGrooveDataset(

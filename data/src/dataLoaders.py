@@ -114,11 +114,11 @@ if __name__ == "__main__":
     drum_mapping_label = "ROLAND_REDUCED_MAPPING"
     subset_tag = "train"
 
-    # gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path = "data/gmd/resource/storedDicts/groove_2bar_midionly.bz2pickle")
+    gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path = "data/gmd/resource/storedDicts/groove_2bar_midionly.bz2pickle")
     # hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
     # pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
 
-    #train_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag)
+    train_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag)
 
 
     # load dataset as torch.utils.data.Dataset
