@@ -1,4 +1,4 @@
-from data.dataLoaders import load_gmd_hvo_sequences
+from data import load_gmd_hvo_sequences
 
 if __name__ == "__main__":
     # 2.1 - Load test set dataset
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # 2.3.1 - get ground truth hvo pianoroll scores
     evaluator_test_set.get_ground_truth_hvos_array()
-    evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"GT_without_Predictions.Eval.bz2")
+    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples", fname=f"GT_without_Predictions.Eval.bz2")
 
     # 2.3.1 - get ground truth monotonic grooves
     import numpy as np
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()   # This is here just to make sure the code doesnt rely on the model here
 
     # 2.3.3 - Add the predictions to the evaluator
-    from model.modelLoadesSamplers import load_groove_transformer_encoder_model
+    from model import load_groove_transformer_encoder_model
     from model.saved.monotonic_groove_transformer_v1.params import model_params
 
     import torch
@@ -68,12 +68,11 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
-
+    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_{model_name}.Eval.bz2")
 
 
 
@@ -86,10 +85,10 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_{model_name}.Eval.bz2")
 
 

@@ -15,7 +15,7 @@
 
 ## 2. GrooveEvaluator Basics <a name="2"></a>
 
-### _All codes provided below are also available [here](../../testers/evaluator/01_Basics_demo.py)_
+### _All codes provided below are also available [here](../../testers/GrooveEvaluator/01_Basics_demo.py)_
 
 
 ---
@@ -24,12 +24,10 @@
 
 First, Load the dataset (read more about loading the dataset [here](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#313-load-gmd-dataset-in-hvo_sequence-format-using-a-single-command---))
 ```python
-from data.dataLoaders import load_gmd_hvo_sequences
+from data import load_gmd_hvo_sequences
 
 dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
-test_set = load_gmd_hvo_sequences(
-    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle",
-    "gmd", dataset_setting_json_path, "test")
+test_set = load_gmd_hvo_sequences(dataset_setting_json_path, "test")
 ```
 
 Then, if you want to inspect different subsets of the data, specify how the dataset needs to be split into smaller subsets.
@@ -40,7 +38,7 @@ styles = [
     "latin", "middleeastern", "neworleans", "pop", "punk", "reggae", "rock", "soul"]
 for style in styles:
     list_of_filter_dicts_for_subsets.append(
-        {"style_primary": [style], "beat_type": ["beat"], "time_signature": ["4-4"]}
+        {"style_primary": [style]} #, "beat_type": ["beat"], "time_signature": ["4-4"]}
     )
 ```
 
@@ -76,8 +74,7 @@ To instantiate the GrooveEvaluator, you need to specify the following parameters
 - **need_global_features**: (Default: True) Whether to generate global features plots
 - **need_piano_roll**: (Default: True) Whether to generate piano roll plots
 - **need_audio**: (Default: True) Whether to generate audio files
-- **n_samples_to_synthesize**: (Default: "all") The number of samples to synthesize audio files for. If "all", all samples will be synthesized.
-- **n_samples_to_draw_pianorolls**: (Default: "all") The number of samples to draw piano rolls for. If "all", all samples will be drawn.
+- **n_samples_to_synthesize_and_draw**: (Default: "all") The number of samples to synthesize audio files for and also plot piano rolls for. If "all", all samples will be synthesized.
 - **disable_tqdm**: (Default: False) Whether to disable tqdm progress bars
 
 
@@ -92,8 +89,26 @@ To instantiate the GrooveEvaluator, you need to specify the following parameters
 > 
 > 
 
-
-
+```python
+from eval.GrooveEvaluator import Evaluator
+evaluator_test_set = Evaluator(
+test_set,
+list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
+_identifier="test_set_full",
+n_samples_to_use=20, #-1,
+max_hvo_shape=(32, 27),
+need_hit_scores=True,
+need_velocity_distributions=True,
+need_offset_distributions=True,
+need_rhythmic_distances=True,
+need_heatmap=True,
+need_global_features=True,
+need_audio=True,
+need_piano_roll=True,
+n_samples_to_synthesize_and_draw=5,   # "all",
+disable_tqdm=False
+)
+```
 ### 2.3. Preparing Predictions <a name="(#2_iii)"></a>
 
 Some of the available evaluation methods can be run on the ground truth data. However, most of the methods require 
@@ -122,23 +137,30 @@ evaluator_test_set.get_ground_truth_hvos_array()
 
 ```python
 import numpy as np
-input = np.array([hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_test_set.get_ground_truth_hvo_sequences()])
+input = np.array(
+[hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_test_set.get_ground_truth_hvo_sequences()])
 ```
 
 #### 2.3.2 Pass Samples to Model <a name="2_iii_b"></a>
-from data.dataLoaders import load_gmd_hvo_sequences
-test_set = load_gmd_hvo_sequences(
-    "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle", "gmd", "data/dataset_json_settings/4_4_Beats_gmd.json", [4],
-    "ROLAND_REDUCED_MAPPING", "train")
-predicted_hvos_array = model.predict(input)
 
 ```python
+from model import load_groove_transformer_encoder_model
+from model.saved.monotonic_groove_transformer_v1.params import model_params
+import torch
+import numpy as np
+
+model_name = "colorful_sweep_41" # robust_sweep_29
+model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
+model_param = model_params[model_name]
+GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
+predictions = GrooveTransformer.predict(torch.tensor(evaluator_test_set.get_ground_truth_hvos_array(), dtype=torch.float32))
+predictions = torch.cat(predictions, -1)
 ```
 
 #### 2.3.3 Add Predictions to Evaluator <a name="2_iii_c"></a>
 
 ```python
-evaluator_test_set.add_predictions(predicted_hvos_array)
+evaluator_test_set.add_predictions(predictions.detach().numpy())
 ```
 
 ### 2.4. Saving and Loading <a name="2_iv"></a>
@@ -147,9 +169,9 @@ To save the model, use the `dump` method. You can the `path` parameter to specif
 you can use the `fname`, to add aditional information.
 
 ```python
-evaluator_test_set.dump(path="misc", fname="")
+evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
 
-# Output >> Dumped Evaluator to path/test_set_full_fname.Eval.bz2
+# Output >> Dumped Evaluator to testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2
 ```
 
 > **Note**
@@ -158,7 +180,7 @@ evaluator_test_set.dump(path="misc", fname="")
 To load a saved model, use the full path along with the `load_evaluator` method
 
 ```python
-from eval.GrooveEvaluator.src.evaluator import load_evaluator
-evaluator_test_set = load_evaluator("path/test_set_full_fname.Eval.bz2")
+from eval.GrooveEvaluator import load_evaluator
+evaluator_test_set = load_evaluator("path/test_set_full_colorful_sweep_41.Eval.bz2")
 ```
 

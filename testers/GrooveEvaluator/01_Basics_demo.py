@@ -1,4 +1,4 @@
-from data.dataLoaders import load_gmd_hvo_sequences
+from data import load_gmd_hvo_sequences
 
 if __name__ == "__main__":
     # 2.1 - Load test set dataset
@@ -46,15 +46,10 @@ if __name__ == "__main__":
     [hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_test_set.get_ground_truth_hvo_sequences()])
 
     # 2.3.2 Pass the ground truth data to the model
-    # predicted_hvos_array = model.predict(input)
-    predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()   # This is here just to make sure the code doesnt rely on the model here
-
-    # 2.3.3 - Add the predictions to the evaluator
-    from model.modelLoadesSamplers import load_groove_transformer_encoder_model
+    from model import load_groove_transformer_encoder_model
     from model.saved.monotonic_groove_transformer_v1.params import model_params
     import torch
     import numpy as np
-
 
     model_name = "colorful_sweep_41" # robust_sweep_29
     model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
@@ -62,6 +57,8 @@ if __name__ == "__main__":
     GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
     predictions = GrooveTransformer.predict(torch.tensor(evaluator_test_set.get_ground_truth_hvos_array(), dtype=torch.float32))
     predictions = torch.cat(predictions, -1)
+
+    # 2.3.3 - Add the predictions to the evaluator
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
