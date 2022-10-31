@@ -268,21 +268,25 @@ class Evaluator:
 
 
         if need_hit_scores is True:
+            print("Preparing Hit Score Plots for Logging")
             logging_media["hit_score_plots"] = self.get_pos_neg_hit_plots()
             if prepare_for_wandb is True:
                 logging_media["hit_score_plots"] = wandb.Html(
                     file_html(logging_media["hit_score_plots"], CDN, "Pos_Neg_Hit_Scores"))
         if need_velocity_distributions is True:
+            print("Preparing Velocity Distribution Plots for Logging")
             logging_media["velocity_distribution_plots"] = self.get_velocity_distribution_plots()
             if prepare_for_wandb is True:
                 logging_media["velocity_distribution_plots"] = wandb.Html(
                     file_html(logging_media["velocity_distribution_plots"], CDN, "Velocity_Distributions"))
         if need_offset_distributions is True:
+            print("Preparing Offset Distribution Plots for Logging")
             logging_media["offset_distribution_plots"] = self.get_offset_distribution_plots()
             if prepare_for_wandb is True:
                 logging_media["offset_distribution_plots"] = wandb.Html(
                     file_html(logging_media["offset_distribution_plots"], CDN, "Offset_Distributions"))
         if need_rhythmic_distances is True:
+            print("Preparing Rhythmic Distance Plots for Logging")
             if self._prediction_hvos_array is None:
                 raise Warning("Cannot compute rhythmic distances without predictions")
             else:
@@ -291,24 +295,29 @@ class Evaluator:
                     logging_media["rhythmic_distance_plots"] = wandb.Html(
                         file_html(logging_media["rhythmic_distance_plots"], CDN, "Rhythmic_Distances"))
         if need_heatmap is True:
+            print("Preparing Heatmap Plots for Logging")
             logging_media["heatmap_plots"] = self.get_velocity_heatmaps()
             if prepare_for_wandb is True:
                 logging_media["heatmap_plots"] = wandb.Html(
                     file_html(logging_media["heatmap_plots"], CDN, "Velocity_Heatmaps"))
         if need_global_features is True:
+            print("Preparing Global Feature Plots for Logging")
             logging_media["global_feature_plots"] = self.get_global_features_plot()
             if prepare_for_wandb is True:
                 logging_media["global_feature_plots"] = wandb.Html(
                     file_html(logging_media["global_feature_plots"], CDN, "Global_Features"))
         if need_piano_roll is True:
+            print("Preparing Piano Roll Plots for Logging")
             logging_media["piano_roll_plots"] = self.get_piano_rolls()
             if prepare_for_wandb is True:
                 logging_media["piano_roll_plots"] = wandb.Html(
                     file_html(logging_media["piano_roll_plots"], CDN, "Piano_Rolls"))
         if need_audio is True:
+            print("Preparing Audio Files for Logging")
             logging_media["audios"] = self.get_audio_tuples()
             if prepare_for_wandb is True:
-                [wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000) for c_a in logging_media["audios"]]
+                logging_media["audios"] = \
+                    [wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000) for c_a in logging_media["audios"]]
 
         return logging_media
 
@@ -549,8 +558,8 @@ class Evaluator:
     def get_pos_neg_hit_plots(self, save_path=None, kernel_bandwidth=0.05, plot_width=1200, plot_height=800):
         hit_scores_dict = self.get_pos_neg_hit_scores()
 
-        tabulated_violin_plot(hit_scores_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
-                              width=plot_width, height=plot_height)
+        return tabulated_violin_plot(hit_scores_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                     width=plot_width, height=plot_height)
 
     # ==================================================================================================================
     #  Evaluation of Velocities
