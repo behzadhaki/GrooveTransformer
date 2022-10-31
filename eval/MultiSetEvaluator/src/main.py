@@ -310,7 +310,7 @@ class MultiSetEvaluator:
                                         kernel_bandwidth=0.1,
                                         scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         velocity_distributions = dict()
-        for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
+        for set_label, groove_eval in self.groove_evaluator_sets.items():
             temp = groove_eval.get_velocity_distributions()
             for feat, value in temp.items():
                 # reorganize data using feat as highest level key
@@ -365,7 +365,7 @@ class MultiSetEvaluator:
                                       kernel_bandwidth=0.1,
                                       scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         offset_distributions = dict()
-        for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
+        for set_label, groove_eval in self.groove_evaluator_sets.items():
             temp = groove_eval.get_offset_distributions()
             for feat, value in temp.items():
                 # reorganize data using feat as highest level key
@@ -461,4 +461,3 @@ if __name__ == '__main__':
     # get offset distribution plots
     offset_distribution_plots = msEvaluator.get_offset_distribution_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
 
-   
