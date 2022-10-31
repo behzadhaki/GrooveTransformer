@@ -18,7 +18,7 @@ if __name__ == "__main__":
         )
 
     # 2.2 - Instantiate the evaluator
-    from eval.GrooveEvaluator.src.evaluator import Evaluator
+    from eval.GrooveEvaluator import Evaluator
     evaluator_test_set = Evaluator(
         test_set,
         list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
-    from eval.GrooveEvaluator.src.evaluator import load_evaluator
+    from eval.GrooveEvaluator import load_evaluator
     evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
 
