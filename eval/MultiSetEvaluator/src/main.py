@@ -423,8 +423,8 @@ if __name__ == '__main__':
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
 
     # prepare input data
-    eval_1 = load_evaluator("testers/evaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
-    eval_2 = load_evaluator("testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    eval_1 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
+    eval_2 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
     # ignore_feature_keys = ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
     ignore_feature_keys = None
@@ -438,70 +438,27 @@ if __name__ == '__main__':
     )
 
     # dump MultiSetEvaluator
-    #msEvaluator.dump("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
+    msEvaluator.dump("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
 
     # load MultiSetEvaluator
-    # msEvaluator = load_multi_set_evaluator("testers/evaluator/misc/inter_intra_evaluator.MSEval.bz2")
+    msEvaluator = load_multi_set_evaluator("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
 
     # save statistics
-    #msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/evaluator/misc/multi_set_evaluator")
+    msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/MultiSetEvaluator/misc/multi_set_evaluator")
 
     # save inter intra pdf plots
-    #iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(filename="testers/evaluator/misc/multi_set_evaluator/iid_pdfs.html")
+    iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/iid_pdfs.html")
 
     # save kl oa plots
-    #KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/evaluator/misc/multi_set_evaluator")
+    KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator")
 
     # get pos neg hit score plots
-    pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(filename="testers/evaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
+    pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
 
     # get velocity distribution plots
-    velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(filename="testers/evaluator/misc/multi_set_evaluator/velocity_distributions.html")
+    velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/velocity_distributions.html")
 
     # get offset distribution plots
-    offset_distribution_plots = msEvaluator.get_offset_distribution_plots(filename="testers/evaluator/misc/multi_set_evaluator/offset_distributions.html")
+    offset_distribution_plots = msEvaluator.get_offset_distribution_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
 
-    # get
-
-    # velocity_distributions = dict()
-    # for set_label, groove_eval in msEvaluator.groove_evaluator_sets.items():
-    #     temp = groove_eval.get_velocity_distributions()
-    #     for feat, value in temp.items():
-    #         # reorganize data using feat as highest level key
-    #         tab_label = feat.split(" - ")[0]
-    #         feat_label = feat.split(" - ")[1]
-    #         if tab_label not in velocity_distributions.keys():
-    #             velocity_distributions[tab_label] = dict()
-    #         if feat_label not in velocity_distributions[tab_label].keys():
-    #             velocity_distributions[tab_label][feat_label] = dict()
-    #
-    #         velocity_distributions[tab_label][feat_label][set_label] = value
-    #
-    #
-    #
-    # tab_grid = []
-    # for tab_label, tab_dict in velocity_distributions.items():
-    #     figs = []
-    #     for feat_label, feat_dict in tab_dict.items():
-    #         figs.append(
-    #             get_violin_bokeh_plot(
-    #                 feat_label, feat_dict, kernel_bandwidth=0.1,
-    #                 scatter_color='red', scatter_size=10, xrotation=45, font_size=10))
-    #
-    #     # sync axes
-    #     y_max = max([fig.y_range.end for fig in figs])
-    #     for fig in figs:
-    #         fig.y_range.start = 0
-    #         fig.y_range.end = y_max
-    #
-    #     # sync all axes
-    #     for fig in figs:
-    #         fig.x_range = figs[0].x_range
-    #         fig.y_range = figs[0].y_range
-    #
-    #     tab_grid.append(Panel(child=gridplot(figs, ncols=4, plot_width=400, plot_height=400), title=tab_label))
-    #
-    #
-    # tabs = Tabs(tabs=tab_grid)
-    #
-    # save(tabs, filename="testers/evaluator/misc/multi_set_evaluator/velocities.html")
+   
