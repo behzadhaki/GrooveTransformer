@@ -77,12 +77,16 @@ class Evaluator:
             _identifier="Train",
             n_samples_to_use=-1,
             max_hvo_shape=(32, 27),
+            need_hit_scores=True,
+            need_velocity_distributions=True,
+            need_offset_distributions=True,
+            need_rhythmic_distances=True,
             need_heatmap=True,
             need_global_features=True,
             need_piano_roll=True,
             need_audio=True,
-            n_samples_to_synthesize="all",
-            n_samples_to_draw_pianorolls="all",
+            n_samples_to_synthesize_and_draw="all",
+
             disable_tqdm=False,
             # todo distance measures KL, Overlap, intra and interset
     ):
@@ -104,6 +108,10 @@ class Evaluator:
         :param disable_tqdm: (Default: False) Whether to disable tqdm progress bars
         """
 
+        self.need_hit_scores = need_hit_scores
+        self.need_velocity_distributions = need_velocity_distributions
+        self.need_offset_distributions = need_offset_distributions
+        self.need_rhythmic_distances = need_rhythmic_distances
         self.need_heatmap, self.need_global_features = need_heatmap, need_global_features
         self.need_piano_roll, self.need_audio = need_piano_roll, need_audio
         self.disable_tqdm = disable_tqdm
@@ -155,8 +163,8 @@ class Evaluator:
         self._prediction_hvos_array = None
 
         # Get the index for the samples that will be synthesized and also for which the piano-roll can be generated
-        self.audio_sample_locations = self.get_sample_indices(n_samples_to_synthesize)
-        self.piano_roll_sample_locations = self.get_sample_indices(n_samples_to_draw_pianorolls)
+        self.audio_sample_locations = self.get_sample_indices(n_samples_to_synthesize_and_draw)
+        self.piano_roll_sample_locations = self.audio_sample_locations
 
         self._cached_gt_logging_data = None  # Cached data for ground truth logging
         self._cached_predicted_logging_data = None  # Cached data for predicted logging
@@ -164,7 +172,10 @@ class Evaluator:
         self._cached_predicted_logging_data_wandb = None  # Cached data for predicted logging
 
     def __getstate__(self):
-        need_states = (self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, self.disable_tqdm)
+        need_states = (self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio,
+                       self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,
+                       self.need_offset_distributions, self.need_rhythmic_distances)
+
         gt_subset_states = (self._gt_tags, self._gt_subsets)
         pd_prediction_hvos_array = self._prediction_hvos_array
         general_states = (self._identifier, self._identifier)
@@ -175,7 +186,9 @@ class Evaluator:
     def __setstate__(self, state):
         # reload the states
         need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states = state
-        self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, self.disable_tqdm = need_states
+        self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, \
+        self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,\
+        self.need_offset_distributions, self.need_rhythmic_distances = need_states
         self._gt_tags, self._gt_subsets = gt_subset_states
         self._prediction_hvos_array = pd_prediction_hvos_array
         self._identifier, self._identifier = general_states
@@ -240,95 +253,70 @@ class Evaluator:
     #   - Piano Roll Bokeh Plots
     #   - Audio Files synthesized from HVO_Sequences
     # ==================================================================================================================
-    def get_logging_dict(self, need_velocity_heatmap="default", need_global_features="default",
-                         need_piano_rolls="default", need_audio_files="default",
-                         sf_paths="default",
-                         recalculate_ground_truth=False, need_groundTruth=True):
+    def get_logging_media(self, prepare_for_wandb=False, **kwargs):
+        logging_media = dict()
 
-        assert need_velocity_heatmap == "default" or type(need_velocity_heatmap) == bool
-        assert need_global_features == "default" or type(need_global_features) == bool
-        assert need_piano_rolls == "default" or type(need_piano_rolls) == bool
-        assert need_audio_files == "default" or type(need_audio_files) == bool
-
-        sf_paths = ["hvo_sequence/soundfonts/Standard_Drum_Kit.sf2"] if sf_paths == "default" else sf_paths
-        need_velocity_heatmap = self.need_heatmap if "default" in need_velocity_heatmap else need_velocity_heatmap
-        need_global_features = self.need_global_features if "default" in need_global_features else need_global_features
-        need_piano_rolls = self.need_piano_roll if "default" in need_piano_rolls else need_piano_rolls
-        need_audio_files = self.need_audio if "default" in need_audio_files else need_audio_files
-
-        # Get logging data for ground truth data
-        if recalculate_ground_truth is True or self._cached_gt_logging_data is None:
-            self._cached_gt_logging_data = self.gt_SubSet_Evaluator.get_logging_dict(
-                need_velocity_heatmap=need_velocity_heatmap,
-                need_global_features=need_global_features,
-                need_piano_rolls=need_piano_rolls,
-                need_audio_files=need_audio_files,
-                sf_paths=sf_paths,
-                for_audios_use_specific_samples_at=self.audio_sample_locations,
-                for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
-            )
-
-        self._cached_predicted_logging_data = self.prediction_SubSet_Evaluator.get_logging_dict(
-            need_velocity_heatmap=need_velocity_heatmap,
-            need_global_features=need_global_features,
-            need_piano_rolls=need_piano_rolls,
-            need_audio_files=need_audio_files,
-            sf_paths=sf_paths,
-            for_audios_use_specific_samples_at=self.audio_sample_locations,
-            for_piano_rolls_use_specific_samples_at=self.piano_roll_sample_locations
-        ) if self.prediction_SubSet_Evaluator is not None else None
-
-        return self._cached_gt_logging_data, self._cached_predicted_logging_data
+        # use default constructor values if a value is not provided
+        need_hit_scores = kwargs["need_hit_scores"] if "need_hit_scores" in kwargs.keys() else self.need_hit_scores
+        need_velocity_distributions = kwargs["need_velocity_distributions"] if "need_velocity_distributions" in kwargs.keys() else self.need_velocity_distributions
+        need_offset_distributions = kwargs["need_offset_distributions"] if "need_offset_distributions" in kwargs.keys() else self.need_offset_distributions
+        need_rhythmic_distances = kwargs["need_rhythmic_distances"] if "need_rhythmic_distances" in kwargs.keys() else self.need_rhythmic_distances
+        need_heatmap = kwargs["need_heatmap"] if "need_heatmap" in kwargs.keys() else self.need_heatmap
+        need_global_features = kwargs["need_global_features"] if "need_global_features" in kwargs.keys() else self.need_global_features
+        need_piano_roll = kwargs["need_piano_roll"] if "need_piano_roll" in kwargs.keys() else self.need_piano_roll
+        need_audio = kwargs["need_audio"] if "need_audio" in kwargs.keys() else self.need_audio
 
 
-    def get_wandb_logging_media(self, need_velocity_heatmap="default", need_global_features="default",
-                                need_piano_rolls="default", need_audio_files="default",
-                                sf_paths="default",
-                                recalculate_ground_truth=False,
-                                need_groundTruth=True):
+        if need_hit_scores is True:
+            logging_media["hit_score_plots"] = self.get_pos_neg_hit_plots()
+            if prepare_for_wandb is True:
+                logging_media["hit_score_plots"] = wandb.Html(
+                    file_html(logging_media["hit_score_plots"], CDN, "Pos_Neg_Hit_Scores"))
+        if need_velocity_distributions is True:
+            logging_media["velocity_distribution_plots"] = self.get_velocity_distribution_plots()
+            if prepare_for_wandb is True:
+                logging_media["velocity_distribution_plots"] = wandb.Html(
+                    file_html(logging_media["velocity_distribution_plots"], CDN, "Velocity_Distributions"))
+        if need_offset_distributions is True:
+            logging_media["offset_distribution_plots"] = self.get_offset_distribution_plots()
+            if prepare_for_wandb is True:
+                logging_media["offset_distribution_plots"] = wandb.Html(
+                    file_html(logging_media["offset_distribution_plots"], CDN, "Offset_Distributions"))
+        if need_rhythmic_distances is True:
+            if self._prediction_hvos_array is None:
+                raise Warning("Cannot compute rhythmic distances without predictions")
+            else:
+                logging_media["rhythmic_distance_plots"] = self.get_rhythmic_distances_of_pred_to_gt_plot()
+                if prepare_for_wandb is True:
+                    logging_media["rhythmic_distance_plots"] = wandb.Html(
+                        file_html(logging_media["rhythmic_distance_plots"], CDN, "Rhythmic_Distances"))
+        if need_heatmap is True:
+            logging_media["heatmap_plots"] = self.get_velocity_heatmaps()
+            if prepare_for_wandb is True:
+                logging_media["heatmap_plots"] = wandb.Html(
+                    file_html(logging_media["heatmap_plots"], CDN, "Velocity_Heatmaps"))
+        if need_global_features is True:
+            logging_media["global_feature_plots"] = self.get_global_features_plot()
+            if prepare_for_wandb is True:
+                logging_media["global_feature_plots"] = wandb.Html(
+                    file_html(logging_media["global_feature_plots"], CDN, "Global_Features"))
+        if need_piano_roll is True:
+            logging_media["piano_roll_plots"] = self.get_piano_rolls()
+            if prepare_for_wandb is True:
+                logging_media["piano_roll_plots"] = wandb.Html(
+                    file_html(logging_media["piano_roll_plots"], CDN, "Piano_Rolls"))
+        if need_audio is True:
+            logging_media["audios"] = self.get_audio_tuples()
+            if prepare_for_wandb is True:
+                [wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000) for c_a in logging_media["audios"]]
 
-        assert need_velocity_heatmap == "default" or type(need_velocity_heatmap) == bool
-        assert need_global_features == "default" or type(need_global_features) == bool
-        assert need_piano_rolls == "default" or type(need_piano_rolls) == bool
-        assert need_audio_files == "default" or type(need_audio_files) == bool
+        return logging_media
 
-        need_velocity_heatmap = self.need_heatmap if "default" in need_velocity_heatmap else need_velocity_heatmap
-        need_global_features = self.need_global_features if "default" in need_global_features else need_global_features
-        need_piano_rolls = self.need_piano_roll if "default" in need_piano_rolls else need_piano_rolls
-        need_audio_files = self.need_audio if "default" in need_audio_files else need_audio_files
+    def get_logging_dict1(self, **kwargs):
+        raise Warning("This function is deprecated. Use get_logging_media instead")
 
-        # Get logging data for ground truth data
-        if need_groundTruth is True:
-            if recalculate_ground_truth is True or self._cached_gt_logging_data_wandb is None:
-
-                self._cached_gt_logging_data_wandb = self.gt_SubSet_Evaluator.get_wandb_logging_media(
-                    need_velocity_heatmap=need_velocity_heatmap,
-                    need_global_features=need_global_features,
-                    need_piano_rolls=need_piano_rolls,
-                    need_audio_files=need_audio_files,
-                    sf_paths=sf_paths,
-                    use_specific_samples_at=self.audio_sample_locations
-                )
-
-        self._cached_predicted_logging_data_wandb = self.prediction_SubSet_Evaluator.get_wandb_logging_media(
-            need_velocity_heatmap=need_velocity_heatmap,
-            need_global_features=need_global_features,
-            need_piano_rolls=need_piano_rolls,
-            need_audio_files=need_audio_files,
-            sf_paths=sf_paths,
-            use_specific_samples_at=self.audio_sample_locations
-        ) if self.prediction_SubSet_Evaluator is not None else {}
-
-        results = {x: {} for x in self._cached_gt_logging_data_wandb.keys()}
-        results.update({x: {} for x in self._cached_predicted_logging_data_wandb.keys()})
-
-        for key in results.keys():
-            if key in self._cached_gt_logging_data_wandb.keys():
-                results[key].update(self._cached_gt_logging_data_wandb[key])
-            if key in self._cached_predicted_logging_data_wandb.keys():
-                results[key].update(self._cached_predicted_logging_data_wandb[key])
-
-        return results
+    def get_wandb_logging_media(self, **kwargs):
+        raise Warning("This function is deprecated. Use get_logging_media instead")
 
     # ==================================================================================================================
     #  Export to Midi
@@ -652,7 +640,9 @@ class Evaluator:
                                       width=plot_width, height=plot_height)
 
     def get_velocity_MSE(self, ignore_correct_silences=True):
-        assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
+        if self._prediction_hvos_array is None:
+            print("Can't calculate velocity MSE as no predictions were given. Returning None.")
+            return None
         non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :, :self.num_voices]) > 0
         gt_vels = self._gt_hvos_array[:, :, self.num_voices:2 * self.num_voices]
         pred_vels = self._prediction_hvos_array[:, :, self.num_voices:2 * self.num_voices]
@@ -758,7 +748,10 @@ class Evaluator:
                                      width=plot_width, height=plot_height)
 
     def get_offset_MSE(self, ignore_correct_silences=True):
-        assert self._prediction_hvos_array is not None, "No predictions available to calculate MSE value!"
+        if self._prediction_hvos_array is None:
+            print("Can't calculate offset MSE as no predictions were given. Returning None.")
+            return None
+
         non_silence_indices = (self._gt_hvos_array[:, :, :self.num_voices] + self._prediction_hvos_array[:, :,
                                                                              :self.num_voices]) > 0
         gt_offsets = self._gt_hvos_array[:, :, 2 * self.num_voices:]
@@ -929,21 +922,22 @@ class Evaluator:
 
         return df2
 
-    def get_global_features_plot(self, only_combined_data_needed=False, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+    def get_global_features_plot(self, only_combined_data_needed=True, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
         global_features = self.get_global_features_values()
         new_dict = {}
         for set_name, feature_dicts in global_features.items():
-            for feature_name, feature_dict in feature_dicts.items():
-                for genre, value in feature_dict.items():
-                    if only_combined_data_needed is False:
-                        G = genre.replace("[", "").replace("]", "")
-                        new_dict[f"{feature_name.replace('-', ' ')} - {G} || {set_name} "] = value[~np.isnan(value)]
+            if feature_dicts is not None:
+                for feature_name, feature_dict in feature_dicts.items():
+                    for genre, value in feature_dict.items():
+                        if only_combined_data_needed is False:
+                            G = genre.replace("[", "").replace("]", "")
+                            new_dict[f"{feature_name.replace('-', ' ')} - {G} || {set_name} "] = value[~np.isnan(value)]
 
-                    if f"{feature_name.replace('-', ' ')} - Combined || {set_name}" not in new_dict.keys():
-                        new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = value[~np.isnan(value)]
-                    else:
-                        new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = \
-                            np.append(new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"], value[~np.isnan(value)])
+                        if f"{feature_name.replace('-', ' ')} - Combined || {set_name}" not in new_dict.keys():
+                            new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = value[~np.isnan(value)]
+                        else:
+                            new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"] = \
+                                np.append(new_dict[f"{feature_name.replace('-', ' ')} - Combined || {set_name}"], value[~np.isnan(value)])
 
         # sort dictionary by key
         new_dict = {k: new_dict[k] for k in sorted(new_dict.keys())}
@@ -961,6 +955,10 @@ class Evaluator:
         calculated
         :return:
         '''
+        if self._prediction_hvos_array is None:
+            print("Can't calculate rhythmic distances as no predictions were given. Returning None.")
+            return None
+
         gt_set = {self._gt_tags[ix]: subset for ix, subset in enumerate(self._gt_subsets)}
         predicted_set = {self._prediction_tags[ix]: subset for ix, subset in enumerate(self._prediction_subsets)}
 
@@ -992,6 +990,11 @@ class Evaluator:
         :param trim_decimals:
         :return:
         '''
+
+        if self._prediction_hvos_array is None:
+            print("Can't calculate rhythmic distances as no predictions were given. Returning None.")
+            return None
+
         distances_dict = self.get_rhythmic_distances_of_pred_to_gt()
 
         for key in distances_dict.keys():
@@ -1029,6 +1032,10 @@ class Evaluator:
                 return df
 
     def get_rhythmic_distances_of_pred_to_gt_plot(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+        if self._prediction_hvos_array is None:
+            print("Can't calculate rhythmic distances as no predictions were given. Returning None.")
+            return None
+
         data_dict = self.get_rhythmic_distances_of_pred_to_gt()
         return tabulated_violin_plot(data_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
                                      width=plot_width, height=plot_height)
@@ -1053,8 +1060,10 @@ class Evaluator:
         for k in gt.keys():
             subset_panels = []
             for sample_i in range(len(gt[k])):
+                title = f"Sample {sample_i} - {gt[k][sample_i].metadata['master_id']}" if "master_id" in gt[k][
+                    sample_i].metadata.keys() else "Sample {}".format(sample_i)
                 sample_panels = list()
-                gt_proll = gt[k][sample_i].to_html_plot()
+                gt_proll = gt[k][sample_i].to_html_plot(filename=title)
                 gt_proll.x_range.range_padding = x_range_pad
                 if y_range_pad is not None:
                     gt_proll.y_range.range_padding = y_range_pad
@@ -1065,8 +1074,6 @@ class Evaluator:
                     pred_proll.y_range = gt_proll.y_range
                     sample_panels.append(Panel(child=pred_proll, title="Pred"))
                 sample_tabs = Tabs(tabs=sample_panels)
-                title = gt[k][sample_i].metadata["master_id"] if "master_id" in gt[k][
-                    sample_i].metadata.keys() else "Sample {}".format(sample_i)
                 subset_panels.append(Panel(child=sample_tabs, title=title))
             full_figure.append(Panel(child=Tabs(tabs=subset_panels), title=k))
 
@@ -1333,14 +1340,14 @@ class HVOSeq_SubSet_Evaluator(object):
         captions = []
 
         for key in tqdm(self._sampled_hvos.keys(),
-                        desc='Synthesizing samples - {} '.format(self.set_identifier),
+                        desc='Synthesizing samples - {}'.format(self.set_identifier),
                         disable=self.disable_tqdm):
-            for sample_hvo in self._sampled_hvos[key]:
+            for sample_idx, sample_hvo in enumerate(self._sampled_hvos[key]):
                 # randomly select a sound font
                 sf_path = sf_paths[np.random.randint(0, len(sf_paths))]
                 audios.append(sample_hvo.synthesize(sf_path=sf_path))
-                captions.append("{}_{}_{}.wav".format(
-                    self.set_identifier, sample_hvo.metadata["style_primary"],
+                captions.append("subset {} sample {} _{}_{}_{}.wav".format(
+                    key, sample_idx, self.set_identifier, sample_hvo.metadata["style_primary"],
                     sample_hvo.metadata["master_id"].replace("/", "_")
                 ))
 
@@ -1361,12 +1368,15 @@ class HVOSeq_SubSet_Evaluator(object):
                                    desc='Creating Piano rolls for ' + self.set_identifier,
                                    disable=self.disable_tqdm):
             piano_rolls = []
-            for sample_hvo in self._sampled_hvos[tag]:
-                title = "{}_{}_{}".format(
-                    self.set_identifier, sample_hvo.metadata["style_primary"],
+            minor_tab_titles = []
+            for idx, sample_hvo in enumerate(self._sampled_hvos[tag]):
+                title = "subset {} sample {} _{}_{}_{}".format(
+                    tag, idx, self.set_identifier, sample_hvo.metadata["style_primary"],
                     sample_hvo.metadata["master_id"].replace("/", "_"))
                 piano_rolls.append(sample_hvo.to_html_plot(filename=title))
-            piano_roll_tabs.append(separate_figues_by_tabs(piano_rolls, [str(x) for x in range(len(piano_rolls))]))
+                minor_tab_titles.append(title)
+
+            piano_roll_tabs.append(separate_figues_by_tabs(piano_rolls, tab_titles=minor_tab_titles))
             tab_titles.append(tag)
 
         # sort so that they are alphabetically ordered in wandb
