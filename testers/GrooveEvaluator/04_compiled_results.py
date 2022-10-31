@@ -8,5 +8,4 @@ if __name__ == "__main__":
     logging_media = evaluator_test_set.get_logging_media()
 
     # get logging media formatted for wandb
-    logging_media_wandb =  evaluator_test_set.get_logging_media(prepare_for_wandb=True)
-
+    logging_media_wandb = evaluator_test_set.get_logging_media(prepare_for_wandb=True)
