@@ -351,7 +351,7 @@ evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="teste
 <img src="assets/images/midi_files.png" width="300">
 
 
-## Compiling Logging Media <a name="4"></a>
+## 4. Compiling Logging Media <a name="4"></a>
 > **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/04_compiled_results.py)
 
 
