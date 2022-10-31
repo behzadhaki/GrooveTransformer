@@ -16,7 +16,7 @@
    1. [Results as Dictionaries or Pandas.DataFrame](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_standalone_usage.md#31-results-as-dictionaries-or-pandasdataframe-)
    2. [Rendering Results as Bokeh Plots](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_standalone_usage.md#32-rendering-results-as-bokeh-plots-)
    3. [Rendering Piano Rolls/Audio/Midi](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_standalone_usage.md#33-rendering-piano-rollsaudiomidi-)
-4. [Compiling Plots for Logging](#4)
+4. [Compiling Plots for Logging](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_standalone_usage.md#4-compiling-logging-media-)
 5. [Ready-to-use Evaluator Templates](#5)       # TODO - not implemented yet
    
 ## 1. Introduction <a name="1"></a>
