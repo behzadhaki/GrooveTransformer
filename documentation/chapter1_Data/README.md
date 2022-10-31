@@ -77,9 +77,9 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 #### **create a score** <a name="createHVO"></a>
 
 ```python
-from hvo_sequence.hvo_seq import HVO_Sequence
-from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING
-from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
+from hvo_sequence import HVO_Sequence
+from hvo_sequence import ROLAND_REDUCED_MAPPING
+from hvo_sequence import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
 
 import pretty_midi, note_seq
 
