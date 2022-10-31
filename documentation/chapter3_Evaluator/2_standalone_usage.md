@@ -7,7 +7,7 @@
    1. [Results as Dictionaries or Pandas.DataFrame](#3_i)
    2. [Rendering Results as Bokeh Plots](#3_ii)
    3. [Rendering Piano Rolls/Audio/Midi](#3_ii)
-   
+4. [Compiling Plots for Logging](#4)
 
    
 ## 3. Accessing Evaluation Results <a name="3"></a>
@@ -349,3 +349,35 @@ evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="teste
 ```
 
 <img src="assets/images/midi_files.png" width="300">
+
+
+## Compiling Logging Media <a name="4"></a>
+> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/04_compiled_results.py)
+
+
+Use the `get_logging_media` method to compile the logging media into a single dictionary.
+
+```python
+logging_media = evaluator_test_set.get_logging_media()
+```
+
+The resulting dictionary has the following keys:
+```list
+['hit_score_plots', 'velocity_distribution_plots', 'offset_distribution_plots', 
+'rhythmic_distance_plots', 'heatmap_plots', 'global_feature_plots', 
+'piano_roll_plots', 'audios']
+```
+
+> **Note** The `get_logging_media` method only returns the media flags set to `True` in the `GrooveEvaluator` constructor.
+> (flags: `need_hit_scores`, `need_velocity_distributions`, `need_offset_distributions`,  
+> `need_rhythmic_distances`, `need_heatmap`, `need_global_features`, 
+> `need_audio`, `need_piano_roll`)
+> If you want to get an artifact not requested in the constructor, you can manually request the artifact by passing the flag as a parameter 
+> ( **example** `get_logging_media(need_piano_roll=True`) ).
+
+The logging media can also be requested in a format easily compatible with WandB artifacts. To request this version,
+pass the `prepare_for_wandb` flag as `True` in the `get_logging_media` method.
+
+```python
+logging_media_wandb = evaluator_test_set.get_logging_media(prepare_for_wandb=True)
+```
