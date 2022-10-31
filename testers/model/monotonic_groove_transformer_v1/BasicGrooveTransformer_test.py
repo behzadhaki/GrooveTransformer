@@ -17,7 +17,7 @@ if __name__ == '__main__':
     }
 
     # test transformer
-    from model.src.BasicGrooveTransformer import GrooveTransformer
+    from model import GrooveTransformer
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -33,6 +33,10 @@ if __name__ == '__main__':
     print(h.shape, v.shape, o.shape)
     print(h[0, 0, :], v[0, 0, :], o[0, 0, :])
 
+    # test predict
+    print("pred")
+    pred_h,pred_v,pred_o = TM.predict(src)
+    print(pred_h.shape)
 
     # 2.i BasicGrooveTransformer.GrooveTransformer
     params = {
@@ -46,19 +50,17 @@ if __name__ == '__main__':
         "embedding_size": 27
     }
 
-    from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
+    from model import GrooveTransformerEncoder
 
     TEM = GrooveTransformerEncoder(params["d_model"], params["embedding_size"], params["embedding_size"],
                                    params["nhead"], params["dim_forward"], params["dropout"],
                                    params["num_layers"], params["max_len"], device)
+    src = torch.rand(params["N"], params["max_len"], params["embedding_size"])
 
     mem_h, mem_v, mem_o = TEM(src)
     print(mem_h.shape, mem_v.shape, mem_o.shape)
 
-    # test predict
-    print("pred")
-    pred_h,pred_v,pred_o = TM.predict(src)
-    print(pred_h.shape)
+
     pred_h,pred_v,pred_o  = TEM.predict(src)
     print(pred_h.shape)
 
@@ -79,4 +81,4 @@ if __name__ == '__main__':
     # OutputLayer = OutputLayer(params["embedding_size_tgt"], params["d_model"])
     # h, v, o = OutputLayer(y)
     # print(h, v, o)
-TEM()
+    #TEM()
