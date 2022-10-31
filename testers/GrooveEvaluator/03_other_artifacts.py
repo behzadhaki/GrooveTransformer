@@ -2,7 +2,7 @@ if __name__ == "__main__":
 
     # Load Evaluator using full path with extension
     from eval.GrooveEvaluator.src.evaluator import load_evaluator
-    evaluator_test_set = load_evaluator("testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    evaluator_test_set = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
     # get piano rolls
     piano_rolls = evaluator_test_set.get_piano_rolls(save_path="testers/evaluator/misc/GrooveEvaluator/piano_rolls.html")
