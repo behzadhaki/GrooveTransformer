@@ -23,6 +23,8 @@ from scipy.io.wavfile import write
 from bokeh.models.widgets import Panel, Tabs
 from bokeh.io import save
 
+from eval.MultiSetEvaluator import MultiSetEvaluator
+
 def flatten(t):
     if len(t) >=1:
         if isinstance(t[0], list):
@@ -269,63 +271,77 @@ class Evaluator:
 
         if need_hit_scores is True:
             print("Preparing Hit Score Plots for Logging")
-            logging_media["hit_score_plots"] = self.get_pos_neg_hit_plots()
-            if prepare_for_wandb is True:
-                logging_media["hit_score_plots"] = wandb.Html(
-                    file_html(logging_media["hit_score_plots"], CDN, "Pos_Neg_Hit_Scores"))
+            logging_media["hit_score_plots"] = \
+                {self._identifier: self.get_pos_neg_hit_plots(prepare_for_wandb=prepare_for_wandb)}
+
         if need_velocity_distributions is True:
             print("Preparing Velocity Distribution Plots for Logging")
-            logging_media["velocity_distribution_plots"] = self.get_velocity_distribution_plots()
-            if prepare_for_wandb is True:
-                logging_media["velocity_distribution_plots"] = wandb.Html(
-                    file_html(logging_media["velocity_distribution_plots"], CDN, "Velocity_Distributions"))
+            logging_media["velocity_distribution_plots"] = \
+                {self._identifier: self.get_velocity_distribution_plots(prepare_for_wandb=prepare_for_wandb)}
+
+
         if need_offset_distributions is True:
             print("Preparing Offset Distribution Plots for Logging")
-            logging_media["offset_distribution_plots"] = self.get_offset_distribution_plots()
-            if prepare_for_wandb is True:
-                logging_media["offset_distribution_plots"] = wandb.Html(
-                    file_html(logging_media["offset_distribution_plots"], CDN, "Offset_Distributions"))
+            logging_media["offset_distribution_plots"] = \
+                {self._identifier: self.get_offset_distribution_plots(prepare_for_wandb=prepare_for_wandb)}
+
         if need_rhythmic_distances is True:
             print("Preparing Rhythmic Distance Plots for Logging")
             if self._prediction_hvos_array is None:
                 raise Warning("Cannot compute rhythmic distances without predictions")
             else:
-                logging_media["rhythmic_distance_plots"] = self.get_rhythmic_distances_of_pred_to_gt_plot()
-                if prepare_for_wandb is True:
-                    logging_media["rhythmic_distance_plots"] = wandb.Html(
-                        file_html(logging_media["rhythmic_distance_plots"], CDN, "Rhythmic_Distances"))
+                logging_media["rhythmic_distance_plots"] = \
+                    {self._identifier: self.get_rhythmic_distances_of_pred_to_gt_plot(prepare_for_wandb=prepare_for_wandb)}
+
         if need_heatmap is True:
             print("Preparing Heatmap Plots for Logging")
-            logging_media["heatmap_plots"] = self.get_velocity_heatmaps()
-            if prepare_for_wandb is True:
-                logging_media["heatmap_plots"] = wandb.Html(
-                    file_html(logging_media["heatmap_plots"], CDN, "Velocity_Heatmaps"))
+            logging_media["heatmap_plots"] = \
+                {self._identifier: self.get_velocity_heatmaps(prepare_for_wandb=prepare_for_wandb)}
+
         if need_global_features is True:
             print("Preparing Global Feature Plots for Logging")
-            logging_media["global_feature_plots"] = self.get_global_features_plot()
-            if prepare_for_wandb is True:
-                logging_media["global_feature_plots"] = wandb.Html(
-                    file_html(logging_media["global_feature_plots"], CDN, "Global_Features"))
+            logging_media["global_feature_plots"] = \
+                {self._identifier: self.get_global_features_plot(prepare_for_wandb=prepare_for_wandb)}
+
         if need_piano_roll is True:
             print("Preparing Piano Roll Plots for Logging")
-            logging_media["piano_roll_plots"] = self.get_piano_rolls()
-            if prepare_for_wandb is True:
-                logging_media["piano_roll_plots"] = wandb.Html(
-                    file_html(logging_media["piano_roll_plots"], CDN, "Piano_Rolls"))
+            logging_media["piano_roll_plots"] = \
+                {self._identifier: self.get_piano_rolls(prepare_for_wandb=prepare_for_wandb)}
+
         if need_audio is True:
             print("Preparing Audio Files for Logging")
-            logging_media["audios"] = self.get_audio_tuples()
-            if prepare_for_wandb is True:
-                logging_media["audios"] = \
-                    [wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000) for c_a in logging_media["audios"]]
+            logging_media["audios"] = \
+                {self._identifier: self.get_audio_tuples(prepare_for_wandb=prepare_for_wandb)}
 
         return logging_media
 
-    def get_logging_dict1(self, **kwargs):
+    def get_logging_dict(self, **kwargs):
         raise Warning("This function is deprecated. Use get_logging_media instead")
 
     def get_wandb_logging_media(self, **kwargs):
         raise Warning("This function is deprecated. Use get_logging_media instead")
+
+    # ==================================================================================================================
+    #  KL OA Inter/Intra Plots
+    # ==================================================================================================================
+    def get_kl_oa_inter_intra_plots(self, identifier=None, save_path=None, prepare_for_wandb=False):
+        if self._prediction_hvos_array is None:
+            raise Warning("Cannot compute KL OA Inter/Intra plots without predictions")
+        identifier = self._identifier if identifier is None else identifier
+        ms_evaluator = MultiSetEvaluator(groove_evaluator_sets={identifier: self})
+
+        kl_oa_plot =  ms_evaluator.get_kl_oa_plots()
+
+        # make sure save_path ends in html
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            save(kl_oa_plot, save_path)
+
+        return kl_oa_plot if prepare_for_wandb is False else wandb.Html(file_html(kl_oa_plot, CDN, f"KL_OA_Inter_Intra_{identifier}"))
 
     # ==================================================================================================================
     #  Export to Midi
@@ -389,7 +405,7 @@ class Evaluator:
     # ==================================================================================================================
     #  Export to Audio
     # ==================================================================================================================
-    def get_audio_tuples(self, sf_path=None, save_directory=None, concatenate_gt_and_pred=True):
+    def get_audio_tuples(self, prepare_for_wandb=False, sf_path=None, save_directory=None, concatenate_gt_and_pred=True):
         """
         :param sf_path: path to soundfont
         :param save_directory: directory to save audio files
@@ -433,7 +449,11 @@ class Evaluator:
             for title, audio in compiled_tuples:
                 save_audio(os.path.join(save_directory, title), audio)
 
-        return compiled_tuples
+        if prepare_for_wandb is True:
+            wandb_audios = [wandb.Audio(c_a[1], caption=c_a[0], sample_rate=16000) for c_a in compiled_tuples]
+            return wandb_audios
+        else:
+            return compiled_tuples
 
     # ==================================================================================================================
     #  Evaluation of Hits
@@ -555,11 +575,12 @@ class Evaluator:
 
         return df2
 
-    def get_pos_neg_hit_plots(self, save_path=None, kernel_bandwidth=0.05, plot_width=1200, plot_height=800):
+    def get_pos_neg_hit_plots(self, save_path=None, prepare_for_wandb=False, kernel_bandwidth=0.05, plot_width=1200, plot_height=800):
         hit_scores_dict = self.get_pos_neg_hit_scores()
 
-        return tabulated_violin_plot(hit_scores_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+        p = tabulated_violin_plot(hit_scores_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
                                      width=plot_width, height=plot_height)
+        return p if not prepare_for_wandb else wandb.Html(file_html(p, CDN, "Pos Neg Hit Scores"))
 
     # ==================================================================================================================
     #  Evaluation of Velocities
@@ -643,10 +664,12 @@ class Evaluator:
 
         return df2
 
-    def get_velocity_distribution_plots(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+    def get_velocity_distribution_plots(self, save_path=None, prepare_for_wandb=False,
+                                        kernel_bandwidth=0.5, plot_width=800, plot_height=400):
         velocity_distributions = self.get_velocity_distributions()
-        return tabulated_violin_plot(velocity_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
-                                      width=plot_width, height=plot_height)
+        p = tabulated_violin_plot(velocity_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                  width=plot_width, height=plot_height)
+        return p if not prepare_for_wandb else wandb.Html(file_html(p, CDN, "Velocity Distribution"))
 
     def get_velocity_MSE(self, ignore_correct_silences=True):
         if self._prediction_hvos_array is None:
@@ -751,10 +774,12 @@ class Evaluator:
 
         return df2
 
-    def get_offset_distribution_plots(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+    def get_offset_distribution_plots(self, save_path=None, prepare_for_wandb=False,
+                                      kernel_bandwidth=0.5, plot_width=800, plot_height=400):
         offset_distributions = self.get_velocity_distributions()
-        return tabulated_violin_plot(offset_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+        p = tabulated_violin_plot(offset_distributions, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
                                      width=plot_width, height=plot_height)
+        return p if not prepare_for_wandb else wandb.Html(file_html(p, CDN, "Offset Distribution"))
 
     def get_offset_MSE(self, ignore_correct_silences=True):
         if self._prediction_hvos_array is None:
@@ -778,7 +803,7 @@ class Evaluator:
     # ==================================================================================================================
     #   Velocity Heatmaps
     # ==================================================================================================================
-    def get_velocity_heatmaps(self, s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True, save_path=None):
+    def get_velocity_heatmaps(self, prepare_for_wandb=False, s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True, save_path=None):
         '''
 
         :param s: used for heatmap smoothing
@@ -846,7 +871,7 @@ class Evaluator:
 
             save(final_fig, save_path)
 
-        return final_fig
+        return final_fig if not prepare_for_wandb else wandb.Html(file_html(final_fig, CDN, "Velocity Heatmaps"))
 
     # ==================================================================================================================
     #  Evaluation using Global Features Implemented in HVO_Sequence
@@ -931,7 +956,8 @@ class Evaluator:
 
         return df2
 
-    def get_global_features_plot(self, only_combined_data_needed=True, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+    def get_global_features_plot(self, only_combined_data_needed=True, prepare_for_wandb=False,
+                                 save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
         global_features = self.get_global_features_values()
         new_dict = {}
         for set_name, feature_dicts in global_features.items():
@@ -951,8 +977,9 @@ class Evaluator:
         # sort dictionary by key
         new_dict = {k: new_dict[k] for k in sorted(new_dict.keys())}
 
-        return tabulated_violin_plot(new_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
-                                     width=plot_width, height=plot_height, font_size=10)
+        p = tabulated_violin_plot(new_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                  width=plot_width, height=plot_height, font_size=10)
+        return p if prepare_for_wandb is False else wandb.Html(file_html(p, CDN, "Global Features"))
 
     # ==================================================================================================================
     #  Evaluation by comparing the rhythmic distances between the ground truth and the prediction
@@ -1040,14 +1067,16 @@ class Evaluator:
                 df.to_csv(os.path.join(csv_dir, self._identifier + ".csv"))
                 return df
 
-    def get_rhythmic_distances_of_pred_to_gt_plot(self, save_path=None, kernel_bandwidth=0.5, plot_width=800, plot_height=400):
+    def get_rhythmic_distances_of_pred_to_gt_plot(self, save_path=None, prepare_for_wandb=False,
+                                                  kernel_bandwidth=0.5, plot_width=800, plot_height=400):
         if self._prediction_hvos_array is None:
             print("Can't calculate rhythmic distances as no predictions were given. Returning None.")
             return None
 
         data_dict = self.get_rhythmic_distances_of_pred_to_gt()
-        return tabulated_violin_plot(data_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
-                                     width=plot_width, height=plot_height)
+        p = tabulated_violin_plot(data_dict, save_path=save_path, kernel_bandwidth=kernel_bandwidth,
+                                  width=plot_width, height=plot_height)
+        return p if prepare_for_wandb is False else wandb.Html(file_html(p, CDN, "Rhythmic Distances"))
 
     # ==================================================================================================================
     #  Get ground truth samples in HVO_Sequence format or as a numpy array
@@ -1060,7 +1089,7 @@ class Evaluator:
 
     # ==================================================================================================================
     #  Get Piano Roll HTML Figures
-    def get_piano_rolls(self, save_path=None, x_range_pad=0.5, y_range_pad=None):
+    def get_piano_rolls(self, save_path=None, prepare_for_wandb=False, x_range_pad=0.5, y_range_pad=None):
         gt = {k: v for k, v in sorted(zip(self._gt_tags, self._gt_subsets))}
         pred = {k: v for k, v in sorted(
             zip(self._prediction_tags, self._prediction_subsets))} if self._prediction_subsets is not None else None
@@ -1099,7 +1128,7 @@ class Evaluator:
 
             save(final_tabs, save_path)
 
-        return final_tabs
+        return final_tabs if prepare_for_wandb is False else wandb.Html(file_html(final_tabs, CDN, "Piano Rolls"))
 
     # ==================================================================================================================
     #  Add predictions to the evaluator
