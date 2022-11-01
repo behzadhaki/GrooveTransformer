@@ -49,7 +49,8 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
 
 class MonotonicGrooveDataset(Dataset):
-    def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2, collapse_tapped_sequence=False):
+    def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
+                 collapse_tapped_sequence=False, load_as_tensor=True):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -57,6 +58,7 @@ class MonotonicGrooveDataset(Dataset):
         :param max_len:              [int] maximum length of the sequences to be loaded
         :param tapped_voice_idx:    [int] index of the voice to be tapped (default is 2 which is usually closed hat)
         :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
+        :param load_as_tensor:      [bool] loads the data as a tensor of torch.float32 instead of a numpy array
         """
 
         # Get processed inputs, outputs and hvo sequences
@@ -85,6 +87,10 @@ class MonotonicGrooveDataset(Dataset):
                 self.inputs.append(flat_seq)
                 self.outputs.append(hvo_seq.hvo)
 
+        if load_as_tensor:
+            self.inputs = torch.tensor(self.inputs, dtype=torch.float32)
+            self.outputs = torch.tensor(self.outputs, dtype=torch.float32)
+
         # find voice and genre distributions
 
 
@@ -108,23 +114,5 @@ class MonotonicGrooveDataset(Dataset):
 
 
 if __name__ == "__main__":
-
-    dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json"
-    beat_division_factor = [4]
-    drum_mapping_label = "ROLAND_REDUCED_MAPPING"
-    subset_tag = "train"
-
-    gmd_dict = load_original_gmd_dataset_pickle(gmd_pickle_path = "data/gmd/resource/storedDicts/groove_2bar_midionly.bz2pickle")
-    # hvo_dict = extract_hvo_sequences_dict (gmd_dict, [4], get_drum_mapping_using_label("ROLAND_REDUCED_MAPPING"))
-    # pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path)
-
-    train_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag)
-
-
-    # load dataset as torch.utils.data.Dataset
-    training_dataset = MonotonicGrooveDataset(
-        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
-        subset_tag="train",
-        max_len=32,
-        tapped_voice_idx=2,
-        collapse_tapped_sequence=False)
+    # tester
+    print("Run testers/data/demo.py to test")

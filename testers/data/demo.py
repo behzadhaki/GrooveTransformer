@@ -36,7 +36,8 @@ training_dataset = MonotonicGrooveDataset(
     subset_tag="train",
     max_len=32,
     tapped_voice_idx=2,
-    collapse_tapped_sequence=False)
+    collapse_tapped_sequence=False,
+    load_as_tensor=True)
 
 
 # use the above dataset in the training pipeline, you need to use torch.utils.data.DataLoader

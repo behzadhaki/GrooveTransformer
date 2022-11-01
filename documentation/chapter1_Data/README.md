@@ -326,7 +326,8 @@ training_dataset = MonotonicGrooveDataset(
     subset_tag="train",
     max_len=32,
     tapped_voice_idx=2,
-    collapse_tapped_sequence=False)
+    collapse_tapped_sequence=False,
+    load_as_tensor=True)
 ```
 
 > **Note** To batchify the dataset, wrap the `MonotonicGrooveDataset` into `torch.utils.data.DataLoader` iterator.
