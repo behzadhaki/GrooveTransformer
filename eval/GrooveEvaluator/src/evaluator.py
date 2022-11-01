@@ -87,6 +87,7 @@ class Evaluator:
             need_global_features=True,
             need_piano_roll=True,
             need_audio=True,
+            need_kl_oa=True,
             n_samples_to_synthesize_and_draw="all",
 
             disable_tqdm=False,
@@ -116,6 +117,8 @@ class Evaluator:
         self.need_rhythmic_distances = need_rhythmic_distances
         self.need_heatmap, self.need_global_features = need_heatmap, need_global_features
         self.need_piano_roll, self.need_audio = need_piano_roll, need_audio
+        self.need_kl_oa = need_kl_oa
+
         self.disable_tqdm = disable_tqdm
         self.num_voices = int(max_hvo_shape[-1] / 3)
 
@@ -176,7 +179,7 @@ class Evaluator:
     def __getstate__(self):
         need_states = (self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio,
                        self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,
-                       self.need_offset_distributions, self.need_rhythmic_distances)
+                       self.need_offset_distributions, self.need_rhythmic_distances, self.need_kl_oa)
 
         gt_subset_states = (self._gt_tags, self._gt_subsets)
         pd_prediction_hvos_array = self._prediction_hvos_array
@@ -190,7 +193,8 @@ class Evaluator:
         need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states = state
         self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, \
         self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,\
-        self.need_offset_distributions, self.need_rhythmic_distances = need_states
+        self.need_offset_distributions, self.need_rhythmic_distances, self.need_kl_oa = need_states
+
         self._gt_tags, self._gt_subsets = gt_subset_states
         self._prediction_hvos_array = pd_prediction_hvos_array
         self._identifier, self._identifier = general_states
@@ -255,7 +259,7 @@ class Evaluator:
     #   - Piano Roll Bokeh Plots
     #   - Audio Files synthesized from HVO_Sequences
     # ==================================================================================================================
-    def get_logging_media(self, prepare_for_wandb=False, **kwargs):
+    def get_logging_media(self, prepare_for_wandb=False, save_directory=None, **kwargs):
         logging_media = dict()
 
         # use default constructor values if a value is not provided
@@ -267,59 +271,79 @@ class Evaluator:
         need_global_features = kwargs["need_global_features"] if "need_global_features" in kwargs.keys() else self.need_global_features
         need_piano_roll = kwargs["need_piano_roll"] if "need_piano_roll" in kwargs.keys() else self.need_piano_roll
         need_audio = kwargs["need_audio"] if "need_audio" in kwargs.keys() else self.need_audio
-
+        need_kl_oa = kwargs["need_kl_oa"] if "need_kl_oa" in kwargs.keys() else self.need_kl_oa
 
         if need_hit_scores is True:
             print("Preparing Hit Score Plots for Logging")
+            save_path = os.path.join(save_directory, "Hit_Score_Plots") if save_directory is not None else None
             logging_media["hit_score_plots"] = \
-                {self._identifier: self.get_pos_neg_hit_plots(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier: self.get_pos_neg_hit_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_velocity_distributions is True:
             print("Preparing Velocity Distribution Plots for Logging")
+            save_path = os.path.join(
+                save_directory, "Velocity_Distribution_Plots") if save_directory is not None else None
             logging_media["velocity_distribution_plots"] = \
-                {self._identifier: self.get_velocity_distribution_plots(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier:
+                     self.get_velocity_distribution_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)
+                 }
 
 
         if need_offset_distributions is True:
             print("Preparing Offset Distribution Plots for Logging")
+            save_path = os.path.join(
+                save_directory, "Offset_Distribution_Plots") if save_directory is not None else None
             logging_media["offset_distribution_plots"] = \
-                {self._identifier: self.get_offset_distribution_plots(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier:
+                     self.get_offset_distribution_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)
+                 }
 
         if need_rhythmic_distances is True:
             print("Preparing Rhythmic Distance Plots for Logging")
             if self._prediction_hvos_array is None:
                 raise Warning("Cannot compute rhythmic distances without predictions")
             else:
+                save_path = os.path.join(
+                    save_directory, "Rhythmic_Distance_Plots") if save_directory is not None else None
                 logging_media["rhythmic_distance_plots"] = \
-                    {self._identifier: self.get_rhythmic_distances_of_pred_to_gt_plot(prepare_for_wandb=prepare_for_wandb)}
+                    {self._identifier:
+                         self.get_rhythmic_distances_of_pred_to_gt_plot(
+                             prepare_for_wandb=prepare_for_wandb, save_path=save_path)
+                    }
 
         if need_heatmap is True:
             print("Preparing Heatmap Plots for Logging")
+            save_path = os.path.join(save_directory, "Heatmap_Plots") if save_directory is not None else None
             logging_media["heatmap_plots"] = \
-                {self._identifier: self.get_velocity_heatmaps(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier: self.get_velocity_heatmaps(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_global_features is True:
             print("Preparing Global Feature Plots for Logging")
+            save_path = os.path.join(save_directory, "Global_Feature_Plots") if save_directory is not None else None
             logging_media["global_feature_plots"] = \
-                {self._identifier: self.get_global_features_plot(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier: self.get_global_features_plot(
+                    prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_piano_roll is True:
             print("Preparing Piano Roll Plots for Logging")
+            save_path = os.path.join(save_directory, "Piano_Roll_Plots") if save_directory is not None else None
             logging_media["piano_roll_plots"] = \
-                {self._identifier: self.get_piano_rolls(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier: self.get_piano_rolls(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_audio is True:
             print("Preparing Audio Files for Logging")
+            save_path = os.path.join(save_directory, "Audio_Files") if save_directory is not None else None
             logging_media["audios"] = \
-                {self._identifier: self.get_audio_tuples(prepare_for_wandb=prepare_for_wandb)}
+                {self._identifier: self.get_audio_tuples(prepare_for_wandb=prepare_for_wandb, save_directory=save_path)}
+
+        if need_kl_oa is True:
+            print("Preparing KL-OA Plots for Logging")
+            save_path = os.path.join(save_directory, "KL-OA_Plots") if save_directory is not None else None
+            logging_media["kl_oa_plots"] = \
+                {self._identifier: self.get_kl_oa_inter_intra_plots(
+                    identifier=self._identifier, prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         return logging_media
-
-    def get_logging_dict(self, **kwargs):
-        raise Warning("This function is deprecated. Use get_logging_media instead")
-
-    def get_wandb_logging_media(self, **kwargs):
-        raise Warning("This function is deprecated. Use get_logging_media instead")
 
     # ==================================================================================================================
     #  KL OA Inter/Intra Plots
@@ -803,15 +827,18 @@ class Evaluator:
     # ==================================================================================================================
     #   Velocity Heatmaps
     # ==================================================================================================================
-    def get_velocity_heatmaps(self, prepare_for_wandb=False, s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True, save_path=None):
+    def get_velocity_heatmaps(self, prepare_for_wandb=False, s=(2, 4), bins=None,
+                              regroup_by_drum_voice=True, save_path=None):
         '''
 
         :param s: used for heatmap smoothing
-        :param bins: [x_bins, y_bins] used for the heatmap bins
+        :param bins: [x_bins, y_bins] used for the heatmap bins (default [32 * 4, 64])
         :param regroup_by_drum_voice: if True, the heatmap will be grouped by drum voice, otherwise it will display voices in each figure
         :param save_path: if not None, the heatmap will be saved to this path
         :return: final bokeh figure with all the tabs
         '''
+
+        bins = [32 * 4, 64] if bins is None else bins
 
         # get vel/timing heatmaps
 

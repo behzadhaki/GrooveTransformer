@@ -361,6 +361,12 @@ Use the `get_logging_media` method to compile the logging media into a single di
 logging_media = evaluator_test_set.get_logging_media()
 ```
 
+Also, you can automatically export all the requested media given a save_directory path
+
+```python
+logging_media = evaluator_test_set.get_logging_media(save_directory="testers/GrooveEvaluator/misc/logged))
+```
+
 The resulting dictionary has the following keys:
 ```list
 ['hit_score_plots', 'velocity_distribution_plots', 'offset_distribution_plots', 
