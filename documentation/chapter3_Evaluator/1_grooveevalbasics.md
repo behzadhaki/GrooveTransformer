@@ -15,7 +15,7 @@
 
 ## 2. GrooveEvaluator Basics <a name="2"></a>
 
-### _All codes provided below are also available [here](../../testers/GrooveEvaluator/01_Basics_demo.py)_
+### _All codes provided below are also available [here](../../testers/GrooveEvaluator/01_grooveevalbasics_demo.py)_
 
 
 ---

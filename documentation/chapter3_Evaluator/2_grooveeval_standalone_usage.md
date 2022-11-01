@@ -19,7 +19,7 @@ The results can be accessed as a dictionary or a Pandas.DataFrame (Section [3.1]
 or they can be rendered as Bokeh plots (Section [3.2](#3_ii)). 
 Also, the ground truth samples and the generations can be rendered to piano roll, audio or midi files (Section [3.3](#3_iii)). 
 
-> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/01_Basics_demo.py)
+> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/01_grooveevalbasics_demo.py)
 
 
 ### 3.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>

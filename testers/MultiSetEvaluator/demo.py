@@ -54,6 +54,9 @@ offset_distribution_plots = msEvaluator.get_offset_distribution_plots(
 # get logging media
 logging_media = msEvaluator.get_logging_media(identifier="Analysis X")
 
+# get Some of the logging media
+logging_media_partial = msEvaluator.get_logging_media(identifier="Analysis X", need_pos_neg_hit_score_plots=False)
+
 # get logging media and save to files
 logging_media_and_saved = msEvaluator.get_logging_media(
     identifier="Analysis X",
