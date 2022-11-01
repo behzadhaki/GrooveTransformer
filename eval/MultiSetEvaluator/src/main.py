@@ -10,6 +10,9 @@ from bokeh.models import Tabs, Panel
 
 hv.extension('bokeh')
 
+from bokeh.embed import file_html
+from bokeh.resources import CDN
+import wandb
 
 def get_violin_bokeh_plot(feature_label, value_dict, kernel_bandwidth=0.01,
                           scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
@@ -38,10 +41,18 @@ def get_violin_bokeh_plot(feature_label, value_dict, kernel_bandwidth=0.01,
     # panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
     return fig
 
-
-
 class MultiSetEvaluator:
-    def __init__(self, groove_evaluator_sets, ignore_feature_keys=None, reference_set_label = "GT", anchor_set_label = None):
+    def __init__(self,
+                 groove_evaluator_sets,
+                 ignore_feature_keys=None,
+                 reference_set_label="GT",
+                 anchor_set_label=None,
+                 need_pos_neg_hit_score_plots=True,
+                 need_velocity_distribution_plots=True,
+                 need_offset_distribution_plots=True,
+                 need_inter_intra_pdf_plots=True,
+                 need_kl_oa_plots=True,
+                 ):
         """
         :param groove_evaluator_sets: dictionary of GrooveEvaluator objects to compare, example:
                groove_evaluator_sets = {
@@ -61,12 +72,28 @@ class MultiSetEvaluator:
                         "Syncopation::Lowsync", "Syncopation::Midsync", "Syncopation::Hisync",
                         "Syncopation::Lowsyness", "Syncopation::Midsyness", "Syncopation::Hisyness",
                         "Syncopation::Complexity"])
+
+        :param reference_set_label: label of the reference set to compare to, default is "GT"
+        :param anchor_set_label: label of the reference set to compare to, default is "Set 1"
+                                    Here reference means that in comparison plots, any set is compared agaisnt GT and Reference
+                                    (exp: if reference_set_label is "Set1", then will get analysis plots for (gT, set1, Set2), (gT, set1, Set3))
+        :param need_pos_neg_hit_score_plots: if True, will generate plots for positive and negative hit scores (used ONLY in get_logging_media method)
+        :param need_velocity_distribution_plots: if True, will generate plots for velocity distributions (used ONLY in get_logging_media method)
+        :param need_offset_distribution_plots: if True, will generate plots for offset distributions (used ONLY in get_logging_media method)
+        :param need_inter_intra_pdf_plots: if True, will generate plots for inter and intra pdfs (used ONLY in get_logging_media method)
+        :param need_kl_oa_plots: if True, will generate plots for kl and oa (used ONLY in get_logging_media method)
+
         """
 
         # ======================== INITIALIZATION ========================
         # =========     Static/Picklaable Attributes
         self.ignore_feature_keys = ignore_feature_keys
         self.groove_evaluator_sets = groove_evaluator_sets
+        self.need_pos_neg_hit_score_plots = need_pos_neg_hit_score_plots,
+        self.need_velocity_distribution_plots = need_velocity_distribution_plots,
+        self.need_offset_distribution_plots = need_offset_distribution_plots,
+        self.need_inter_intra_pdf_plots = need_inter_intra_pdf_plots,
+        self.need_kl_oa_plots = need_kl_oa_plots,
 
         assert reference_set_label == "GT" or reference_set_label in self.groove_evaluator_sets.keys(), \
             f"Reference set label >>> {anchor_set_label} <<< not found in the set labels. " \
@@ -93,7 +120,12 @@ class MultiSetEvaluator:
             'ignore_feature_keys': self.ignore_feature_keys,
             'groove_evaluator_sets': self.groove_evaluator_sets,
             'reference_set_label': self.reference_set_label,
-            'anchor_set_label': self.anchor_set_label
+            'anchor_set_label': self.anchor_set_label,
+            'need_pos_neg_hit_score_plots': self.need_pos_neg_hit_score_plots,
+            'need_velocity_distribution_plots': self.need_velocity_distribution_plots,
+            'need_offset_distribution_plots': self.need_offset_distribution_plots,
+            'need_inter_intra_pdf_plots': self.need_inter_intra_pdf_plots,
+            'need_kl_oa_plots': self.need_kl_oa_plots
         }
         return state
 
@@ -103,6 +135,11 @@ class MultiSetEvaluator:
         self.groove_evaluator_sets = state['groove_evaluator_sets']
         self.reference_set_label = state['reference_set_label']
         self.anchor_set_label = state['anchor_set_label']
+        self.need_pos_neg_hit_score_plots = state['need_pos_neg_hit_score_plots']
+        self.need_velocity_distribution_plots = state['need_velocity_distribution_plots']
+        self.need_offset_distribution_plots = state['need_offset_distribution_plots']
+        self.need_inter_intra_pdf_plots = state['need_inter_intra_pdf_plots']
+        self.need_kl_oa_plots = state['need_kl_oa_plots']
 
         # compute the rest of the attributes
         self.eval_labels = list()   # list of lists of set labels to compare
@@ -182,9 +219,10 @@ class MultiSetEvaluator:
             data['df'].to_csv(os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
             print("Saved statistics of inter intra distances to: ", os.path.join(dir_path, f"{set_tag}_inter_intra_statistics.csv"))
 
-    def get_inter_intra_pdf_plots(self, filename=None):
-        """
-        """
+    # ================================================================
+    # =========     Plotting Methods
+    # ================================================================
+    def get_inter_intra_pdf_plots(self, prepare_for_wandb=False, filename=None):
         inter_intra_pdf_tabs = []
         inter_intra_pdf_tab_labels = []
 
@@ -215,11 +253,9 @@ class MultiSetEvaluator:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             save(tabs, filename=filename)
 
-        return tabs
+        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Inter Intra PDF Plots"))
 
-    def get_kl_oa_plots(self, filename=None, figsize=(1200, 1000)):
-        """
-        """
+    def get_kl_oa_plots(self, filename=None, prepare_for_wandb=False, figsize=(1200, 1000)):
 
         kl_oa_tabs = []
         kl_oa_tab_labels = []
@@ -250,9 +286,9 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs
+        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "KL OA Plots"))
 
-    def get_pos_neg_hit_score_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+    def get_pos_neg_hit_score_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                     kernel_bandwidth=0.1,
                                     scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         pos_neg_hit_scores = dict()
@@ -304,9 +340,9 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs
+        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Pos Neg Hit Score Plots"))
 
-    def get_velocity_distribution_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+    def get_velocity_distribution_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                         kernel_bandwidth=0.1,
                                         scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         velocity_distributions = dict()
@@ -359,9 +395,9 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs
+        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Velocity Distribution Plots"))
 
-    def get_offset_distribution_plots(self, filename=None, ncols=4, plot_width=400, plot_height=400,
+    def get_offset_distribution_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                       kernel_bandwidth=0.1,
                                       scatter_color='red', scatter_size=10, xrotation=45, font_size=10):
         offset_distributions = dict()
@@ -411,7 +447,77 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs
+        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Offset Distribution Plots"))
+
+    def get_logging_media(self, identifier , prepare_for_wandb=False, save_directory=None, **kwargs):
+        logging_media = dict()
+
+        flag = False
+        if "need_pos_neg_hit_score_plots" in kwargs.keys():
+            if kwargs["need_pos_neg_hit_score_plots"]:
+                flag = True
+        if flag or self.need_pos_neg_hit_score_plots:
+            print("getting pos neg hit score plots")
+            filename = os.path.join(save_directory, f"pos_neg_hit_score_plots_{identifier}.html") if save_directory is not None else None
+            logging_media["pos_neg_hit_scores_plots"] = {
+                identifier: self.get_pos_neg_hit_score_plots(
+                    filename=filename, prepare_for_wandb=prepare_for_wandb)
+            }
+
+        flag = False
+        if "need_offset_distribution_plots" in kwargs.keys():
+            if kwargs["need_offset_distribution_plots"]:
+                flag = True
+        if flag or self.need_offset_distribution_plots:
+            print("getting offset distribution plots")
+            filename = os.path.join(save_directory, f"offset_distribution_plots_{identifier}.html") \
+                if save_directory is not None else None
+            logging_media["offset_distribution_plots"] = {
+                identifier: self.get_offset_distribution_plots(
+                    filename=filename, prepare_for_wandb=prepare_for_wandb)
+            }
+
+        flag = False
+        if "need_velocity_distribution_plots" in kwargs.keys():
+            if kwargs["need_velocity_distribution_plots"]:
+                flag = True
+        if flag or self.need_velocity_distribution_plots:
+            print("getting velocity distribution plots")
+            filename = os.path.join(save_directory, f"velocity_distribution_plots_{identifier}.html") \
+                if save_directory is not None else None
+            logging_media["velocity_distribution_plots"] = {
+                identifier: self.get_velocity_distribution_plots(
+                    filename=filename, prepare_for_wandb=prepare_for_wandb)
+            }
+
+        flag = False
+        if "need_inter_intra_pdf_plots" in kwargs.keys():
+            if kwargs["need_inter_intra_pdf_plots"]:
+                flag = True
+        if flag or self.need_inter_intra_pdf_plots:
+            print("getting inter intra pdf plots")
+            filename = os.path.join(save_directory, f"inter_intra_pdf_plots_{identifier}.html") \
+                if save_directory is not None else None
+
+            logging_media["inter_intra_pdf_plots"] = {
+                identifier: self.get_inter_intra_pdf_plots(
+                    filename=filename, prepare_for_wandb=prepare_for_wandb)
+            }
+
+        flag = False
+        if "need_kl_oa_plots" in kwargs.keys():
+            if kwargs["need_kl_oa_plots"]:
+                flag = True
+        if flag or self.need_kl_oa_plots:
+            print("getting kl oa plots")
+            filename = os.path.join(save_directory, f"kl_oa_plots_{identifier}.html") \
+                if save_directory is not None else None
+            logging_media["kl_oa_plots"] = {
+                identifier: self.get_kl_oa_plots(
+                    filename=filename, prepare_for_wandb=prepare_for_wandb)
+            }
+
+        return logging_media
 
 
 def load_multi_set_evaluator(path):
@@ -420,44 +526,6 @@ def load_multi_set_evaluator(path):
 
 
 if __name__ == '__main__':
-    from eval.GrooveEvaluator.src.evaluator import load_evaluator
 
-    # prepare input data
-    eval_1 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
-    eval_2 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
-
-    # ignore_feature_keys = ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
-    ignore_feature_keys = None
-
-    # construct MultiSetEvaluator
-    msEvaluator = MultiSetEvaluator(
-        groove_evaluator_sets={ "Model 1": eval_1, "Model 2": eval_2, "Model 3": eval_2}, #{ "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # { "groovae": eval_1}
-        ignore_feature_keys=None, # ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
-        reference_set_label="GT",
-        anchor_set_label=None # "groovae"
-    )
-
-    # dump MultiSetEvaluator
-    msEvaluator.dump("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
-
-    # load MultiSetEvaluator
-    msEvaluator = load_multi_set_evaluator("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
-
-    # save statistics
-    msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/MultiSetEvaluator/misc/multi_set_evaluator")
-
-    # save inter intra pdf plots
-    iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/iid_pdfs.html")
-
-    # save kl oa plots
-    KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator")
-
-    # get pos neg hit score plots
-    pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
-
-    # get velocity distribution plots
-    velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/velocity_distributions.html")
-
-    # get offset distribution plots
-    offset_distribution_plots = msEvaluator.get_offset_distribution_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
-
+    # For testing use testers/MultiSetEvaluator/demo.py
+    pass

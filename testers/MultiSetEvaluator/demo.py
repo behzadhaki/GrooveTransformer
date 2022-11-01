@@ -14,7 +14,12 @@ msEvaluator = MultiSetEvaluator(
     # { "groovae": eval_1, "Model 1": eval_2, "Model 2": eval_3 },  # { "groovae": eval_1}
     ignore_feature_keys=None,  # ["Statistical::NoI", "Statistical::Total Step Density", "Statistical::NEWWWWW"]
     reference_set_label="GT",
-    anchor_set_label=None  # "groovae"
+    anchor_set_label=None,  # "groovae"
+    need_pos_neg_hit_score_plots=True,
+    need_velocity_distribution_plots=True,
+    need_offset_distribution_plots=True,
+    need_inter_intra_pdf_plots=True,
+    need_kl_oa_plots=True
 )
 
 # dump MultiSetEvaluator
@@ -46,3 +51,17 @@ velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(
 offset_distribution_plots = msEvaluator.get_offset_distribution_plots(
     filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
 
+# get logging media
+logging_media = msEvaluator.get_logging_media(identifier="Analysis X")
+
+# get logging media and save to files
+logging_media_and_saved = msEvaluator.get_logging_media(
+    identifier="Analysis X",
+    save_directory="testers/MultiSetEvaluator/misc/logging_media")
+
+# get logging media for wandb
+logging_media_wandb = msEvaluator.get_logging_media(
+    identifier="Analysis X",
+    save_directory="testers/MultiSetEvaluator/misc/logging_media",
+    prepare_for_wandb=True, need_inter_intra_pdf_plots=False, need_kl_oa_plots=False,
+    need_pos_neg_hit_score_plots=True, need_velocity_distribution_plots=True, need_offset_distribution_plots=True)
