@@ -1,16 +1,17 @@
-# Chapter 3 - Evaluation Tools (Part B - Accessing Evaluation Results)
+# Chapter 3 - Evaluation Tools 
+## Part A2 - GrooveEvaluator - Accessing Evaluation Results
 
 -----
 
 # Table of Contents
-3. [Accessing Evaluation Results](#3)
+5. [Accessing Evaluation Results](#3)
    1. [Results as Dictionaries or Pandas.DataFrame](#3_i)
    2. [Rendering Results as Bokeh Plots](#3_ii)
    3. [Rendering Piano Rolls/Audio/Midi](#3_ii)
-4. [Compiling Plots for Logging](#4)
+6. [Compiling Plots for Logging](#4)
 
    
-## 3. Accessing Evaluation Results <a name="3"></a>
+## 5. Accessing Evaluation Results <a name="3"></a>
 
 ---
 
@@ -22,7 +23,7 @@ Also, the ground truth samples and the generations can be rendered to piano roll
 > **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/01_grooveevalbasics_demo.py)
 
 
-### 3.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>
+### 5.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>
 
 The evaluation results can be accessed as a dictionary or a Pandas.DataFrame. 
 The following numerical results are automatically computed and compiled into a dictionary or pandas dataframe:
@@ -224,7 +225,7 @@ get_statistics_of_global_features_df = evaluator_test_set.get_statistics_of_glob
 
 <img src="assets/images/global_features_statistics.png" width="600">
 
-### 3.2 Rendering Results as Bokeh Plots <a name="3_ii"></a>
+### 5.2 Rendering Results as Bokeh Plots <a name="3_ii"></a>
 
 The results in section [3.1](#3_i) can also be automatically rendered as Bokeh plots. 
 These plots are violin plots, super-imposed with boxplots and the raw scatter data. The plots are separated by Tabs 
@@ -301,7 +302,7 @@ evaluator_test_set.get_velocity_heatmaps(
 
 <img src="assets/images/velocity_heatmaps.png" width="600">
 
-### 3.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
+### 5.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
 > **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/03_other_artifacts.py)
 
 
@@ -351,7 +352,7 @@ evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="teste
 <img src="assets/images/midi_files.png" width="300">
 
 
-## 4. Compiling Logging Media <a name="4"></a>
+## 6. Compiling Logging Media <a name="4"></a>
 > **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/04_compiled_results.py)
 
 

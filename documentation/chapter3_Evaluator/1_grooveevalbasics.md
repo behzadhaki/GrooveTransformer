@@ -1,10 +1,10 @@
 # Chapter 3 - Evaluation Tools
-## Part A - GrooveEvaluator Basics
+## Part A1 - GrooveEvaluator
 
 -----
 
 # Table of Contents
-[GrooveEvaluator Basics](#2)
+[GrooveEvaluator](#2)
 1. [Prepapre the data used for Evaluation](#2_i)
 2. [Initialization](#2_ii)
 3. [Preparing Predictions](#2_iii)

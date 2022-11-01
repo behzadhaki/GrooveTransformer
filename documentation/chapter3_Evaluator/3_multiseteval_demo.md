@@ -4,7 +4,7 @@
 -----
 
 # Table of Contents
-[MultiSetEvaluator Basics](#2)
+[MultiSetEvaluator](#2)
 1. [Prepapre the sets used for cross comparison](#2_i)
 2. [Initialization](#2_ii)
 3. [Saving and Loading](#2_iv)
@@ -150,7 +150,7 @@ offset_distribution_plots = msEvaluator.get_offset_distribution_plots(
 )
 <img src="assets/images/offset_mse.png" width="400">
 
-### 4.3 Compiling Results <a name="2_vi"></a>
+### 5. Compiling Results <a name="2_vi"></a>
 
 ###### Compile Bokeh Plots in a Dictionary
 
