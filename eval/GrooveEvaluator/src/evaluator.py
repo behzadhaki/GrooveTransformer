@@ -1549,4 +1549,5 @@ def load_evaluator (full_path):
     return evaluator
 
 if __name__ == "__main__":
-    print("TEST ---- TEST")
+    # For testing use testers/GrooveEvaluator/ .py files
+    pass
