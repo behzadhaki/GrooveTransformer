@@ -275,14 +275,14 @@ class Evaluator:
 
         if need_hit_scores is True:
             print("Preparing Hit Score Plots for Logging")
-            save_path = os.path.join(save_directory, "Hit_Score_Plots") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"Hit_Score_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["hit_score_plots"] = \
                 {self._identifier: self.get_pos_neg_hit_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_velocity_distributions is True:
             print("Preparing Velocity Distribution Plots for Logging")
             save_path = os.path.join(
-                save_directory, "Velocity_Distribution_Plots") if save_directory is not None else None
+                save_directory, f"Velocity_Distribution_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["velocity_distribution_plots"] = \
                 {self._identifier:
                      self.get_velocity_distribution_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)
@@ -292,7 +292,7 @@ class Evaluator:
         if need_offset_distributions is True:
             print("Preparing Offset Distribution Plots for Logging")
             save_path = os.path.join(
-                save_directory, "Offset_Distribution_Plots") if save_directory is not None else None
+                save_directory, f"Offset_Distribution_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["offset_distribution_plots"] = \
                 {self._identifier:
                      self.get_offset_distribution_plots(prepare_for_wandb=prepare_for_wandb, save_path=save_path)
@@ -304,7 +304,7 @@ class Evaluator:
                 raise Warning("Cannot compute rhythmic distances without predictions")
             else:
                 save_path = os.path.join(
-                    save_directory, "Rhythmic_Distance_Plots") if save_directory is not None else None
+                    save_directory, f"Rhythmic_Distance_Plots_{self._identifier}.html") if save_directory is not None else None
                 logging_media["rhythmic_distance_plots"] = \
                     {self._identifier:
                          self.get_rhythmic_distances_of_pred_to_gt_plot(
@@ -313,32 +313,32 @@ class Evaluator:
 
         if need_heatmap is True:
             print("Preparing Heatmap Plots for Logging")
-            save_path = os.path.join(save_directory, "Heatmap_Plots") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"Heatmap_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["heatmap_plots"] = \
                 {self._identifier: self.get_velocity_heatmaps(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_global_features is True:
             print("Preparing Global Feature Plots for Logging")
-            save_path = os.path.join(save_directory, "Global_Feature_Plots") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"Global_Feature_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["global_feature_plots"] = \
                 {self._identifier: self.get_global_features_plot(
                     prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_piano_roll is True:
             print("Preparing Piano Roll Plots for Logging")
-            save_path = os.path.join(save_directory, "Piano_Roll_Plots") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"Piano_Roll_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["piano_roll_plots"] = \
                 {self._identifier: self.get_piano_rolls(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
 
         if need_audio is True:
             print("Preparing Audio Files for Logging")
-            save_path = os.path.join(save_directory, "Audio_Files") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"Audio_Files_{self._identifier}.html") if save_directory is not None else None
             logging_media["audios"] = \
                 {self._identifier: self.get_audio_tuples(prepare_for_wandb=prepare_for_wandb, save_directory=save_path)}
 
         if need_kl_oa is True:
             print("Preparing KL-OA Plots for Logging")
-            save_path = os.path.join(save_directory, "KL-OA_Plots") if save_directory is not None else None
+            save_path = os.path.join(save_directory, f"KL-OA_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["kl_oa_plots"] = \
                 {self._identifier: self.get_kl_oa_inter_intra_plots(
                     identifier=self._identifier, prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
