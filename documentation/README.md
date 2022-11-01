@@ -8,7 +8,7 @@
 ---
 1. [Introduction](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#1-introduction-)
 2. [Data Representation](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#2-data-representation-)
-   1. [HVO_Sequence](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#21-hvo_sequence-)
+   1. [`HVO_Sequence`](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#21-hvo_sequence-)
    2. [Example Code](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#22-example-code-)
 3. [Datasets](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#3-datasets-)
    1. [Groove Midi Dataset](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#31-groove-midi-dataset-)
@@ -31,22 +31,22 @@
 
 [Chapter 3 - Evaluation Tools](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter3_Evaluator/README.md)
 ----
-1. [Introduction](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter3_Evaluator#1-introduction-)
+1. [Introduction](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/README.md#1-introduction-)
 2. **Part A.** [`GrooveEvaluator`](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#2-grooveevaluator-basics-)
    + **Part A1**
    1. [Prepapre the data used for Evaluation](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#21-prepapre-the-data-used-for-evaluation-)
    2. [Initialization](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#22-initialization-)
-   3. [Evaluating Predictions](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#23-preparing-predictions-)
+   3. [Preparing Predictions](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#23-preparing-predictions-)
       1. [Get Ground Truth Samples](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#231-get-ground-truth-samples--)
       2. [Pass Samples to Model](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#232-pass-samples-to-model-)
       3. [Add Predictions to Evaluator](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#233-add-predictions-to-evaluator-)
    4. [Saving and Loading](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#24-saving-and-loading-) 
    + **Part A2**
    5. [Accessing Evaluation Results](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#3-accessing-evaluation-results-)
-      1. [Results as Dictionaries or Pandas.DataFrame](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#31-results-as-dictionaries-or-pandasdataframe-)
-      2. [Rendering Results as Bokeh Plots](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#32-rendering-results-as-bokeh-plots-)
-      3. [Rendering Piano Rolls/Audio/Midi](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#33-rendering-piano-rollsaudiomidi-)
-   6. [Compiling Plots for Logging](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#4-compiling-logging-media-)
+      1. [Results as Dictionaries or Pandas.DataFrame](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#3_i)
+      2. [Rendering Results as Bokeh Plots](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#52-rendering-results-as-bokeh-plots-)
+      3. [Rendering Piano Rolls/Audio/Midi](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#53-rendering-piano-rollsaudiomidi-)
+   6. [Compiling Plots for Logging](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/2_grooveeval_standalone_usage.md#6-compiling-logging-media-)
 3. **Part B.** [`MultiSetEvaluator`](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md)
    1. [Prepapre the sets used for cross comparison](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#1-prepare-the-sets-used-for-cross-comparison-)
    2. [Initialization](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#2-initialization-)
@@ -54,7 +54,7 @@
    4. [Available Analyzers](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#4-available-analyzers-)
       1. [Inter-Intra Analysis (raw statistics, distribution plots and KL/OA Plots)](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#41-accessing-evaluation-results-)
       2. [Hit, Velocity, Offset Analysis](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#42-hit-velocity-offset-analysis-)
-   5. [Compiling Results](#2_vi)
+   5. [Compiling Results](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter3_Evaluator/3_multiseteval_demo.md#5-compiling-results-)
 
 [Chapter 4 - WANDB](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/tree/main/documentation/chapter4_WANDB/README.md)
 ----
