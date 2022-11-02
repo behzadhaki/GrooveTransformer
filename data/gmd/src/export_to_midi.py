@@ -1,11 +1,14 @@
-import os
+import os, sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
 from itertools import combinations
 from tqdm import tqdm
 from bokeh.layouts import gridplot
 from data.src.utils import get_bokeh_histogram
 import note_seq as ns
 
-if __name__=='__main__':
+if __name__ == '__main__':
     # ==================================================================================================================
     # Load Data
     # ==================================================================================================================
