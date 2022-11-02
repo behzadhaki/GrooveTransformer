@@ -170,7 +170,8 @@ Magenta's [Groove MIDI Dataset
 drum performances in the format of beats and fills, classified by genre
 and mostly in 4/4 time signature. 
 
-![](https://assets.pubpub.org/f67l9ngf/21642506281264.png)
+<img src="https://assets.pubpub.org/f67l9ngf/21642506281264.png" width="300">
+
 <figcaption align = "center"><b>Genre distribution in GMD (beats in 4-4 meter)
 </b></figcaption>
 
@@ -214,19 +215,23 @@ These files are simply dictionaries of the following format
 }
 ```
 
+---
+
 > **Note** this dataset is quite unbalanced, with a lot of songs in the `rock` genre. Below are a number 
 > of plots showing the distribution of the dataset. 
-> 
-> ****
-> 
-> **Some Examples of the visualizations are below. We highly recommend using the html `bokeh` figures available 
-> [here](./figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.html) and [here](./figures/2Bar 4-4 Beats GMD_performer_genre_counts.html).** 
-> 
-> These plots can be generated using the script [here](../../data/src/visualize_dataset.py)
-> 
-> ![](figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.png)
-> 
-> ![](figures/2Bar 4-4 Beats GMD_performer_genre_counts.png)
+
+**Some Examples of the visualizations are below. We highly recommend using the html `bokeh` figures available 
+ [here](./figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.html) and [here](./figures/2Bar 4-4 Beats GMD_performer_genre_counts.html).** 
+ 
+These plots can be generated using the script [here](../../data/src/visualize_dataset.py)
+
+ <img src="figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.png" width="400">
+
+
+ <img src="figures/2Bar 4-4 Beats GMD_performer_genre_counts.png" width="400">
+
+
+---
 
 #### 3.1.1 Load dataset as a dictionary <a name="3_1_1"></a>       
 
