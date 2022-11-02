@@ -174,7 +174,8 @@ and mostly in 4/4 time signature.
 <figcaption align = "center"><b>Genre distribution in GMD (beats in 4-4 meter)
 </b></figcaption>
 
-The dataset in midi format is available [here](../../data/gmd/resources/source_dataset). 
+The dataset in midi format is available using the [link](https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0.zip) 
+provided by Magenta [here](https://magenta.tensorflow.org/datasets/groove).
 The dataset can also be found as a [Groove TFDS](https://www.tensorflow.org/datasets/catalog/groove) in [ TensorFlow Datasets (TFDS)](https://www.tensorflow.org/datasets)
 
 In order to avoid installing tensorflow, the groove TFDS subsets have been downloaded and stored as dictionaries of metadatas and midi files. 
@@ -185,6 +186,9 @@ Access these pickled dictionaries [here](../../data/gmd/resources/storedDicts):
 2. groove_2bar-midionly.bz2pickle
 3. groove_4bar-midionly.bz2pickle
 ```
+
+> **Note** The midi files for `complete` performances provided by Magenta and also
+> the `2bar` and `4bar` midi files exported from the versions provided on tfds can be found [here](../../data/gmd/resources/source_dataset)
 
 These files are simply dictionaries of the following format
 ```python
