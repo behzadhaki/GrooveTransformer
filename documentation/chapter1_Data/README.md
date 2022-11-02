@@ -170,7 +170,7 @@ Magenta's [Groove MIDI Dataset
 drum performances in the format of beats and fills, classified by genre
 and mostly in 4/4 time signature. 
 
-<img src="https://assets.pubpub.org/f67l9ngf/21642506281264.png" width="300">
+<img src="https://assets.pubpub.org/f67l9ngf/21642506281264.png" width="600">
 
 <figcaption align = "center"><b>Genre distribution in GMD (beats in 4-4 meter)
 </b></figcaption>
@@ -225,10 +225,10 @@ These files are simply dictionaries of the following format
  
 These plots can be generated using the script [here](../../data/src/visualize_dataset.py)
 
- <img src="figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.png" width="400">
+ <img src="figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.png" width="800">
 
 
- <img src="figures/2Bar 4-4 Beats GMD_performer_genre_counts.png" width="400">
+ <img src="figures/2Bar 4-4 Beats GMD_performer_genre_counts.png" width="800">
 
 
 ---
