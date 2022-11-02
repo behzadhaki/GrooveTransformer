@@ -220,8 +220,8 @@ These files are simply dictionaries of the following format
 > **Note** this dataset is quite unbalanced, with a lot of songs in the `rock` genre. Below are a number 
 > of plots showing the distribution of the dataset. 
 
-**Some Examples of the visualizations are below. We highly recommend using the html `bokeh` figures available 
- [here](figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.html) and [here](figures/2Bar 4-4 Beats GMD_performer_genre_counts.html).** 
+**Some Examples of the visualizations are below. We highly recommend using the html `bokeh` figures available**
+ [here](./figures).
  
 These plots can be generated using the script [here](../../data/src/visualize_dataset.py)
 
