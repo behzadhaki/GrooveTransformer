@@ -144,7 +144,25 @@ checkpoint = torch.load(model_path, map_location=model_param['device'])
 ```
 
 ### 3.iv Pretrained Versions <a name="3_iv"></a>
+Four pretrained versions of this model are available. The models are trained according to the documents discussed above
+in the introduction section. The models are available in the `model/saved/monotonic_groove_transformer_v1` directory.
 
+The models are:
+- `misunderstood_bush_246`  --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/vxuuth1y
+- `rosy_durian_248`         --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/2cgu9h6u
+- `hopeful_gorge_252`       --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/v7p0se6e
+- `solar_shadow_247`        --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/35c9fysk
+
+To load the model, use the `load_groove_transformer_encoder_model` method from 
+the `modelLoadesSamplers` module as discussed above. For example, to load the `misunderstood_bush_246` model,
+use the following [code](../../testers/model/monotonic_groove_transformer_v1/load_pretrained_versions_available.py):
+```python
+
+```python
+from model.src.modelLoadesSamplers import load_groove_transformer_encoder_model
+model_path = f"model/saved/monotonic_groove_transformer_v1/latest/misunderstood_bush_246.pth"
+GrooveTransformer = load_groove_transformer_encoder_model(model_path)
+```
 ### 3.v Generation <a name="3_v"></a>
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
