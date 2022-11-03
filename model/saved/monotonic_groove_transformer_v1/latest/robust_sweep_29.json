@@ -1,0 +1,1 @@
+{"d_model": 512, "embedding_size_src": 27, "embedding_size_tgt": 27, "nhead": 1, "dim_feedforward": 64, "dropout": 0.25542373735391866, "max_len": 32, "num_encoder_layers": 10, "device": "gpu"}
