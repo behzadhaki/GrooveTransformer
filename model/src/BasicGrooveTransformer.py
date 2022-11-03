@@ -1,3 +1,6 @@
+import os
+import json
+
 import torch
 
 from model.src.shared_model_components import *
@@ -126,3 +129,24 @@ class GrooveTransformerEncoder(torch.nn.Module):
             h = get_hits_activation(_h, use_thres=use_thres, thres=thres, use_pd=use_pd)
 
         return h, v, o
+
+    def save(self, save_path, additional_info=None):
+        if not save_path.endswith('.pth'):
+            save_path += '.pth'
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+        params_dict = {
+            'd_model': self.d_model,
+            'embedding_size_src': self.embedding_size_src,
+            'embedding_size_tgt': self.embedding_size_tgt,
+            'nhead': self.nhead,
+            'dim_feedforward': self.dim_feedforward,
+            'dropout': self.dropout,
+            'max_len': self.max_len,
+            'num_encoder_layers': self.num_encoder_layers,
+            'device': self.device,
+        }
+
+        json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
+        torch.save({'model_state_dict': self.state_dict(), 'params': params_dict,
+                    'additional_info': additional_info}, save_path)

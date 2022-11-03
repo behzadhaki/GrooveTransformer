@@ -39,22 +39,28 @@ if __name__ == '__main__':
     print(pred_h.shape)
 
     # 2.i BasicGrooveTransformer.GrooveTransformer
+    import torch
+
     params = {
-        "d_model": 128,
-        "nhead": 4,
-        "dim_forward": 256,
-        "dropout": 0.1,
-        "num_layers": 6,
-        "max_len": 32,
-        "N": 64,  # batch size
-        "embedding_size": 27
+        'd_model': 512,
+        'embedding_size_src': 27,
+        'embedding_size_tgt': 27,
+        'nhead': 1,
+        'dim_feedforward': 64,
+        'dropout': 0.25542373735391866,
+        'num_encoder_layers': 10,
+        'max_len': 32,
+        'device': 'gpu'
     }
 
     from model import GrooveTransformerEncoder
 
-    TEM = GrooveTransformerEncoder(params["d_model"], params["embedding_size"], params["embedding_size"],
-                                   params["nhead"], params["dim_forward"], params["dropout"],
-                                   params["num_layers"], params["max_len"], device)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    TEM = GrooveTransformerEncoder(params["d_model"], params["embedding_size_src"], params["embedding_size_tgt"],
+                                   params["nhead"], params["dim_feedforward"], params["dropout"],
+                                   params["num_encoder_layers"], params["max_len"], device)
+
     src = torch.rand(params["N"], params["max_len"], params["embedding_size"])
 
     mem_h, mem_v, mem_o = TEM(src)
@@ -64,7 +70,7 @@ if __name__ == '__main__':
     pred_h,pred_v,pred_o  = TEM.predict(src)
     print(pred_h.shape)
 
-
+    TEM.save("model/misc/rand_model.pth")
 
     # test input layer
     # from model.src.BasicGrooveTransformer import InputLayer
