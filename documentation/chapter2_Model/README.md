@@ -111,9 +111,9 @@ checkpoint = torch.load(model_path, map_location=model_param['device'])
 ------------------------------------------------------------------
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
-Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),
-[load a midi file](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-), 
-or [grab one from the HVO_Sequence datasets as below](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-)
+Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),
+[load a midi file](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-), 
+or [grab one from the HVO_Sequence datasets as below](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-)
 ```
 from data.dataLoaders import load_gmd_hvo_sequences
 test_set = load_gmd_hvo_sequences(

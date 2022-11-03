@@ -8,9 +8,10 @@ import wandb
 from eval.GrooveEvaluator.src.feature_extractor import Feature_Extractor_From_HVO_SubSets
 from eval.GrooveEvaluator.src.plotting_utils import global_features_plotter, velocity_timing_heatmaps_scatter_plotter
 from eval.GrooveEvaluator.src.plotting_utils import separate_figues_by_tabs, tabulated_violin_plot
+from eval.GrooveEvaluator.utilities import subsetters
+
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-from data.gmd.src import subsetters  # FIXME add preprocess_data directory
 import pickle
 import os
 from tqdm import tqdm

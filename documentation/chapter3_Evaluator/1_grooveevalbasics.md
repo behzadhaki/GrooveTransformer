@@ -22,7 +22,7 @@
 
 ### 2.1. Prepapre the data used for Evaluation <a name="2_i"></a>
 
-First, Load the dataset (read more about loading the dataset [here](https://github.com/behzadhaki/VariationalMonotonicGrooveTransformer/blob/main/documentation/chapter1_Data/README.md#313-load-gmd-dataset-in-hvo_sequence-format-using-a-single-command---))
+First, Load the dataset (read more about loading the dataset [here](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#313-load-gmd-dataset-in-hvo_sequence-format-using-a-single-command---))
 ```python
 from data import load_gmd_hvo_sequences
 

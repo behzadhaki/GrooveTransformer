@@ -9,8 +9,7 @@
    2. [Rendering Results as Bokeh Plots](#3_ii)
    3. [Rendering Piano Rolls/Audio/Midi](#3_ii)
 6. [Compiling Plots for Logging](#4)
-
-   
+7. [Ready to Use GrooveEvaluator Templates](#5)
 ## 5. Accessing Evaluation Results <a name="3"></a>
 
 ---
@@ -388,3 +387,15 @@ pass the `prepare_for_wandb` flag as `True` in the `get_logging_media` method.
 ```python
 logging_media_wandb = evaluator_test_set.get_logging_media(prepare_for_wandb=True)
 ```
+
+# 7. Ready-to-use GrooveEvaluator Templates <a name="5"></a>
+
+To facilitate the use of the `GrooveEvaluator` class, we provide a set of ready-to-use templates for the most common use cases.
+
+Below are the available templates:
+
+| Template Name | Description | need_hit_scores | need_velocity_distributions | need_offset_distributions | need_rhythmic_distances | need_heatmap | need_global_features | need_audio | need_piano_roll |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| asf | All artifacts except audio | True | True | True | True | True | True | False | True |
+
+
