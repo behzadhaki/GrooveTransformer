@@ -6,34 +6,48 @@ from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
 # ------------             Model Loaders                     ---------------------
 # --------------------------------------------------------------------------------
 
-def load_groove_transformer_encoder_model(model_path, params_dict):
-    """ Loads a GrooveTransformerEncoder stored at a specific path
+def load_groove_transformer_encoder_model(model_path, params_dict=None, eval=True, device=None):
+    ''' Load a GrooveTransformerEncoder model from a given path
 
-    :param model_path: path of a trained model ending in .model or .bz2model
-    :param params_dict: a dictionary of parameters including the following necessary
-    fields: {d_model, embedding_sz, n_heads, dim_ff, dropout, n_layers, max_len, device}
-    :return: the loaded GrooveTransformerEncoder instance
-    """
+    Args:
+        model_path (str): path to the model
+        params_dict (None, dict, or json path): dictionary containing the parameters of the model
+        eval (bool): if True, the model is set to eval mode
+        device (None or torch.device): device to load the model to (if cpu, the model is loaded to cpu)
 
-    # load checkpoint
-    checkpoint = torch.load(model_path, map_location=params_dict['device'])
+    Returns:
+        model (GrooveTransformerEncoder): the loaded model
+    '''
 
-    # Initialize model
-    groove_transformer = GrooveTransformerEncoder(params_dict['d_model'],
-                                                  params_dict['embedding_sz'],
-                                                  params_dict['embedding_sz'],
-                                                  params_dict['n_heads'],
-                                                  params_dict['dim_ff'],
-                                                  params_dict['dropout'],
-                                                  params_dict['n_layers'],
-                                                  params_dict['max_len'],
-                                                  params_dict['device'])
+    try:
+        if device is not None:
+            loaded_dict = torch.load(model_path, map_location=device)
+        else:
+            loaded_dict = torch.load(model_path)
+    except:
+        loaded_dict = torch.load(model_path, map_location=torch.device('cpu'))
+        print(f"Model was loaded to cpu!!!")
 
-    # Load model and put in evaluation mode
-    groove_transformer.load_state_dict(checkpoint['model_state_dict'])
-    groove_transformer.eval()
+    if params_dict is None:
+        if 'params' in loaded_dict:
+            params_dict = loaded_dict['params']
+        else:
+            raise Exception(f"Could not instantiate model as params_dict is not found. "
+                            f"Please provide a params_dict either as a json path or as a dictionary")
 
-    return groove_transformer
+    if isinstance(params_dict, str):
+        import json
+        with open(params_dict, 'r') as f:
+            params_dict = json.load(f)
+
+
+    model = GrooveTransformerEncoder(**params_dict)
+    model.load_state_dict(loaded_dict["model_state_dict"])
+    if eval:
+        model.eval()
+
+    return model
+
 
 
 # --------------------------------------------------------------------------------

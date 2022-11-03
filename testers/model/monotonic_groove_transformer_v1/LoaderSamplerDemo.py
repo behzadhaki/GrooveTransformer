@@ -1,16 +1,27 @@
 from model import load_groove_transformer_encoder_model
-from model.saved.monotonic_groove_transformer_v1.params import model_params
+from model.saved.monotonic_groove_transformer_v1.old.params import model_params
 import torch
 import numpy as np
 
 # Model path and model_param dictionary
 model_name = "colorful_sweep_41"
-model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
-model_param = model_params[model_name]
 
 # 4. LOAD MODEL
-GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
-checkpoint = torch.load(model_path, map_location=model_param['device'])
+# load state_dict and params_dict from different locations
+# exp1. model state_dict stored as .model and params_dict as a dictionary
+model_path = f"model/saved/monotonic_groove_transformer_v1/old/{model_name}.model"
+params_dict = model_params[model_name]
+GrooveTransformer = load_groove_transformer_encoder_model(model_path, params_dict)
+
+# exp2. model state_dict stored as .bz2model and params_dict in a json file
+model_path = f"model/saved/monotonic_groove_transformer_v1/latest/{model_name}.pth"
+params_dict = f"model/saved/monotonic_groove_transformer_v1/latest/{model_name}.json"
+GrooveTransformer = load_groove_transformer_encoder_model(model_path, params_dict)
+
+# exp3. loading a self contained model
+model_path = f"model/saved/monotonic_groove_transformer_v1/latest/{model_name}.pth"
+GrooveTransformer = load_groove_transformer_encoder_model(model_path)
+
 
 # 5. Sampling from the loaded model
 #   5.1 Grab a random groove from the test set
@@ -36,7 +47,6 @@ groove = zero_like(input_hvo_seq)                        # create template for g
 groove.hvo = input_groove_hvo.cpu().detach().numpy()                     # add score
 output = zero_like(input_hvo_seq)                        # create template for output hvo_sequence object
 output.hvo = output_hvo[0, :, :].cpu().detach().numpy()                    # add score
-
 
 input.to_html_plot("in.html", show_figure=True)
 groove.to_html_plot("groove.html", show_figure=True)
