@@ -1,5 +1,8 @@
-import os.path
+# --------------------- #
+Version = "0.6.0"
+# --------------------- #
 
+import os.path
 import numpy as np
 import note_seq
 from note_seq.protobuf import music_pb2
@@ -15,6 +18,7 @@ from scipy.signal import find_peaks
 import math
 import copy
 import random
+import pickle
 
 from hvo_sequence.utils import is_power_of_two, find_pitch_and_tag, cosine_similarity, cosine_distance
 from hvo_sequence.utils import _weight_groove, _reduce_part, fuzzy_Hamming_distance
@@ -31,6 +35,7 @@ from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_
 from hvo_sequence.metrical_profiles import RHYTHM_SALIENCE_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
+
 
 class HVO_Sequence(object):
 
@@ -64,7 +69,7 @@ class HVO_Sequence(object):
         PATCH version when you make backwards compatible bug fixes.
         """
 
-        self.__version = "0.5.2"
+        self.__version = Version
 
         self.__metadata = dict()
 
@@ -78,12 +83,80 @@ class HVO_Sequence(object):
             self.drum_mapping = drum_mapping
 
     #   ----------------------------------------------------------------------
+    #           Pickling Strategies
+    #   ----------------------------------------------------------------------
+    def __getstate__(self):
+        state_dict = {
+            "metadata": self.__metadata,
+            "time_signatures": self.__time_signatures,
+            "tempos": self.__tempos,
+            "drum_mapping": self.__drum_mapping,
+        }
+
+        # find_non_zero_items in hvo, no need to store non-hits
+        if self.__hvo is not None:
+            event_idx = np.nonzero(self.__hvo)
+            event_vals = self.__hvo[event_idx]
+            shape = self.__hvo.shape
+            state_dict.update(
+                {
+                    "hvo":
+                        {
+                            "event_idx": event_idx,
+                            "event_vals": event_vals,
+                            "shape": shape
+                        }
+                }
+            )
+
+        return state_dict
+
+    def __setstate__(self, state):
+        self.__version = Version
+        self.__metadata = state["metadata"]
+        self.__time_signatures = state["time_signatures"]
+        self.__tempos = state["tempos"]
+        self.__drum_mapping = state["drum_mapping"]
+
+        if "hvo" in state:
+            self.__hvo = np.zeros(state["hvo"]["shape"])
+            self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
+        else:
+            self.__hvo = None
+
+    def save(self, path):
+        # make sure the path ends with .hvo
+        if not path.endswith(".hvo"):
+            path += ".hvo"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    def load(self, path):
+        with open(path, "rb") as f:
+            hvo_seq = pickle.load(f)
+        self.__dict__ = hvo_seq.__dict__
+        return self
+
+    #   ----------------------------------------------------------------------
     #          Overridden Operators for ==, !=, +
     #   ----------------------------------------------------------------------
     # todo implement appending using +
     def __add__(self, other):
         #    append one sequence to the other
         pass
+
+    def __eq__(self, other):
+        checks = []
+        checks.append(self.__metadata == other.__metadata)
+        checks.append(self.__time_signatures == other.__time_signatures)
+        checks.append(self.__tempos == other.__tempos)
+        checks.append(self.__drum_mapping == other.__drum_mapping)
+        checks.append(np.array_equal(self.__hvo, other.__hvo))
+        checks = all(checks)
+        return checks
+
 
     #   ----------------------------------------------------------------------
     #   Essential properties (which require getters and setters)

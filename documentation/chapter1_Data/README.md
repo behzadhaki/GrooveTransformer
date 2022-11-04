@@ -102,6 +102,23 @@ hvo_seq.add_tempo(0, 50)
 hvo_seq.random(32, 9)
 ```
 
+#### **Save**
+```python
+# -------------------------------------------------------------------
+# -----------           saving                         --------------
+# -------------------------------------------------------------------
+hvo_seq.save("testers/HVO_Sequence/misc/empty.hvo")
+```
+
+#### **Load**
+```python
+# -------------------------------------------------------------------
+# -----------           Loading                         --------------
+# -------------------------------------------------------------------
+hvo_seq_loaded = HVO_Sequence()
+hvo_seq_loaded.load("testers/HVO_Sequence/misc/empty.hvo")
+```
+
 #### **Access data using the .get() or .hvo method**
 ```python
 # ----------------------------------------------------------------
@@ -158,9 +175,16 @@ hvo_seq = midi_to_hvo_sequence('misc/test.mid', ROLAND_REDUCED_MAPPING, [4])
 
 ```
 
-----
+#### **Operators** <a name="operators"></a>
+###### `==`
+checks if two hvo_sequence scores are the same use
+```python
+if hvo_seq_a == hvo_seq_b:
+    ...
+```
 
-<!--- ====================================================================================================== -->
+
+
 
 ## 3. Datasets <a name="3"></a>
 

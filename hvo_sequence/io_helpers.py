@@ -193,6 +193,15 @@ def get_pickled_hvos(pickle_path, item_list=None):
     return hvos
 
 
+def load_HVO_Sequence_from_file(pickle_path):
+    """
+    Loads a pickled HVO_Sequence object
+    """
+    with open(pickle_path, 'rb') as f:
+        hvo_seq = pickle.load(f)
+
+    return hvo_seq
+
 #   --------------- Data type Convertors --------------------
 
 def get_reduced_pitch(pitch_query, pitch_class_list):
