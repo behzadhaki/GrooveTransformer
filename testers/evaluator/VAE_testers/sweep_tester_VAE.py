@@ -19,19 +19,19 @@ sweep_config = {
 
 parameters_dict = {
             'nhead_enc': {
-                        'value': 3},
+                        'values': [1, 2, 4, 8, 16]},
             'nhead_dec': {
-                        'value': 3},
+                        'values': [1, 2, 4, 8, 16]},
             'd_model_enc': {
-                        'value': 27},
+                        'values': [16, 32, 64, 128, 256, 512]},
             'd_model_dec': {
-                        'value': 30},
+                        'values': [16, 32, 64, 128, 256, 512]},
             'embedding_size_src': {
                         'value': 27},
             'embedding_size_tgt': {
                         'value': 27},
             'dim_feedforward': {
-                        'value': 16},
+                        'values': [16, 32, 64, 128, 256, 512]},
             'dropout': {
                  'distribution': 'uniform',
                  'min': 0.1,
@@ -43,9 +43,9 @@ parameters_dict = {
                  'max': 1
             },
             'num_encoder_layers': {
-                    'value': 2},
+                        'values': [6, 8, 10, 12]},
             'num_decoder_layers': {
-                    'value': 2},
+                        'values': [6, 8, 10, 12]},
             'max_len': {
                     'value': 32},
             'device': {
@@ -53,11 +53,11 @@ parameters_dict = {
             'latent_dim': {
                     'value': int((32 * 27) / 4)},
             "epochs": {
-                    'value': 10},
+                    'value': 100},
             "batch_size": {
-                    'values': [16,32]},
+                    'values': [16, 32]},
             "lr": {
-                    'value': 1e-3},
+                    'values': [1e-3, 1e-4]},
             "bce": {
                 'values': [True , False]},
             "dice": {
@@ -134,9 +134,9 @@ def train(config=None):
 
                 metrics = {"train/train_loss": loss.detach().numpy(),
                            "train/epoch": epoch,
-                           "train/bce_h_loss": losses['bce_h'],
-                           "train/mse_v_loss": losses['mse_v'],
-                           "train/mse_o_loss": losses['mse_o'],
+                           "train/h_loss": losses['loss_h'],
+                           "train/v_loss": losses['loss_v'],
+                           "train/o_loss": losses['loss_o'],
                            "train/KL_loss": losses['KL_loss'],
                            }
             #avg_loss = train_epoch(network, loader, optimizer)
