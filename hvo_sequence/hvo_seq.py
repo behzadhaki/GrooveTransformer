@@ -35,7 +35,7 @@ from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_
 from hvo_sequence.metrical_profiles import RHYTHM_SALIENCE_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
-
+from scipy.io import wavfile
 
 class HVO_Sequence(object):
 
@@ -71,7 +71,7 @@ class HVO_Sequence(object):
 
         self.__version = Version
 
-        self.__metadata = dict()
+        self.__metadata = Metadata()
 
         self.__time_signatures = list()
         self.__tempos = list()
@@ -142,10 +142,34 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     #          Overridden Operators for ==, !=, +
     #   ----------------------------------------------------------------------
-    # todo implement appending using +
-    def __add__(self, other):
-        #    append one sequence to the other
-        pass
+    def __add__(self, other_):
+        assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
+        assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
+        assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
+
+        first_part = copy.deepcopy(self)
+        other = copy.deepcopy(other_)
+
+        next_t_step = first_part.hvo.shape[0]
+
+        for tempo in other.tempos:
+            first_part.__tempos.append(
+                Tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm))
+        for time_sig in other.time_signatures:
+            first_part.__time_signatures.append(
+                Time_Signature(time_sig.time_step + next_t_step, time_sig.numerator, time_sig.denominator, time_sig.beat_division_factors))
+
+        if other.metadata.keys() is not None:
+            first_part.metadata.append(other.metadata, next_t_step)
+
+        if other.hvo is not None:
+            if first_part.hvo is not None:
+                first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
+            else:
+                first_part.hvo = other.hvo
+
+        return first_part
+
 
     def __eq__(self, other):
         checks = []
@@ -1641,7 +1665,11 @@ class HVO_Sequence(object):
         ns = self.to_note_sequence(midi_track_n=9)
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         audio = pm.fluidsynth(sf2_path=sf_path, fs=sr)
-        sf.write(filename, audio, sr, 'PCM_24')
+
+        # save audio using scipy
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        wavfile.write(filename, sr, audio)
+
         return audio
 
     #   --------------------------------------------------------------
@@ -1652,6 +1680,7 @@ class HVO_Sequence(object):
                      save_figure=False,
                      show_tempo=True, tempo_font_size="8pt",
                      show_time_signature=True, time_signature_font_size="8pt",
+                     show_metadata=True, metadata_font_size="8pt",
                      minor_grid_color="black", minor_line_width=0.1,
                      major_grid_color="blue", major_line_width=0.5,
                      downbeat_color="blue", downbeat_line_width=2,
@@ -1773,7 +1802,7 @@ class HVO_Sequence(object):
         @param hop_length:                  number of samples between successive STFT frames
         @param win_length:                  window length in samples. must be equal or smaller than n_fft
         @param window:                      window type specification (see scipy.signal.get_window) or function
-        @param plot                         if True, plots and saves plot 
+        @param plot                         if True, plots and saves plot
         @param plot_filename:               filename for saved figure
         @param plot_title:                  plot title
         @param width:                       figure width in pixels
@@ -2391,7 +2420,7 @@ class HVO_Sequence(object):
         if len(self.time_signatures) > 1:
             warnings.warn("Currently doesn't support multiple time signatures. Received: {}".format(
                 self.time_signatures))
-        
+
         assert self.grid_type_per_segments[0] == "binary" and self.time_signatures[0].denominator == 4, \
             "Currently Swing calculation can only be done for binary grids with time signature denominator of 4"
 
@@ -2529,7 +2558,7 @@ class HVO_Sequence(object):
         if len(self.time_signatures) > 1:
             warnings.warn("Currently doesn't support multiple time signatures. Received: {}".format(
                 self.time_signatures))
-            
+
         assert self.grid_type_per_segments[0] == "binary" and self.time_signatures[0].denominator == 4, \
             "Currently Swing calculation can only be done for binary grids with time signature denominator of 4"
 
@@ -2611,7 +2640,7 @@ class HVO_Sequence(object):
                 "structural_similarity-structural_similarity": self.calculate_structural_similarity_distance_with(
                     hvo_seq_b)
             }
-        
+
 
         sorted_dict = {key: value for key, value in sorted(distances_dictionary.items())}
 
@@ -2744,7 +2773,7 @@ class HVO_Sequence(object):
         :return:
             distance:           abs value of distance between sequences
         """
-        
+
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
