@@ -16,6 +16,7 @@ training_dataset = MonotonicGrooveDataset(
     collapse_tapped_sequence=False)
 
 
+
 ### encoder params
 nhead_enc = 3
 nhead_dec = 3
@@ -45,7 +46,7 @@ optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
 bce_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
 # MSE used for velocities and offsets losses
 mse_fn = torch.nn.MSELoss(reduction='none')
-hit_loss_penalty = 0.1
+hit_loss_penalty = 0.49
 
 # run one epoch
 groove_transformer.train()  # train mode
@@ -53,22 +54,24 @@ optimizer.zero_grad()
 # forward + backward + optimize
 #output_net = groove_transformer(inputs)
 
-# loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs, bce_fn,
-#                                                                                        mse_fn,
-#                                                                                        hit_loss_penalty)
-#
-# loss.backward()
-# optimizer.step()
-
-
 
 ### epochs for
+batch_size = 10
+batch_size_range = 16195 / batch_size
+train_dataloader = DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+
 LOSS = []
 epochs = 1 #10
+
+
 
 for epoch in range(epochs):
     # in each epoch we iterate over the entire dataset
     for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
+    # for batch_count in range(10000): #batch_size_range
+    #     inputs = torch.rand(batch_size, max_len, embedding_size_src)
+    #     outputs = inputs
+    #     indices = inputs
         print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
               f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
 
@@ -80,16 +83,16 @@ for epoch in range(epochs):
         output_net = groove_transformer(inputs)
         # loss = calculate_loss_VAE(outputs, labels)
 
-        loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs, bce_fn,
-                                                                                               mse_fn,
-                                                                                               hit_loss_penalty)
+        loss, losses = calculate_loss_VAE(output_net, inputs, bce_fn, mse_fn, hit_loss_penalty)
 
         loss.backward()
         optimizer.step()
 
-        LOSS.append(loss)
+        LOSS.append(loss.detach().numpy())
 
-## plot loss
-import matplotlib.pyplot as plt
-plt.plot(LOSS)
+# ## plot loss
+# import matplotlib.pyplot as plt
+# plt.figure()
+# plt.plot(LOSS)
+# plt.show()
 

@@ -9,7 +9,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
     """
     def __init__(self, d_model_enc, d_model_dec, embedding_size_src, embedding_size_tgt,
                  nhead_enc, nhead_dec, dim_feedforward, dropout, num_encoder_layers, latent_dim,
-                 num_decoder_layers, max_len, device):
+                 num_decoder_layers, max_len, device, bce= False):
         super(GrooveTransformerEncoderVAE, self).__init__()
 
         #input/output dims
@@ -34,7 +34,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         self.deco_in = deco_imput(max_len, d_model_dec, latent_dim)
         self.Decoder = Encoder(d_model_dec, nhead_dec, dim_feedforward, dropout, num_decoder_layers)
 
-        self.OutputLayer = OutputLayer(embedding_size_tgt, d_model_dec)
+        self.OutputLayer = OutputLayer(embedding_size_tgt, d_model_dec, bce=bce)
 
         self.InputLayerEncoder.init_weights()
         self.OutputLayer.init_weights()

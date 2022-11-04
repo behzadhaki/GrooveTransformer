@@ -2,6 +2,8 @@ import torch
 import math
 
 
+
+
 # --------------------------------------------------------------------------------
 # ------------       Positinal Encoding BLOCK                ---------------------
 # --------------------------------------------------------------------------------
@@ -123,9 +125,10 @@ class InputLayer(torch.nn.Module):
         return out
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model):
+    def __init__(self, embedding_size, d_model, bce = False):
         super(OutputLayer, self).__init__()
 
+        self.bce = bce
         self.embedding_size = embedding_size
         self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
 
@@ -145,7 +148,10 @@ class OutputLayer(torch.nn.Module):
 
         h = _h
         v = torch.sigmoid(_v)
-        o = torch.tanh(_o) * 0.5
+        if self.bce  == True:
+            o = torch.sigmoid(_o) - 0.5
+        else:
+            o = torch.tanh(_o) * 0.5
 
         return h, v, o
 

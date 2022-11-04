@@ -6,7 +6,26 @@ import numpy as np
 from model.src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
 
 
-def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
+def dice_loss(pred, target):
+    """This definition generalize to real valued pred and target vector.
+This should be differentiable.
+    pred: tensor with first dimension as batch
+    target: tensor with first dimension as batch
+    """
+
+    smooth = 1.
+
+    # have to use contiguous since they may from a torch.view op
+    iflat = pred.contiguous().view(-1)
+    tflat = target.contiguous().view(-1)
+    intersection = (iflat * tflat).sum()
+
+    A_sum = torch.sum(iflat * iflat)
+    B_sum = torch.sum(tflat * tflat)
+
+    return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
+
+def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = False, bce = False):
 
     y_h, y_v, y_o = torch.split(y, int(y.shape[2] / 3), 2)  # split in voices
 
@@ -17,16 +36,25 @@ def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
 
 
     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
-
-    bce_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+    if dice == True:
+        bce_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+    else:
+        bce_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
     bce_h_sum_voices = torch.sum(bce_h, dim=2)  # batch, time_steps
     bce_hits = bce_h_sum_voices.mean()
 
-    mse_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
+
+    if bce == True:
+        mse_v = bce_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
+    else:
+        mse_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
     mse_v_sum_voices = torch.sum(mse_v, dim=2)  # batch, time_steps
     mse_velocities = mse_v_sum_voices.mean()
 
-    mse_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
+    if bce == True:
+        mse_o = bce_fn(pred_o, y_o) * hit_loss_penalty_mat
+    else:
+        mse_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
     mse_o_sum_voices = torch.sum(mse_o, dim=2)
     mse_offsets = mse_o_sum_voices.mean()
 
@@ -46,8 +74,19 @@ def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
 
     hit_perplexity = torch.exp(bce_hits)
 
-    return total_loss, hit_accuracy.item(), hit_perplexity.item(), bce_hits.item(), mse_velocities.item(), \
-           mse_offsets.item()
+    losses = {
+        'training_accuracy': hit_accuracy.item(),
+        'training_perplexity': hit_perplexity.item(),
+        'bce_h': bce_hits.item(),
+        'mse_v': mse_velocities.item(),
+        'mse_o': mse_offsets.item(),
+        'KL_loss': kld_loss,
+
+    }
+
+    return total_loss, losses
+           #hit_accuracy.item(), hit_perplexity.item(), bce_hits.item(), mse_velocities.item(), \
+           #mse_offsets.item()
 
 
 def initialize_model(params):

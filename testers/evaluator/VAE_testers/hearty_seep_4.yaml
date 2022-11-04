@@ -1,0 +1,42 @@
+batch_size:
+  value: 16
+  desc: 'Number of examples per batch'
+d_model:
+  value: 128
+  desc: 'Size to which the data is mapped to'
+dim_feedforward:
+  value: 16
+  desc: 'Size of the feed forward network'
+dropout:
+  value: 0.1594194377977502
+  desc: 'Value from 0 to 1 that indicates the dropout percentage'
+optimizer_algorithm:
+  value: 'sgd'
+  desc: 'Optimizer algorithm'
+learning_rate:
+  value: 0.03667645574150507
+  desc: 'Learning rate'
+n_heads:
+  value: 1
+  desc: 'Number of heads'
+num_encoder_decoder_layers:
+  value: 7
+  desc: 'Number of layers'
+loss_hit_penalty_multiplier:
+  value: 0.49087123336368255
+  desc: 'Value multiplied by the losses of the steps/voices where there are no hits'
+train_eval:
+  value: 1
+  desc: 'Whether an evaluation with the train subset is carried out or not'
+test_eval:
+  value: 1
+  desc: 'Whether an evaluation with the test subset is carried out or not'
+validation_eval:
+  value: 1
+  desc: 'Whether an evaluation with the validation subset is carried out or not'
+load_evaluator:
+  value: 1
+  desc: 'Whether the evaluators are loaded or not, in which case they are created'
+epochs:
+  value: 50
+  desc: 'Number of epochs'

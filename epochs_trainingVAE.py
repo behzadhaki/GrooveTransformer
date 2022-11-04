@@ -1,4 +1,5 @@
 import torch
+torch.backends.cudnn.enabled = False
 from model.src.BasicGrooveTransformer_VAE import *
 from helpers.BasicGrooveTransformer_train_VAE import *
 
@@ -20,7 +21,7 @@ latent_dim = 16#int((max_len * d_model_enc)/4)
 
 groove_transformer = GrooveTransformerEncoderVAE(d_model_enc, d_model_dec, embedding_size_src, embedding_size_tgt,
                  nhead_enc, nhead_dec, dim_feedforward, dropout, num_encoder_layers, latent_dim,
-                 num_decoder_layers, max_len, device)
+                 num_decoder_layers, max_len, device, bce = True)
 
 
 # =================================================================================================
@@ -70,15 +71,9 @@ for epoch in range(epochs):
         output_net = groove_transformer(inputs)
         # loss = calculate_loss_VAE(outputs, labels)
 
-        loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = calculate_loss_VAE(output_net, inputs,
-                                                                                               bce_fn,
-                                                                                               mse_fn,
-                                                                                               hit_loss_penalty)
+        loss, losses = calculate_loss_VAE(output_net, inputs, bce_fn, mse_fn, hit_loss_penalty,
+                                          dice = True, bce = True)
         loss.backward()
         optimizer.step()
 
-        LOSS.append(loss)
-
-## plot loss
-import matplotlib.pyplot as plt
-plt.plot(LOSS)
+        LOSS.append(loss.detach().numpy())
