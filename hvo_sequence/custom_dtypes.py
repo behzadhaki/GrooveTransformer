@@ -1,3 +1,69 @@
+from copy import deepcopy
+
+class Metadata(dict):
+    """
+    A dictionary that can be appended to.
+    This means that instead of overwriting the values, it will append the values to the existing values.
+    If the values are not lists, they will be converted to lists prior to appending.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.time_steps = [0]   # keeps track of the time steps for sequenece of metadata info
+
+    def append(self, other, start_at_time_step):
+        assert isinstance(other, Metadata), "the object to append must be of type Metadata"
+        assert start_at_time_step > max(self.time_steps), \
+            "the start time step must be greater than the last time step of the current metadata" \
+            " (start_at_time_step > {})".format(max(self.time_steps))
+
+        other_ = deepcopy(other)
+        # ensure values are both lists
+        if len(self.time_steps) == 1:
+            for key, value in self.items():
+                self[key] = [value]
+        if len(other_.time_steps) == 1:
+            for key, value in other_.items():
+                other_[key] = [value]
+        # find union of metadata keys
+        for key in set(self.keys()).union(set(other_.keys())):
+            if key not in self:
+                self[key] = [None]*len(self.time_steps)
+            if key not in other_:
+                other_[key] = [None]*len(other_.time_steps)
+        # append the values
+        for ix, time_step in enumerate(other_.time_steps):
+            new_time_step = time_step + start_at_time_step
+            self.time_steps.append(new_time_step)
+            for key in set(self.keys()).union(set(other_.keys())):
+                self[key].append(other_[key][ix])
+
+    def split(self):
+        """
+        Split the metadata into multiple parts, each at the time_step registered
+        """
+        if len(self.time_steps) == 1:
+            return {"time_step":0, "metadata":self}
+        else:
+            metadata_list = []
+            for ix, time_step in enumerate(self.time_steps):
+                metadata_list.append(
+                    {
+                        "time_step": time_step,
+                        "metadata": Metadata({key: value[ix] for key, value in self.items()})
+                    })
+            return metadata_list
+
+
+# a = Metadata({1: 2, 3: 4})
+# a.append(a, 1)
+# a.append(a, 3)
+# a.time_steps
+#
+# b = Metadata({6: 8, 7: 9, 12: 14})
+# a.append(b, 12)
+# a.split()
+
 class Time_Signature(object):
     def __init__(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None):
         self.__time_step = None     # index corresponding to the time_step in hvo where signature change happens
