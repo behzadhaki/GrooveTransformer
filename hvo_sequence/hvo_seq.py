@@ -27,7 +27,7 @@ from hvo_sequence.utils import get_weak_to_strong_ratio, _getmicrotiming_event_p
 from hvo_sequence.utils import onset_strength_spec, reduce_f_bands_in_spec, detect_onset, map_onsets_to_grid, logf_stft
 from hvo_sequence.utils import get_hvo_idxs_for_voice
 
-from hvo_sequence.custom_dtypes import Tempo, Time_Signature
+from hvo_sequence.custom_dtypes import Tempo, Time_Signature, Metadata
 from hvo_sequence.drum_mappings import Groove_Toolbox_5Part_keymap, Groove_Toolbox_3Part_keymap
 
 from hvo_sequence.metrical_profiles import WITEK_SYNCOPATION_METRICAL_PROFILE_4_4_16th_NOTE
@@ -35,6 +35,7 @@ from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_
 from hvo_sequence.metrical_profiles import RHYTHM_SALIENCE_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
+from bokeh.models import HoverTool
 from scipy.io import wavfile
 
 class HVO_Sequence(object):
@@ -1680,7 +1681,7 @@ class HVO_Sequence(object):
                      save_figure=False,
                      show_tempo=True, tempo_font_size="8pt",
                      show_time_signature=True, time_signature_font_size="8pt",
-                     show_metadata=True, metadata_font_size="8pt",
+                     show_metadata=True,
                      minor_grid_color="black", minor_line_width=0.1,
                      major_grid_color="blue", major_line_width=0.5,
                      downbeat_color="blue", downbeat_line_width=2,
@@ -1772,6 +1773,19 @@ class HVO_Sequence(object):
                 my_label2[-1].angle = 1.57
                 _html_fig.add_layout(my_label2[-1])
 
+        if show_metadata:
+            metadata = {
+                'x': [self.grid_lines[ix] for ix in self.metadata.time_steps ],
+                'y': [list(unique_pitches)[0] -0.5] * len(self.metadata.time_steps)
+            }
+            metadata.update({k: [] for k, v in self.metadata.items()})
+            for k, v in self.metadata.items():
+                metadata[k].extend(v if isinstance(v, list) else [v])
+            print("+++++++++++++ ", metadata)
+
+            temp = _html_fig.circle(x="x", y="y", source=metadata, size=20)
+            _html_fig.add_tools(HoverTool(tooltips=[(f"{k}", f"@{k}") for k in self.metadata.keys()], renderers=[temp]))
+
         _html_fig.width = width
         _html_fig.height = height
 
@@ -1783,6 +1797,7 @@ class HVO_Sequence(object):
         if save_figure:
             output_file(filename)  # Set name used for saving the figure
             save(_html_fig)  # Save to file
+            print("Saved to {}".format(filename))
 
         return _html_fig
 
