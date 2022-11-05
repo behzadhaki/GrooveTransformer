@@ -144,21 +144,15 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     #          Overridden Operators for ==, !=, +
     #   ----------------------------------------------------------------------
-    def append(self, other_, match_segs_to_beat_size=True):
-        """
-        Appends another HVO_Sequence to the current one
-        :param other_:          HVO_Sequence object
-        :param match_segs_to_beat_size:     if True, each segment is matched to the beat size prior to appending
-        :return:
-        """
-        assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
-        assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
-        assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
-
-        self.segment_boundaries[-1]
-
     def __add__(self, other_):
+        """
+        Overridden operator for adding two HVO_Sequence objects together
+        @param other_:      another HVO_Sequence object
+        @return:            a new HVO_Sequence object
+        """
         assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
+        assert (self.time_signatures), "The time signature of the object on the Left side of the + operator can't be empty"
+        assert (self.tempos), "The tempo of the object on the Left side of the + operator can't be empty"
         assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
         assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
 
@@ -166,13 +160,16 @@ class HVO_Sequence(object):
         other = copy.deepcopy(other_)
 
         next_t_step = first_part.hvo.shape[0]
+        while next_t_step % (sum(self.time_signatures[-1].beat_division_factors)-1) != 0:
+            next_t_step += 1
 
-        for tempo in other.tempos:
-            first_part.__tempos.append(
-                Tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm))
-        for time_sig in other.time_signatures:
-            first_part.__time_signatures.append(
-                Time_Signature(time_sig.time_step + next_t_step, time_sig.numerator, time_sig.denominator, time_sig.beat_division_factors))
+        if other.tempos:
+            for tempo in other.tempos:
+                first_part.add_tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm)
+        if other.time_signatures:
+            for time_sig in other.time_signatures:
+                first_part.add_time_signature(time_step=time_sig.time_step + next_t_step, numerator=time_sig.numerator,
+                                                denominator=time_sig.denominator, beat_division_factors=time_sig.beat_division_factors)
 
         if other.metadata.keys() is not None:
             first_part.metadata.append(other.metadata, next_t_step)
@@ -185,7 +182,6 @@ class HVO_Sequence(object):
 
         return first_part
 
-
     def __eq__(self, other):
         checks = []
         checks.append(self.__metadata == other.__metadata)
@@ -196,12 +192,10 @@ class HVO_Sequence(object):
         checks = all(checks)
         return checks
 
-
     #   ----------------------------------------------------------------------
     #   Essential properties (which require getters and setters)
     #   Property getters and setter wrappers for ESSENTIAL class variables
     #   ----------------------------------------------------------------------
-
     @property
     def __version__(self):
         return self.__version
@@ -223,19 +217,54 @@ class HVO_Sequence(object):
         return self.__time_signatures
 
     def add_time_signature(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None):
-        time_signature = Time_Signature(time_step=time_step, numerator=numerator,
-                                        denominator=denominator, beat_division_factors=beat_division_factors)
-        self.time_signatures.append(time_signature)
-        return time_signature
+        # ensure beat_division_factors is a list and no two elements are multiples of each other
+        if beat_division_factors is not None:
+            assert isinstance(beat_division_factors, list), "beat_division_factors must be a list"
+            for i in range(len(beat_division_factors)):
+                for j in range(len(beat_division_factors)):
+                    if i != j:
+                        assert not (beat_division_factors[i] % beat_division_factors[j] == 0), \
+                            "beat_division_factors must not have multiples of each other"
+
+        if not self.time_signatures:
+            time_step = 0
+        else:
+            assert beat_division_factors == self.time_signatures[-1].beat_division_factors, \
+                "Beat division factors must be the same for all time signatures"
+            # find a greater or equal value for time_step that is a multiple of 7
+            while time_step % (sum(beat_division_factors)-1) != 0:
+                time_step += 1
+
+        if self.time_signatures:
+            if self.time_signatures[-1].numerator == numerator and self.time_signatures[-1].denominator == denominator:
+                return False    # no need to add a new time signature if the same as the last one
+
+        self.time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator,
+                                                    beat_division_factors=beat_division_factors))
+        return True
 
     @property
     def tempos(self):
         return self.__tempos
 
     def add_tempo(self, time_step=None, qpm=None):
+        if self.tempos is None:
+            time_step = 0
+        else:
+            # find a greater or equal value for time_step that is a multiple of 7
+            if self.time_signatures:
+                while time_step % (sum(self.time_signatures[-1].beat_division_factors)-1) != 0:
+                    time_step += 1
+            else:
+                raise ValueError("Time signature must be specified before adding a second Tempo")
+
+        if self.tempos:
+            if self.tempos[-1].qpm == qpm:
+                return False    # no need to add a new tempo if the same as the last one
+
         tempo = Tempo(time_step=time_step, qpm=qpm)
         self.tempos.append(tempo)
-        return tempo
+        return True
 
     @property
     def drum_mapping(self):
@@ -293,6 +322,41 @@ class HVO_Sequence(object):
 
         # Now, safe to update the local hvo score array
         self.__hvo = x
+
+    @property
+    def consistent_segment_HVO_Sequences(self):
+
+        if self.drum_mapping:
+            dmap = self.drum_mapping
+        else:
+            dmap = {f"{i}": [36 + i] for i in range(self.hits.shape[1])}
+
+        metadata_segments = self.metadata.split() if self.metadata else None
+
+        segments = []
+        segment_starts = []
+
+
+        tmp, ts = self.tempos_and_time_signatures_per_segments
+        for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
+            segment_starts.append(max(tempo.time_step, timesig.time_step))
+
+            segments.append(HVO_Sequence(drum_mapping=dmap))
+            segments[-1].add_time_signature(time_step=timesig.time_step, numerator=timesig.numerator,
+                                            denominator=timesig.denominator, beat_division_factors=timesig.beat_division_factors)
+            segments[-1].add_tempo(time_step=tempo.time_step, qpm=tempo.qpm)
+
+            if metadata_segments:
+                for j, metadata in enumerate(metadata_segments):
+                    if segment_starts[-1] >= metadata["time_step"]:
+                        if j < len(metadata_segments)-1:
+                            if segment_starts[-1] < metadata_segments[j+1]["time_step"]:
+                                segments[-1].metadata = metadata_segments[j]["metadata"]
+
+        for ix, segment in enumerate(segments):
+            segment.hvo = self.hvo[segment_starts[ix]:segment_starts[ix+1] if ix < len(segments)-1 else None, :]
+
+        return segments, segment_starts
 
     #   --------------------------------------------------------------
     #   Utilities to modify hvo sequence

@@ -17,6 +17,15 @@ class Metadata(dict):
             "the start time step must be greater than the last time step of the current metadata" \
             " (start_at_time_step > {})".format(max(self.time_steps))
 
+        # check the values are different from the current values
+        sames = []
+        for key, value in other.items():
+            if key in self:
+                sames.append(value == self[key])
+        if sames:
+            if all(sames):
+                return
+
         other_ = deepcopy(other)
         # ensure values are both lists
         if len(self.time_steps) == 1:
