@@ -849,7 +849,11 @@ class HVO_Sequence(object):
         inter_grid_distances = (grid[1:] - grid[:-1]) * 1000    # 1000 for sec to ms
         neg_bar_durations = np.zeros_like(grid)
         pos_bar_durations = np.zeros_like(grid)
+        # assume left of first gridline is similar to right of first gridline
+        neg_bar_durations[0] = inter_grid_distances[0]
         neg_bar_durations[1:] = inter_grid_distances
+        # assume right of last gridline is similar to left of last gridline
+        pos_bar_durations[-1] = inter_grid_distances[-1]
         pos_bar_durations[:-1] = inter_grid_distances
 
         # Scale offsets by grid durations
@@ -942,8 +946,8 @@ class HVO_Sequence(object):
         for i in range(h.shape[0]):
             indices = np.nonzero(h[i, :])[0]
             for j in indices:
-                notes["start"].append(grid_lines_sec[i]-o_sec[i, j])
-                notes["end"].append(grid_lines_sec[i]-o_sec[i, j]+note_duration)
+                notes["start"].append(grid_lines_sec[i]+o_sec[i, j])
+                notes["end"].append(grid_lines_sec[i]+o_sec[i, j]+note_duration)
                 notes["instrument"].append(drum_voice_tags[j][0])
                 notes["voice_index"].append(j)
                 notes["midi"].append(drum_voice_tags[j][1])
