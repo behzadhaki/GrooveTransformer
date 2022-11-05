@@ -1743,8 +1743,28 @@ class HVO_Sequence(object):
     #   --------------------------------------------------------------
     #   Utilities to plot the score
     #   --------------------------------------------------------------
-
     def to_html_plot(self, filename="misc/temp.html", show_figure=False,
+                     save_figure=False,
+                     show_tempo=True, tempo_font_size="8pt",
+                     show_time_signature=True, time_signature_font_size="8pt",
+                     show_metadata=True,
+                     minor_grid_color="black", minor_line_width=0.1,
+                     major_grid_color="black", major_line_width=0.5,
+                     downbeat_color="black", downbeat_line_width=2,
+                     note_color="grey",
+                     width=800, height=400):
+
+        return self.piano_roll(
+            filename=filename, show_figure=show_figure, save_figure=save_figure,
+            show_tempo=show_tempo, tempo_font_size=tempo_font_size,
+            show_time_signature=show_time_signature, time_signature_font_size=time_signature_font_size,
+            show_metadata=show_metadata, minor_grid_color=minor_grid_color, minor_line_width=minor_line_width,
+            major_grid_color=major_grid_color, major_line_width=major_line_width,
+            downbeat_color=downbeat_color, downbeat_line_width=downbeat_line_width,
+            note_color=note_color,
+            width=width, height=height)
+
+    def piano_roll(self, filename="misc/temp.html", show_figure=False,
                      save_figure=False,
                      show_tempo=True, tempo_font_size="8pt",
                      show_time_signature=True, time_signature_font_size="8pt",
