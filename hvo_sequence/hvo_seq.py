@@ -377,6 +377,15 @@ class HVO_Sequence(object):
         o_ran = (np.random.ranf((length, num_voices)) - 0.5) * h_ran
         self.hvo = np.concatenate([h_ran, v_ran, o_ran], axis=-1)
 
+    def zeros(self, length, num_voices):
+        '''
+        generates a zero sequence with `length` number of steps
+
+        :param length: number of timesteps
+        :param num_voices: number of voices
+        :return: None
+        '''
+        self.hvo = np.zeros((length, num_voices * 3))
 
     def flatten_voices(self, offset_aggregator_modes=3, velocity_aggregator_modes=1, get_velocities=True, reduce_dim=False, voice_idx=2):
 
