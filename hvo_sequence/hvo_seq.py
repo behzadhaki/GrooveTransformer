@@ -11,7 +11,7 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 from bokeh.plotting import output_file, show, save
-from bokeh.models import Span, Label
+from bokeh.models import Span, Label, Legend
 import warnings
 from scipy import stats
 from scipy.signal import find_peaks
@@ -36,6 +36,7 @@ from hvo_sequence.metrical_profiles import RHYTHM_SALIENCE_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
 from bokeh.models import HoverTool
+from bokeh.palettes import viridis
 from scipy.io import wavfile
 
 class HVO_Sequence(object):
@@ -678,7 +679,6 @@ class HVO_Sequence(object):
     #   -------------------------------------------------------------
     #   Method to get hvo in a flexible way
     #   -------------------------------------------------------------
-
     def get(self, hvo_str, offsets_in_ms=False, use_NaN_for_non_hits=False):
         """
         Flexible method to get hits, velocities and offsets in the desired order, or zero arrays with the same
@@ -896,13 +896,74 @@ class HVO_Sequence(object):
 
         return reshaped_hvo
 
+    def get_notes(self, return_tuples=False):
+        """
+        Returns a dictionary containing information about the notes in the score. The dictionary has the following
+        structure:
+
+        {
+            'start':    np.array of shape (n_notes, 1) containing the start time of each note in seconds
+            'end':      np.array of shape (n_notes, 1) containing the end time of each note in seconds
+            'instrument':   np.array of shape (n_notes, 1) containing the instrument number of each note
+            'midi_nunmber': np.array of shape (n_notes, 1) containing the midi number of each note
+            'velocity': np.array of shape (n_notes, 1) containing the velocity of each note
+            'offset':   np.array of shape (n_notes, 1) containing the offset of each note in ratio of grid
+            'offset_in_ms': np.array of shape (n_notes, 1) containing the offset of each note in ms
+            'grid_line':    np.array of shape (n_notes, 1) containing the closest grid line to each note
+        }
+
+        :param return_tuples:   If True, returns a list containing tuples of the form
+        (start, end, instrument, midi number, velocity, offset, offset_in_ms)
+
+        """
+        h = self.get("h")
+        v = self.get("v")
+        o = self.get("o")
+        o_sec = self.get_offsets_in_ms()/1000
+        grid_lines_sec = self.grid_lines
+
+        drum_voice_tags = [(k, v[0] if isinstance(v, list) else v) for k, v in self.drum_mapping.items()]
+        note_duration = np.min(self.grid_lines[1:] - self.grid_lines[:-1]) / 2.0
+
+        # for each row of h, find the indices of the nonzero elements
+        # and use them to get the corresponding v and o values
+        # and append them to the list of notes
+        notes = {"start": [],
+                 "end": [],
+                 "instrument": [],
+                 "voice_index": [],
+                 "midi": [],
+                 "velocity": [],
+                 "offset": [],
+                 "offset_sec": [],
+                 "grid_line": []
+                 }
+
+        for i in range(h.shape[0]):
+            indices = np.nonzero(h[i, :])[0]
+            for j in indices:
+                notes["start"].append(grid_lines_sec[i]-o_sec[i, j])
+                notes["end"].append(grid_lines_sec[i]-o_sec[i, j]+note_duration)
+                notes["instrument"].append(drum_voice_tags[j][0])
+                notes["voice_index"].append(j)
+                notes["midi"].append(drum_voice_tags[j][1])
+                notes["velocity"].append(np.round(v[i, j], 3))
+                notes["offset"].append(np.round(o[i, j], 3))
+                notes["offset_sec"].append(np.round(o_sec[i, j], 3))
+                notes["grid_line"].append(i)
+
+        if return_tuples:
+            return list(
+                zip(notes["start"], notes["end"], notes["instrument"], notes["voice_index"], notes["midi"],
+                    notes["velocity"], notes["offset"], notes["offset_sec"], notes["grid_line"]))
+        else:
+            return notes
 
     #   ----------------------------------------------------------------------
     #            Calculated properties
     #   Useful properties calculated from ESSENTIAL class variables
     #   EACH SEGMENT MEANS A PART THAT TEMPO AND TIME SIGNATURE IS CONSTANT
     #   ----------------------------------------------------------------------
-
     @property
     def number_of_voices(self):
             return None if self.is_drum_mapping_available() is False else int(self.hvo.shape[1] / 3)
@@ -1318,10 +1379,16 @@ class HVO_Sequence(object):
 
     @property
     def grid_lines_with_types(self):
-
+        """
+        Returns a dictionary with the following keys:
+            1. major_grid_line_indices: indices of the major grid lines
+            2. minor_grid_line_indices: indices of the minor grid lines
+            3. downbeat_grid_line_indices: indices of the downbeat grid lines
+            4. major_grid_lines: major grid lines
+            5. minor_grid_lines: minor grid lines
+            6. downbeat_grid_lines: downbeat grid lines
         """
 
-        """
         assert all([self.is_tempos_available(), self.is_time_signatures_available(), self.is_hvo_score_available()]), \
             "Can't calculate grid lines as either no tempos, no time signature or no hvo score is specified"
 
@@ -1683,8 +1750,9 @@ class HVO_Sequence(object):
                      show_time_signature=True, time_signature_font_size="8pt",
                      show_metadata=True,
                      minor_grid_color="black", minor_line_width=0.1,
-                     major_grid_color="blue", major_line_width=0.5,
-                     downbeat_color="blue", downbeat_line_width=2,
+                     major_grid_color="black", major_line_width=0.5,
+                     downbeat_color="black", downbeat_line_width=2,
+                     note_color="grey",
                      width=800, height=400):
 
         """
@@ -1697,38 +1765,39 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        ns = self.to_note_sequence(midi_track_n=9)
-        # Create the initial piano roll
-        try:
-            _html_fig = note_seq.plot_sequence(ns, show_figure=False)
-            _error_plotting = False
-        except:
-            _error_plotting = True
-            _html_fig = figure()
+        notes = self.get_notes(return_tuples=False)
+        colors = viridis(15)
+
+        _html_fig = figure(plot_width=width, plot_height=height)
+        _html_fig.xaxis.axis_label = 'Time (sec)'
+        _html_fig.yaxis.axis_label = 'Instrument'
+
+        if len(notes['start']) > 0:
+            notes['top'] = np.array(notes["voice_index"]) + 0.2
+            notes['bottom'] =  np.array(notes["voice_index"]) - 0.2
+            proll = _html_fig.quad(top='top', bottom='bottom', left='start', right='end',
+                                   line_color=note_color, fill_color=note_color,
+                                   fill_alpha='velocity', source=notes, legend_label="Piano Roll")
+            notes.pop('top')
+            notes.pop('bottom')
+            _html_fig.add_tools(
+                HoverTool(tooltips=[(f"{k}", f"@{k}") for k in notes.keys()], renderers=[proll]))
 
         _html_fig.title.text = filename.split("/")[-1]  # add title
 
         # Add y-labels corresponding to instrument names rather than midi note ("kick", "snare", ...)
-        unique_pitches = set([note.pitch for note in ns.notes])
-        if len(list(unique_pitches))==0:
-            unique_pitches = {42}
-
-        # Find corresponding drum tags
+        unique_pitches = []
         drum_tags = []
-        for p in unique_pitches:
-            _, tag, _ = find_pitch_and_tag(p, self.__drum_mapping)
-            drum_tags.append(tag)
+        for j, k in enumerate(self.drum_mapping.keys()):
+            if k in notes["instrument"]:
+                unique_pitches.append(j)
+                drum_tags.append(k)
 
         _html_fig.xgrid.grid_line_color = None
         _html_fig.ygrid.grid_line_color = None
 
         _html_fig.yaxis.ticker = list(unique_pitches)
         _html_fig.yaxis.major_label_overrides = dict(zip(unique_pitches, drum_tags))
-
-        """
-        ax2 = LinearAxis(x_range_name="foo", axis_label="blue circles")
-        ax2.axis_label_text_color = "navy"
-        _html_fig.add_layout(ax2, 'left')"""
 
         # Add beat and beat_division grid lines
         major_grid_lines, minor_grid_lines = self.major_and_minor_grid_lines
@@ -1740,6 +1809,9 @@ class HVO_Sequence(object):
             minor_grid_.append(Span(location=t, dimension='height',
                                     line_color=minor_grid_color, line_width=minor_line_width))
             _html_fig.add_layout(minor_grid_[-1])
+
+        _html_fig.xaxis.ticker = [np.round(x, 2) for x in self.grid_lines_with_types["major_grid_lines"]]
+        _html_fig.xaxis.major_label_orientation = 1.57
 
         major_grid_ = []
         for t in major_grid_lines:
@@ -1754,40 +1826,51 @@ class HVO_Sequence(object):
             _html_fig.add_layout(downbeat_grid_[-1])
 
         if show_tempo:
-            my_label = []
             tempo_lower_b = self.tempo_consistent_segment_lower_bounds
+            tempo_dict = {"x": [], "y": [], "tempo": []}
             for ix, tempo in enumerate(self.tempos):
-                my_label.append(Label(x=grid_lines[tempo_lower_b[ix]], y=list(unique_pitches)[-1] + 2,
-                                      text="qpm {:.1f}".format(tempo.qpm)))
-                my_label[-1].text_font_size = tempo_font_size
-                my_label[-1].angle = 1.57
-                _html_fig.add_layout(my_label[-1])
+                tempo_dict["x"].append(grid_lines[tempo_lower_b[ix]])
+                tempo_dict["y"].append(unique_pitches[-1] + 1.5)
+                tempo_dict["tempo"].append(tempo.qpm)
+            temp = _html_fig.circle(x="x", y="y", source=tempo_dict, size=10,
+                                    line_color=colors[0], fill_color=colors[0], legend_label="Tempo")
+            tempo_dict.pop("x")
+            tempo_dict.pop("y")
+            _html_fig.add_tools(
+                HoverTool(tooltips=[(f"{k}", f"@{k}") for k in tempo_dict.keys()], renderers=[temp]))
 
         if show_time_signature:
-            my_label2 = []
             time_signature_lower_b = self.time_signature_consistent_segment_lower_bounds
+            time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": []}
             for ix, ts in enumerate(self.time_signatures):
-                my_label2.append(Label(x=grid_lines[time_signature_lower_b[ix]], y=list(unique_pitches)[-1] + 0.5,
-                                       text="{}/{}".format(ts.numerator, ts.denominator)))
-                my_label2[-1].text_font_size = time_signature_font_size
-                my_label2[-1].angle = 1.57
-                _html_fig.add_layout(my_label2[-1])
+                time_signature_dict["x"].append(grid_lines[time_signature_lower_b[ix]])
+                time_signature_dict["y"].append(unique_pitches[-1] + 1)
+                time_signature_dict["Numerator"].append(ts.numerator)
+                time_signature_dict["Denominator"].append(ts.denominator)
+            temp = _html_fig.circle(x="x", y="y", source=time_signature_dict, size=10,
+                                    line_color=colors[-4], fill_color=colors[-4], legend_label="Time Signature")
+            time_signature_dict.pop("x")
+            time_signature_dict.pop("y")
+            _html_fig.add_tools(
+                HoverTool(tooltips=[(f"{k}", f"@{k}") for k in time_signature_dict.keys()], renderers=[temp]))
 
         if show_metadata:
-            metadata = {
-                'x': [self.grid_lines[ix] for ix in self.metadata.time_steps ],
-                'y': [list(unique_pitches)[0] -0.5] * len(self.metadata.time_steps)
-            }
-            metadata.update({k: [] for k, v in self.metadata.items()})
-            for k, v in self.metadata.items():
-                metadata[k].extend(v if isinstance(v, list) else [v])
-            print("+++++++++++++ ", metadata)
+            if self.metadata.keys() is not None:
+                metadata = {
+                    'x': [self.grid_lines[ix] for ix in self.metadata.time_steps ],
+                    'y': [list(unique_pitches)[-1] + 0.5] * len(self.metadata.time_steps)
+                }
+                metadata.update({k: [] for k, v in self.metadata.items()})
+                for k, v in self.metadata.items():
+                    metadata[k].extend(v if isinstance(v, list) else [v])
+                temp = _html_fig.circle(x="x", y="y", source=metadata, size=10, legend_label="Metadata",
+                                        line_color=colors[8], fill_color=colors[8])
+                _html_fig.add_tools(
+                    HoverTool(tooltips=[(f"{k}", f"@{k}") for k in self.metadata.keys()], renderers=[temp]))
 
-            temp = _html_fig.circle(x="x", y="y", source=metadata, size=20)
-            _html_fig.add_tools(HoverTool(tooltips=[(f"{k}", f"@{k}") for k in self.metadata.keys()], renderers=[temp]))
-
-        _html_fig.width = width
-        _html_fig.height = height
+        _html_fig.legend.click_policy = "hide"
+        leg = _html_fig.legend[0]
+        _html_fig.add_layout(leg, 'right')
 
         # Plot the figure if requested
         if show_figure:
