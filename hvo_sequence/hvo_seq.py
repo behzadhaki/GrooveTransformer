@@ -144,6 +144,19 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     #          Overridden Operators for ==, !=, +
     #   ----------------------------------------------------------------------
+    def append(self, other_, match_segs_to_beat_size=True):
+        """
+        Appends another HVO_Sequence to the current one
+        :param other_:          HVO_Sequence object
+        :param match_segs_to_beat_size:     if True, each segment is matched to the beat size prior to appending
+        :return:
+        """
+        assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
+        assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
+        assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
+
+        self.segment_boundaries[-1]
+
     def __add__(self, other_):
         assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
         assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
@@ -979,7 +992,11 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     @property
     def number_of_voices(self):
-            return None if self.is_drum_mapping_available() is False else int(self.hvo.shape[1] / 3)
+        if self.__hvo is not None:
+            return int(self.__hvo.shape[1] / 3)
+        if self.drum_mapping is not None:
+            return len(self.drum_mapping.keys())
+        return None
 
     @property
     def tempo_consistent_segment_boundaries(self):
@@ -1466,6 +1483,7 @@ class HVO_Sequence(object):
 
         return output
 
+
     @property
     def grid_lines(self):
 
@@ -1576,8 +1594,7 @@ class HVO_Sequence(object):
             return step_ix - self.time_signature_consistent_segment_lower_bounds[time_signature_segment_ix]
 
     #   --------------------------------------------------------------
-    #   Utilities to import/export/Convert different score formats such as
-    #       1. NoteSequence, 2. HVO array, 3. Midi
+    #   Utilities to Copy the object
     #   --------------------------------------------------------------
     def copy(self):
         new = HVO_Sequence()
@@ -1596,6 +1613,79 @@ class HVO_Sequence(object):
         if new.hvo is not None:
             new.hvo = np.zeros_like(new.__hvo)
         return new
+
+    #   --------------------------------------------------------------
+    #   Utilities to Change Length and Add Notes
+    #   --------------------------------------------------------------
+    def expand_length(self, new_length, length_unit):
+        assert length_unit in ['sec', 'step'], "length_unit should be either 'sec' or 'step'"
+
+        if self.__hvo is None:
+            if self.number_of_voices is None:
+                warnings.warn(
+                    "Can't expand_length as need to either initiate hvo with a score or provide drum mapping")
+                return None
+            else:
+                self.zeros(1, self.number_of_voices)
+
+        if length_unit == 'step':
+            if new_length >= self.total_number_of_steps:
+                new_length = int(new_length)
+                self.hvo = np.concatenate(
+                    [self.hvo,
+                     np.zeros((new_length - self.total_number_of_steps, self.number_of_voices * 3))],
+                    axis=0)
+
+        elif length_unit == 'sec':
+            length_correct = False
+            while not length_correct:
+                self.hvo = np.concatenate(
+                    [self.hvo, np.zeros((1, self.number_of_voices*3))], axis=0)
+                if self.grid_lines[-1] >= new_length:
+                    length_correct = True
+
+    def trim_length(self, length, length_unit):
+        assert length_unit in ['sec', 'step'], "length_unit should be either 'sec' or 'step'"
+        pass
+
+    def find_index_and_offset_for_absolute_time(self, absolute_time):
+        # find nearest grid line
+        ix = np.argmin(np.abs(self.grid_lines - absolute_time))
+        dis = absolute_time - self.grid_lines[ix]
+        if ix == 0 and dis < 0:
+            offset = dis / (self.grid_lines[-1] - self.grid_lines[-2])
+        elif ix == len(self.grid_lines) - 1 and dis > 0:
+            offset = dis / (self.grid_lines[1] - self.grid_lines[0])
+        elif dis < 0:
+            offset = dis / (self.grid_lines[ix] - self.grid_lines[ix - 1])
+        else:
+            offset = dis / (self.grid_lines[ix + 1] - self.grid_lines[ix])
+        return ix, offset
+
+    def find_index_for_pitch(self, pitch):
+        if self.drum_mapping is None:
+            warnings.warn("Can't find_index_for_pitch as drum_mapping is not provided")
+            return None
+
+        for i, (k, v) in enumerate(self.drum_mapping.items()):
+            if pitch in v:
+                return i
+
+        raise ValueError(f"Can't find pitch {pitch} in drum_mapping")
+
+    def add_note(self, pitch, velocity, start_sec):
+        assert velocity <= 1, "velocity should be between 0 and 1"
+        self.expand_length(start_sec + 1, 'sec') # ensure length is long enough
+        time_ix, offset = self.find_index_and_offset_for_absolute_time(start_sec)
+        voice_ix = self.find_index_for_pitch(pitch)
+        self.hits[time_ix, voice_ix] = 1
+        self.velocities[time_ix, voice_ix] = velocity
+        self.offsets[time_ix, voice_ix] = offset
+
+    #   --------------------------------------------------------------
+    #   Utilities to import/export/Convert different score formats such as
+    #       1. NoteSequence, 2. HVO array, 3. Midi
+    #   --------------------------------------------------------------
 
     def to_note_sequence(self, midi_track_n=9):
         """
@@ -1685,7 +1775,8 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        if os.path.dirname(filename) != '':
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         ns = self.to_note_sequence(midi_track_n=midi_track_n)
         pm = note_seq.note_sequence_to_pretty_midi(ns)
@@ -1794,6 +1885,7 @@ class HVO_Sequence(object):
         @param show_figure:                 If True, opens the plot as soon as it's generated
         @return:                            html_figure object generated by bokeh
         """
+        assert self.drum_mapping is not None, "Drum mapping not set"
 
         if self.is_ready_for_use() is False:
             return None
@@ -1825,6 +1917,9 @@ class HVO_Sequence(object):
             if k in notes["instrument"]:
                 unique_pitches.append(j)
                 drum_tags.append(k)
+        if len(unique_pitches) == 0:
+            unique_pitches = [0]
+            drum_tags = ["None"]
 
         _html_fig.xgrid.grid_line_color = None
         _html_fig.ygrid.grid_line_color = None
@@ -1874,12 +1969,14 @@ class HVO_Sequence(object):
 
         if show_time_signature:
             time_signature_lower_b = self.time_signature_consistent_segment_lower_bounds
+
             time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": []}
             for ix, ts in enumerate(self.time_signatures):
                 time_signature_dict["x"].append(grid_lines[time_signature_lower_b[ix]])
                 time_signature_dict["y"].append(unique_pitches[-1] + 1)
                 time_signature_dict["Numerator"].append(ts.numerator)
                 time_signature_dict["Denominator"].append(ts.denominator)
+
             temp = _html_fig.circle(x="x", y="y", source=time_signature_dict, size=10,
                                     line_color=colors[-4], fill_color=colors[-4], legend_label="Time Signature")
             time_signature_dict.pop("x")
@@ -1911,6 +2008,11 @@ class HVO_Sequence(object):
 
         # Save the plot
         if save_figure:
+            if not filename.endswith(".html"):
+                filename += ".html"
+            if os.path.dirname(filename) != "":
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+
             output_file(filename)  # Set name used for saving the figure
             save(_html_fig)  # Save to file
             print("Saved to {}".format(filename))

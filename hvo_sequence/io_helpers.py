@@ -19,9 +19,45 @@ def empty_like(other_hvo_sequence):
 
     new_hvo_seq = HVO_Sequence()
 
+def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, only_drums=False):
+    # Create an empty HVO_Sequence instance
+    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
 
+    # Add tempos and time signatures to hvo_seq instance
+    old_qpm = -10
+    for c, tempo in enumerate(ns.tempos):
+        if tempo.qpm != old_qpm:
+            if c != 0:
+                hvo_seq.expand_length(tempo.time, 'sec')
+                ix, = hvo_seq.find_index_and_offset_for_absolute_time(tempo.time)
+            else:
+                ix = 0
+            hvo_seq.add_tempo(ix, tempo.qpm)
+            old_qpm = tempo.qpm
 
-def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
+    old_numerator = -10
+    old_denominator = -10
+    for c, time_sig in enumerate(ns.time_signatures):
+        if time_sig.numerator != old_numerator or time_sig.denominator != old_denominator:
+            ix, = hvo_seq.find_index_and_offset_for_absolute_time(time_sig.time) if c!= 0 else (0,)
+            hvo_seq.add_time_signature(
+                time_step=ix,
+                numerator=time_sig.numerator,
+                denominator=time_sig.denominator,
+                beat_division_factors=beat_division_factors
+            )
+            old_numerator = time_sig.numerator
+            old_denominator = time_sig.denominator
+
+    for nsn in ns.notes:
+        if only_drums:
+            if nsn.is_drum:
+                hvo_seq.add_note(nsn.pitch, nsn.velocity/127, nsn.start_time)
+        else:
+            hvo_seq.add_note(nsn.pitch, nsn.velocity/127, nsn.start_time)
+    return hvo_seq
+
+def note_seq_to_hvo_seq(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
     """
             # Note_Sequence importer. Converts the note sequence to hvo format
             @param ns:                          Note_Sequence drum score
@@ -84,10 +120,13 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors=[4], m
         hvo_seq.hvo = place_note_in_hvo(ns_note=ns_note, hvo=hvo_seq.hvo, grid=grid_lines, drum_mapping=drum_mapping)
     return hvo_seq
 
-
-def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+def midi_to_note_seq(filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
     ns = note_seq.midi_io.midi_to_note_sequence(midi_data)
+    return ns
+
+def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+    ns = midi_to_note_seq(filename)
     return note_sequence_to_hvo_sequence(ns, drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
 
 
