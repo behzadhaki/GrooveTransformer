@@ -240,7 +240,6 @@ class HVO_Sequence(object):
 
             # find a greater or equal value for time_step that is a multiple of 7
             bdf = self.time_signatures[-1].beat_division_factors
-            print("add_time_signature", sum(bdf) - (len(bdf) - 1))
             while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                 time_step += 1
 
@@ -262,7 +261,6 @@ class HVO_Sequence(object):
             # find a greater or equal value for time_step that is a multiple of 7
             if self.time_signatures:
                 bdf = self.time_signatures[-1].beat_division_factors
-                print("add_tempo", sum(bdf) - (len(bdf) - 1))
                 while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                     time_step += 1
             else:
@@ -341,16 +339,14 @@ class HVO_Sequence(object):
 
         # Start Segmentation
         segments = []                   # List of HVO_Sequences
-        segment_starts = []             # List of start times for each segment
+        segment_starts = self.segment_starts
+        segment_ends = self.segment_ends
 
         # Get the tempos and time signatures for each segment
         tmp, ts = self.tempos_and_time_signatures_per_segments
 
         # Iterate over each segment and find correct Metadata and Create the HVO_Sequence according to the segment
         for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
-            # Segment start can be derived from either the tempo or time signature (which ever is larger)
-            segment_starts.append(max(tempo.time_step, timesig.time_step))
-
             # Create the HVO_Sequence templates
             segments.append(HVO_Sequence(drum_mapping=dmap))
             segments[-1].add_time_signature(time_step=timesig.time_step, numerator=timesig.numerator,
@@ -358,12 +354,12 @@ class HVO_Sequence(object):
             segments[-1].add_tempo(time_step=tempo.time_step, qpm=tempo.qpm)
 
         # add score and metadata to each segment
-        segment_ends = np.array(segment_starts[1:] + [np.inf])-1
+        # segment_ends = np.array(segment_starts[1:] + [np.inf])-1
         for ix, segment in enumerate(segments):
             seg_start = segment_starts[ix]
             seg_end = segment_ends[ix]
-            if segment.hvo:
-                segment.hvo = self.hvo[segment_starts[ix]:min(self.total_number_of_steps, segment_starts[ix+1]), :]
+            if self.hvo is not None:
+                segment.hvo = self.hvo[seg_start:(seg_end+1), :]
 
             # Split the Metadata Segments
             starts_ends_metas = self.metadata.split() if self.metadata else None
@@ -1582,13 +1578,73 @@ class HVO_Sequence(object):
             minor_grid_line_indices = grid_line_indices[grid_line_indices % t_stamps_per_beat.size != 0].tolist()
             downbeat_grid_line_indices = grid_line_indices[
                 grid_line_indices % (t_stamps_per_beat.size * time_signature.numerator) == 0].tolist()
+            output["grid_lines"].extend(grid_lines.tolist())
+            output["major_grid_lines"].extend(grid_lines[grid_line_indices % t_stamps_per_beat.size == 0].tolist())
+            output["minor_grid_lines"].extend(grid_lines[grid_line_indices % t_stamps_per_beat.size != 0].tolist())
+            output["downbeat_grid_lines"].extend(grid_lines[grid_line_indices % (t_stamps_per_beat.size * time_signature.numerator) == 0].tolist())
+            output["major_grid_line_indices"].extend(major_grid_line_indices)
+            output["minor_grid_line_indices"].extend(minor_grid_line_indices)
+            output["downbeat_grid_line_indices"].extend(downbeat_grid_line_indices)
             next_segment_start_time = tmp_nxt_strt
+
+        return output
+        #
+        # ts_consistent_lbs = self.time_signature_consistent_segment_lower_bounds
+        # ts_consistent_ubs = self.time_signature_consistent_segment_upper_bounds
+        #
+        # current_step = 0
+        # for ts_consistent_seg_ix, (ts_lb, ts_up) in enumerate(zip(ts_consistent_lbs, ts_consistent_ubs)):
+        #     major_grid_lines.append(grid_lines[-1])
+        #     major_grid_line_indices.append(len(grid_lines))
+        #     downbeat_grid_lines.append(grid_lines[-1])
+        #     downbeat_grid_line_indices.append(len(grid_lines))
+        #
+        #     # Figure out num_steps in each beat as well as the ratios of beat_dur for each time increase
+        #     time_sig = self.time_signatures[self.time_signature_segment_index_at_step(ts_lb)]
+        #
+        #     delta_t_ratios = np.array([])
+        #     for beat_div_factor in time_sig.beat_division_factors:
+        #         delta_t_ratios = np.append(delta_t_ratios, np.arange(0, 1, 1.0 / beat_div_factor))
+        #     delta_t_ratios = np.unique(np.append(delta_t_ratios, 1))
+        #     delta_t_ratios = delta_t_ratios[1:] - delta_t_ratios[:-1]
+        #     steps_per_beat_in_seg = len(delta_t_ratios)
+        #
+        #     for step_ix in range(ts_lb - ts_lb, ts_up - ts_lb):  # For each ts, re-start counting from 0
+        #         actual_step_ix = step_ix if ts_consistent_seg_ix == 0 else step_ix + len(grid_lines) - 1
+        #         tempo = self.tempos[self.tempo_segment_index_at_step(actual_step_ix)]
+        #         beat_duration_at_step = (60.0 / tempo.qpm) * 4.0 / time_sig.denominator
+        #         grid_lines.append(grid_lines[-1] + delta_t_ratios[step_ix % steps_per_beat_in_seg] * \
+        #                           beat_duration_at_step)
+        #         current_step = current_step + 1
+        #         if (step_ix + 1) % (steps_per_beat_in_seg) == 0:
+        #             major_grid_lines.append(grid_lines[-1])
+        #             major_grid_line_indices.append(current_step)
+        #             if (step_ix + 1) % (time_sig.numerator * steps_per_beat_in_seg) == 0:
+        #                 downbeat_grid_lines.append(grid_lines[-1])
+        #                 downbeat_grid_line_indices.append(current_step)
+        #         else:
+        #             minor_grid_lines.append(grid_lines[-1])
+        #             minor_grid_line_indices.append(current_step)
+
+        # output = {
+        #     "grid_lines": grid_lines,
+        #     "major_grid_lines": major_grid_lines,
+        #     "minor_grid_lines": minor_grid_lines,
+        #     "downbeat_grid_lines": downbeat_grid_lines,
+        #     "major_grid_line_indices": major_grid_line_indices,
+        #     "minor_grid_line_indices": minor_grid_line_indices,
+        #     "downbeat_grid_line_indices": downbeat_grid_line_indices
+        # }
 
         return output
 
 
     @property
     def grid_lines(self):
+
+        """
+
+        """
         return np.array(self.grid_lines_with_types["grid_lines"])
 
     #   ----------------------------------------------------------------------
