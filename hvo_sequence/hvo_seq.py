@@ -229,15 +229,20 @@ class HVO_Sequence(object):
         if not self.time_signatures:
             time_step = 0
         else:
+
             assert beat_division_factors == self.time_signatures[-1].beat_division_factors, \
                 "Beat division factors must be the same for all time signatures"
-            # find a greater or equal value for time_step that is a multiple of 7
-            while time_step % (sum(beat_division_factors)-1) != 0:
-                time_step += 1
 
-        if self.time_signatures:
-            if self.time_signatures[-1].numerator == numerator and self.time_signatures[-1].denominator == denominator:
-                return False    # no need to add a new time signature if the same as the last one
+            if self.time_signatures[-1].numerator == numerator and self.time_signatures[-1].denominator \
+                    == denominator:
+                return False  # no need to add a new time signature if the same as the last one
+
+
+            # find a greater or equal value for time_step that is a multiple of 7
+            bdf = self.time_signatures[-1].beat_division_factors
+            print("add_time_signature", sum(bdf) - (len(bdf) - 1))
+            while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
+                time_step += 1
 
         self.time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator,
                                                     beat_division_factors=beat_division_factors))
@@ -248,19 +253,21 @@ class HVO_Sequence(object):
         return self.__tempos
 
     def add_tempo(self, time_step=None, qpm=None):
-        if self.tempos is None:
+        if not self.tempos:
             time_step = 0
         else:
+            if self.tempos[-1].qpm == qpm:
+                return False  # no need to add a new tempo if the same as the last one
+
             # find a greater or equal value for time_step that is a multiple of 7
             if self.time_signatures:
-                while time_step % (sum(self.time_signatures[-1].beat_division_factors)-1) != 0:
+                bdf = self.time_signatures[-1].beat_division_factors
+                print("add_tempo", sum(bdf) - (len(bdf) - 1))
+                while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                     time_step += 1
             else:
                 raise ValueError("Time signature must be specified before adding a second Tempo")
 
-        if self.tempos:
-            if self.tempos[-1].qpm == qpm:
-                return False    # no need to add a new tempo if the same as the last one
 
         tempo = Tempo(time_step=time_step, qpm=qpm)
         self.tempos.append(tempo)
@@ -326,37 +333,85 @@ class HVO_Sequence(object):
     @property
     def consistent_segment_HVO_Sequences(self):
 
+        # Grab or create a drum mapping (To ensure that per segment HVO_Sequence objects are consistent)
         if self.drum_mapping:
             dmap = self.drum_mapping
         else:
             dmap = {f"{i}": [36 + i] for i in range(self.hits.shape[1])}
 
-        metadata_segments = self.metadata.split() if self.metadata else None
+        # Start Segmentation
+        segments = []                   # List of HVO_Sequences
+        segment_starts = []             # List of start times for each segment
 
-        segments = []
-        segment_starts = []
-
-
+        # Get the tempos and time signatures for each segment
         tmp, ts = self.tempos_and_time_signatures_per_segments
+
+        # Iterate over each segment and find correct Metadata and Create the HVO_Sequence according to the segment
         for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
+            # Segment start can be derived from either the tempo or time signature (which ever is larger)
             segment_starts.append(max(tempo.time_step, timesig.time_step))
 
+            # Create the HVO_Sequence templates
             segments.append(HVO_Sequence(drum_mapping=dmap))
             segments[-1].add_time_signature(time_step=timesig.time_step, numerator=timesig.numerator,
                                             denominator=timesig.denominator, beat_division_factors=timesig.beat_division_factors)
             segments[-1].add_tempo(time_step=tempo.time_step, qpm=tempo.qpm)
 
-            if metadata_segments:
-                for j, metadata in enumerate(metadata_segments):
-                    if segment_starts[-1] >= metadata["time_step"]:
-                        if j < len(metadata_segments)-1:
-                            if segment_starts[-1] < metadata_segments[j+1]["time_step"]:
-                                segments[-1].metadata = metadata_segments[j]["metadata"]
-
+        # add score and metadata to each segment
+        segment_ends = np.array(segment_starts[1:] + [np.inf])-1
         for ix, segment in enumerate(segments):
-            segment.hvo = self.hvo[segment_starts[ix]:segment_starts[ix+1] if ix < len(segments)-1 else None, :]
+            seg_start = segment_starts[ix]
+            seg_end = segment_ends[ix]
+            if segment.hvo:
+                segment.hvo = self.hvo[segment_starts[ix]:min(self.total_number_of_steps, segment_starts[ix+1]), :]
+
+            # Split the Metadata Segments
+            starts_ends_metas = self.metadata.split() if self.metadata else None
+
+            # Find the correct metadata for each segment
+            metas_to_add = []
+            for m_seg_ix, m_seg in enumerate(starts_ends_metas):
+                m_start = m_seg[0]
+                m_end = m_seg[1]
+                meta = m_seg[2]
+                # check if start time within segment
+                if seg_start <= m_start <= seg_end:
+                    metas_to_add.append((m_start-seg_start, meta))
+                # check if left overlapping
+                elif m_start < seg_start < m_end:
+                    metas_to_add.append((0, meta))
+            metas_to_add = sorted(metas_to_add, key=lambda x: x[0])
+            for ix, m in enumerate(metas_to_add):
+                if ix == 0:
+                    segment.metadata = m[1]
+                else:
+                    segment.metadata.append(m[1], start_at_time_step=m[0])
 
         return segments, segment_starts
+
+    @property
+    def segment_starts(self):
+        segment_starts = []  # List of start times for each segment
+
+        # Get the tempos and time signatures for each segment
+        tmp, ts = self.tempos_and_time_signatures_per_segments
+
+        # Iterate over each segment and find correct Metadata and Create the HVO_Sequence according to the segment
+        for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
+            # Segment start can be derived from either the tempo or time signature (which ever is larger)
+            segment_starts.append(int(max(tempo.time_step, timesig.time_step)))
+        return segment_starts
+
+    @property
+    def segment_ends(self):
+        # add score and metadata to each segment
+        segment_ends = [x-1 for x in self.segment_starts[1:]]
+
+        if self.hits is not None:
+            segment_ends.append(self.hits.shape[0])
+        else:
+            segment_ends.append(segment_ends[-1])
+        return segment_ends
 
     #   --------------------------------------------------------------
     #   Utilities to modify hvo sequence
@@ -1486,74 +1541,54 @@ class HVO_Sequence(object):
         assert all([self.is_tempos_available(), self.is_time_signatures_available(), self.is_hvo_score_available()]), \
             "Can't calculate grid lines as either no tempos, no time signature or no hvo score is specified"
 
-        major_grid_lines = [
-            0]  # Happens at the beggining of beats! --> Beat Pos depends on Time_signature only (If Time_sig changes before an expected beat position, force reset beat position)
-        minor_grid_lines = []  # Any Index that's not major
-        downbeat_grid_lines = [
-            0]  # every nth major_ix where n is time sig numerator in segment (downbeat always measured from the beginning of a time signature time stamp)
-
-        major_grid_line_indices = [0]
-        minor_grid_line_indices = []
-        downbeat_grid_line_indices = [0]
-
-        grid_lines = [0]
-
-        ts_consistent_lbs = self.time_signature_consistent_segment_lower_bounds
-        ts_consistent_ubs = self.time_signature_consistent_segment_upper_bounds
-
-        current_step = 0
-        for ts_consistent_seg_ix, (ts_lb, ts_up) in enumerate(zip(ts_consistent_lbs, ts_consistent_ubs)):
-            major_grid_lines.append(grid_lines[-1])
-            major_grid_line_indices.append(len(grid_lines))
-            downbeat_grid_lines.append(grid_lines[-1])
-            downbeat_grid_line_indices.append(len(grid_lines))
-
-            # Figure out num_steps in each beat as well as the ratios of beat_dur for each time increase
-            time_sig = self.time_signatures[self.time_signature_segment_index_at_step(ts_lb)]
-
-            delta_t_ratios = np.array([])
-            for beat_div_factor in time_sig.beat_division_factors:
-                delta_t_ratios = np.append(delta_t_ratios, np.arange(0, 1, 1.0 / beat_div_factor))
-            delta_t_ratios = np.unique(np.append(delta_t_ratios, 1))
-            delta_t_ratios = delta_t_ratios[1:] - delta_t_ratios[:-1]
-            steps_per_beat_in_seg = len(delta_t_ratios)
-
-            for step_ix in range(ts_lb - ts_lb, ts_up - ts_lb):  # For each ts, re-start counting from 0
-                actual_step_ix = step_ix if ts_consistent_seg_ix == 0 else step_ix + len(grid_lines) - 1
-                tempo = self.tempos[self.tempo_segment_index_at_step(actual_step_ix)]
-                beat_duration_at_step = (60.0 / tempo.qpm) * 4.0 / time_sig.denominator
-                grid_lines.append(grid_lines[-1] + delta_t_ratios[step_ix % steps_per_beat_in_seg] * \
-                                  beat_duration_at_step)
-                current_step = current_step + 1
-                if (step_ix + 1) % (steps_per_beat_in_seg) == 0:
-                    major_grid_lines.append(grid_lines[-1])
-                    major_grid_line_indices.append(current_step)
-                    if (step_ix + 1) % (time_sig.numerator * steps_per_beat_in_seg) == 0:
-                        downbeat_grid_lines.append(grid_lines[-1])
-                        downbeat_grid_line_indices.append(current_step)
-                else:
-                    minor_grid_lines.append(grid_lines[-1])
-                    minor_grid_line_indices.append(current_step)
-
         output = {
-            "grid_lines": grid_lines,
-            "major_grid_lines": major_grid_lines,
-            "minor_grid_lines": minor_grid_lines,
-            "downbeat_grid_lines": downbeat_grid_lines,
-            "major_grid_line_indices": major_grid_line_indices,
-            "minor_grid_line_indices": minor_grid_line_indices,
-            "downbeat_grid_line_indices": downbeat_grid_line_indices
+            "grid_lines": [],
+            "major_grid_lines": [],
+            "minor_grid_lines": [],
+            "downbeat_grid_lines": [],
+            "major_grid_line_indices": [],
+            "minor_grid_line_indices": [],
+            "downbeat_grid_line_indices": []
         }
+        from copy import deepcopy
+        current_step = 0
+        segment_starts = self.segment_starts
+        segment_ends = self.segment_ends
+        next_segment_start_time = 0
+        tmps, tss = self.tempos_and_time_signatures_per_segments
+        for segment_ix, (tempo, time_signature) in enumerate(zip(tmps, tss)):
+            beat_duration = (60.0 / tempo.qpm) * 4.0 / time_signature.denominator
+            seg_start = segment_starts[segment_ix]
+            seg_end = segment_ends[segment_ix]
+            n_steps = int(seg_end - seg_start + 1)
+            beat_div_factor = time_signature.beat_division_factors
+            t_stamps_per_beat = np.array([])
+            for beat_div in beat_div_factor:
+                step_res = beat_duration / beat_div
+                t_stamps_per_beat = np.append(t_stamps_per_beat, np.linspace(0, beat_div, beat_div, endpoint=False, dtype=int) * step_res)
+            t_stamps_per_beat = np.unique(t_stamps_per_beat)
+            t_stamps_per_beat.sort()
+            grid_lines = np.array([])
+            count = 0
+            while grid_lines.size <= (n_steps + 1):
+                grid_lines = np.append(grid_lines, t_stamps_per_beat + count * beat_duration)
+                count += 1
+            grid_lines += next_segment_start_time
+            tmp_nxt_strt = grid_lines[n_steps]
+            grid_lines.resize(n_steps)
+            grid_line_indices = np.arange(seg_start, seg_end + 1)
+            # np.linspace(int(seg_start), int(seg_end), int(seg_end - seg_start), endpoint=True, dtype=int)
+            major_grid_line_indices = grid_line_indices[grid_line_indices % t_stamps_per_beat.size == 0].tolist()
+            minor_grid_line_indices = grid_line_indices[grid_line_indices % t_stamps_per_beat.size != 0].tolist()
+            downbeat_grid_line_indices = grid_line_indices[
+                grid_line_indices % (t_stamps_per_beat.size * time_signature.numerator) == 0].tolist()
+            next_segment_start_time = tmp_nxt_strt
 
         return output
 
 
     @property
     def grid_lines(self):
-
-        """
-
-        """
         return np.array(self.grid_lines_with_types["grid_lines"])
 
     #   ----------------------------------------------------------------------
@@ -1714,6 +1749,11 @@ class HVO_Sequence(object):
 
     def find_index_and_offset_for_absolute_time(self, absolute_time):
         # find nearest grid line
+        assert self.grid_lines is not None, "Grid lines are not available"
+
+        # check how many segments are available
+        #self.consistent_segment_HVO_Sequences
+
         ix = np.argmin(np.abs(self.grid_lines - absolute_time))
         dis = absolute_time - self.grid_lines[ix]
         if ix == 0 and dis < 0:
@@ -1739,6 +1779,7 @@ class HVO_Sequence(object):
 
     def add_note(self, pitch, velocity, start_sec):
         assert velocity <= 1, "velocity should be between 0 and 1"
+        assert self.drum_mapping is not None, "To add a note, drum_mapping should be provided"
         self.expand_length(start_sec + 1, 'sec') # ensure length is long enough
         time_ix, offset = self.find_index_and_offset_for_absolute_time(start_sec)
         voice_ix = self.find_index_for_pitch(pitch)

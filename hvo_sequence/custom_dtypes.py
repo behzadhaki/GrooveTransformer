@@ -1,4 +1,5 @@
 from copy import deepcopy
+import numpy as np
 
 class Metadata(dict):
     """
@@ -49,19 +50,16 @@ class Metadata(dict):
 
     def split(self):
         """
-        Split the metadata into multiple parts, each at the time_step registered
+        Split the metadata into a list of metadata objects, one for each meta data consistent region.
+        :return: list of tuples of (start_time_step, end_time_step, Metadata)
         """
-        if len(self.time_steps) == 1:
-            return {"time_step":0, "metadata":self}
-        else:
-            metadata_list = []
-            for ix, time_step in enumerate(self.time_steps):
-                metadata_list.append(
-                    {
-                        "time_step": time_step,
-                        "metadata": Metadata({key: value[ix] for key, value in self.items()})
-                    })
-            return metadata_list
+        starts = self.time_steps
+        ends = np.array(starts[1:] + [np.inf])-1
+        metadatas = []
+        for i in range(len(starts)):
+            metadatas.append(Metadata({k: v[i] for k, v in self.items()}))
+        return list(zip(starts, ends, metadatas))
+
 
 
 # a = Metadata({1: 2, 3: 4})
