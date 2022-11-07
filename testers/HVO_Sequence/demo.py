@@ -1,6 +1,6 @@
-from hvo_sequence.hvo_seq import HVO_Sequence
-from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING
-from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
+from hvo_sequence import HVO_Sequence
+from hvo_sequence import ROLAND_REDUCED_MAPPING
+from hvo_sequence import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
 
 import pretty_midi, note_seq
 
@@ -22,6 +22,19 @@ hvo_seq.add_tempo(0, 50)
 # Create a random hvo for 32 time steps and 9 voices
 hvo_seq.random(32, 9)
 
+# -------------------------------------------------------------------
+# -----------           saving                         --------------
+# -------------------------------------------------------------------
+hvo_seq.save("testers/HVO_Sequence/misc/empty.hvo")
+
+# -------------------------------------------------------------------
+# -----------           Loading                         --------------
+# -------------------------------------------------------------------
+hvo_seq_loaded = HVO_Sequence()
+hvo_seq_loaded.load("testers/HVO_Sequence/misc/empty.hvo")
+
+if hvo_seq_loaded == hvo_seq:
+    print ("Loaded sequence is equal to the saved one")
 
 # ----------------------------------------------------------------
 # -----------           Access Data                 --------------

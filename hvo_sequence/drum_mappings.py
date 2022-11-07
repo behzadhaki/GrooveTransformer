@@ -63,7 +63,6 @@ ROLAND_REDUCED_MAPPING = {
     "RIDE":  [51, 53, 59]
 }
 
-
 # GrooveToolbox 5 Part Kit Mappings
 Groove_Toolbox_5Part_keymap = {
     "kick": [36, 35],

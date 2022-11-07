@@ -77,9 +77,9 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 #### **create a score** <a name="createHVO"></a>
 
 ```python
-from hvo_sequence.hvo_seq import HVO_Sequence
-from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING
-from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
+from hvo_sequence import HVO_Sequence
+from hvo_sequence import ROLAND_REDUCED_MAPPING
+from hvo_sequence import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
 
 import pretty_midi, note_seq
 
@@ -100,6 +100,23 @@ hvo_seq.add_tempo(0, 50)
 
 # Create a random hvo for 32 time steps and 9 voices
 hvo_seq.random(32, 9)
+```
+
+#### **Save**
+```python
+# -------------------------------------------------------------------
+# -----------           saving                         --------------
+# -------------------------------------------------------------------
+hvo_seq.save("testers/HVO_Sequence/misc/empty.hvo")
+```
+
+#### **Load**
+```python
+# -------------------------------------------------------------------
+# -----------           Loading                         --------------
+# -------------------------------------------------------------------
+hvo_seq_loaded = HVO_Sequence()
+hvo_seq_loaded.load("testers/HVO_Sequence/misc/empty.hvo")
 ```
 
 #### **Access data using the .get() or .hvo method**
@@ -158,9 +175,16 @@ hvo_seq = midi_to_hvo_sequence('misc/test.mid', ROLAND_REDUCED_MAPPING, [4])
 
 ```
 
-----
+#### **Operators** <a name="operators"></a>
+###### `==`
+checks if two hvo_sequence scores are the same use
+```python
+if hvo_seq_a == hvo_seq_b:
+    ...
+```
 
-<!--- ====================================================================================================== -->
+
+
 
 ## 3. Datasets <a name="3"></a>
 
@@ -170,12 +194,18 @@ Magenta's [Groove MIDI Dataset
 drum performances in the format of beats and fills, classified by genre
 and mostly in 4/4 time signature. 
 
-![](https://assets.pubpub.org/f67l9ngf/21642506281264.png)
+<img src="https://assets.pubpub.org/f67l9ngf/21642506281264.png" width="600">
+
 <figcaption align = "center"><b>Genre distribution in GMD (beats in 4-4 meter)
 </b></figcaption>
 
-The dataset in midi format is available [here](../../data/gmd/resources/source_dataset). 
+The dataset in midi format is available using the [link](https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0.zip) 
+provided by Magenta [here](https://magenta.tensorflow.org/datasets/groove).
 The dataset can also be found as a [Groove TFDS](https://www.tensorflow.org/datasets/catalog/groove) in [ TensorFlow Datasets (TFDS)](https://www.tensorflow.org/datasets)
+
+> **Note** The midi files for `complete` performances provided by Magenta and also
+> the `2bar` and `4bar` midi files exported from the versions provided on tfds can be found [here](../../data/gmd/resources/source_dataset)
+> (the script for generating these midi files is available [here](../../data/gmd/src/export_to_midi.py))
 
 In order to avoid installing tensorflow, the groove TFDS subsets have been downloaded and stored as dictionaries of metadatas and midi files. 
 Access these pickled dictionaries [here](../../data/gmd/resources/storedDicts):
@@ -185,6 +215,7 @@ Access these pickled dictionaries [here](../../data/gmd/resources/storedDicts):
 2. groove_2bar-midionly.bz2pickle
 3. groove_4bar-midionly.bz2pickle
 ```
+
 
 These files are simply dictionaries of the following format
 ```python
@@ -208,13 +239,31 @@ These files are simply dictionaries of the following format
 }
 ```
 
+---
+
+> **Note** this dataset is quite unbalanced, with a lot of songs in the `rock` genre. Below are a number 
+> of plots showing the distribution of the dataset. 
+
+**Some Examples of the visualizations are below. We highly recommend using the html `bokeh` figures available**
+ [here](./figures).
+ 
+These plots can be generated using the script [here](../../data/src/visualize_dataset.py)
+
+ <img src="figures/2Bar 4-4 Beats GMD_per_performer_histograms_and_pis.png" width="800">
+
+
+ <img src="figures/2Bar 4-4 Beats GMD_performer_genre_counts.png" width="800">
+
+
+---
+
 #### 3.1.1 Load dataset as a dictionary <a name="3_1_1"></a>       
 
 > **Note:** All the code examples in this section are available [here](../../testers/data/demo.py)
 
 
 ```python
-from data.dataLoaders import load_original_gmd_dataset_pickle
+from data import load_original_gmd_dataset_pickle
 
 # Load 2bar gmd dataset as a dictionary
 gmd_dict = load_original_gmd_dataset_pickle(
@@ -239,7 +288,7 @@ gmd_dict['train'].keys()
 
 ```python
 # Extract HVO_Sequences from the dictionaries
-from data.dataLoaders import extract_hvo_sequences_dict, get_drum_mapping_using_label
+from data import extract_hvo_sequences_dict, get_drum_mapping_using_label
 
 hvo_dict = extract_hvo_sequences_dict (
     gmd_dict=gmd_dict,
@@ -265,7 +314,7 @@ The resulting `hvo_dict` is a dictionary of the following format
 
 
 ```python
-from data.dataLoaders import load_gmd_hvo_sequences
+from data import load_gmd_hvo_sequences
 
 train_set = load_gmd_hvo_sequences(
     dataset_setting_json_path = "data/dataset_json_settings/4_4_Beats_gmd.json", 
@@ -318,7 +367,7 @@ The loader requires a specific json file to be passed as an argument. The conten
 
 ```python
 # Load dataset as torch.utils.data.Dataset
-from data.dataLoaders import MonotonicGrooveDataset
+from data import MonotonicGrooveDataset
 
 # load dataset as torch.utils.data.Dataset
 training_dataset = MonotonicGrooveDataset(
@@ -326,7 +375,8 @@ training_dataset = MonotonicGrooveDataset(
     subset_tag="train",
     max_len=32,
     tapped_voice_idx=2,
-    collapse_tapped_sequence=False)
+    collapse_tapped_sequence=False,
+    load_as_tensor=True)
 ```
 
 > **Note** To batchify the dataset, wrap the `MonotonicGrooveDataset` into `torch.utils.data.DataLoader` iterator.

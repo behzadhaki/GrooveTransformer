@@ -1,0 +1,1 @@
+{"d_model": 128, "embedding_size_src": 27, "embedding_size_tgt": 27, "nhead": 4, "dim_feedforward": 128, "dropout": 0.1038, "max_len": 32, "num_encoder_layers": 11, "device": "cpu"}

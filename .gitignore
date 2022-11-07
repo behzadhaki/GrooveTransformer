@@ -1,2 +1,6 @@
 
 /.idea/
+/data/gmd/resources/source_dataset/2_bar_version/
+/model/misc/rand_model.json
+/model/misc/rand_model.pth
+/model/misc/

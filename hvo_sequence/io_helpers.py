@@ -19,9 +19,68 @@ def empty_like(other_hvo_sequence):
 
     new_hvo_seq = HVO_Sequence()
 
+def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, only_drums=False):
+    # Create an empty HVO_Sequence instance
+    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
+
+    # find tempo and time signature consistent regions
+    tempo_tuples = sorted([(x.time, x) for x in ns.tempos], key=lambda x: x[0])
+    ts_tuples = sorted([(x.time, x) for x in ns.time_signatures], key=lambda x: x[0])
+    segment_beginnings = sorted(list(set(([x[0] for x in tempo_tuples] + [x[0] for x in ts_tuples]))))
+    segment_ends = segment_beginnings[1:] + [ns.total_time]
+    segment_tempos = []
+    segment_time_signatures = []
+    for ix, segment_beginning in enumerate(segment_beginnings):
+        candidate_tempo = [x[1] for x in tempo_tuples if x[0] <= segment_beginning][-1]
+        candidate_time_signature = [x[1] for x in ts_tuples if x[0] <= segment_beginning][-1]
+        segment_tempos.append(candidate_tempo)
+        segment_time_signatures.append(candidate_time_signature)
+
+    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
+    hvo_seq.add_time_signature(time_step=0, numerator=segment_time_signatures[0].numerator,
+            denominator=segment_time_signatures[0].denominator, beat_division_factors=beat_division_factors)
+    hvo_seq.add_tempo(time_step=0, qpm=segment_tempos[0].qpm)
+
+    for ix, segment_beginning in enumerate(segment_beginnings[1:]):
+        hvo_seq.add_time_signature(time_step=segment_beginning, numerator=segment_time_signatures[ix + 1].numerator,
+                                   denominator=segment_time_signatures[ix + 1].denominator,
+                                   beat_division_factors=beat_division_factors, time_mode='sec')
+        hvo_seq.add_tempo(time_step=segment_beginning, qpm=segment_tempos[ix+1].qpm, time_mode='sec')
 
 
-def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
+    for nsn in ns.notes:
+        if only_drums:
+            if nsn.is_drum:
+                hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
+        else:
+            hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
+
+    # # creat an HVO_Sequence for each segment
+    # segment_hvo_sequences = []
+    # for ix, segment_beginning in enumerate(segment_beginnings):
+    #     segment_hvo_sequences.append(HVO_Sequence(drum_mapping=drum_mapping))
+    #     segment_hvo_sequences[-1].add_tempo(time_step=0, qpm=segment_tempos[ix].qpm)
+    #     segment_hvo_sequences[-1].add_time_signature(
+    #         time_step=0, numerator=segment_time_signatures[ix].numerator,
+    #         denominator=segment_time_signatures[ix].denominator, beat_division_factors=beat_division_factors)
+    #     # find and add notes in the segment
+    #     segment_notes = [x for x in ns.notes if segment_beginning <= x.start_time < segment_ends[ix]]
+    #     for nsn in segment_notes:
+    #         if only_drums:
+    #             if nsn.is_drum:
+    #                 segment_hvo_sequences[-1].add_note(
+    #                     nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
+    #         else:
+    #             segment_hvo_sequences[-1].add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
+    #
+    # # add segments using the + operator
+    # hvo_seq = segment_hvo_sequences[0]
+    # for ix in range(len(segment_beginnings) - 1):
+    #     hvo_seq = hvo_seq + segment_hvo_sequences[ix]
+
+    return hvo_seq
+
+def note_seq_to_hvo_seq(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
     """
             # Note_Sequence importer. Converts the note sequence to hvo format
             @param ns:                          Note_Sequence drum score
@@ -84,10 +143,13 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors=[4], m
         hvo_seq.hvo = place_note_in_hvo(ns_note=ns_note, hvo=hvo_seq.hvo, grid=grid_lines, drum_mapping=drum_mapping)
     return hvo_seq
 
-
-def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+def midi_to_note_seq(filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
     ns = note_seq.midi_io.midi_to_note_sequence(midi_data)
+    return ns
+
+def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+    ns = midi_to_note_seq(filename)
     return note_sequence_to_hvo_sequence(ns, drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
 
 
@@ -192,6 +254,15 @@ def get_pickled_hvos(pickle_path, item_list=None):
 
     return hvos
 
+
+def load_HVO_Sequence_from_file(pickle_path):
+    """
+    Loads a pickled HVO_Sequence object
+    """
+    with open(pickle_path, 'rb') as f:
+        hvo_seq = pickle.load(f)
+
+    return hvo_seq
 
 #   --------------- Data type Convertors --------------------
 

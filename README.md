@@ -1,5 +1,8 @@
-# VariationalMonotonicGrooveTransformer
-Variational version of Monotonic Groove Transformer
+# Groove Transformer
+Multiple Models:
+   
+   1. Monotonic Groove Transformer (MGT)
+   2. Variational MGT
 
 
 # Install Environment (Local on Mac/Linux/Windows)

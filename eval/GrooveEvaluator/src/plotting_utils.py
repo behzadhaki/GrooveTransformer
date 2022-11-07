@@ -27,7 +27,9 @@ hv.extension('bokeh')
 
 def separate_figues_by_tabs(bokeh_fig_list, tab_titles=None, top_panel_identifier="::"):
 
-    titles = [str(tab_ix) for tab_ix in range(bokeh_fig_list)] if tab_titles is None else tab_titles
+    tab_titles = [str(tab_ix) for tab_ix in range(bokeh_fig_list)] if tab_titles is None else tab_titles
+
+    print(" ------ TAB TITLES", tab_titles)
 
     top_tab_bottom_tabs_dicts = {"other": []}
 
