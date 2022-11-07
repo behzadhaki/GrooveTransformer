@@ -240,8 +240,11 @@ class HVO_Sequence(object):
 
             # find a greater or equal value for time_step that is a multiple of 7
             bdf = self.time_signatures[-1].beat_division_factors
+            t = time_step
             while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                 time_step += 1
+            warnings.warn("The time_step value was changed from {} to {} "
+                          "to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
 
         self.time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator,
                                                     beat_division_factors=beat_division_factors))
@@ -258,11 +261,14 @@ class HVO_Sequence(object):
             if self.tempos[-1].qpm == qpm:
                 return False  # no need to add a new tempo if the same as the last one
 
-            # find a greater or equal value for time_step that is a multiple of 7
+            # find a greater or equal value for time_step that is a multiple of number of steps per beat
             if self.time_signatures:
+                t = time_step
                 bdf = self.time_signatures[-1].beat_division_factors
                 while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                     time_step += 1
+                warnings.warn("The time_step value was changed from {} to {} "
+                              "to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
             else:
                 raise ValueError("Time signature must be specified before adding a second Tempo")
 
@@ -396,17 +402,22 @@ class HVO_Sequence(object):
         for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
             # Segment start can be derived from either the tempo or time signature (which ever is larger)
             segment_starts.append(int(max(tempo.time_step, timesig.time_step)))
+
+        # make sure the score is not empty so as to be able to also calculate the end
+        self.hvo = np.zeros((1, self.number_of_voices * 3)) if self.hvo is None else self.hvo
+
         return segment_starts
 
     @property
     def segment_ends(self):
+        # make sure the score is not empty so as to be able to also calculate the end
+        self.hvo = np.zeros((1, self.number_of_voices * 3)) if self.hvo is None else self.hvo
+
         # add score and metadata to each segment
         segment_ends = [x-1 for x in self.segment_starts[1:]]
 
-        if self.hits is not None:
-            segment_ends.append(self.hits.shape[0])
-        else:
-            segment_ends.append(segment_ends[-1])
+        segment_ends.append(max(self.hits.shape[0], segment_ends[-1]+1) if segment_ends else self.hits.shape[0])
+
         return segment_ends
 
     #   --------------------------------------------------------------
@@ -1773,6 +1784,12 @@ class HVO_Sequence(object):
     #   Utilities to Change Length and Add Notes
     #   --------------------------------------------------------------
     def expand_length(self, new_length, length_unit):
+        '''
+        Expands the length of the sequence to the new length. If the new length is smaller than the current length,
+
+        :param new_length: new length of the sequence
+        :param length_unit: unit of the new length (e.g. 'steps', 'sec')
+        '''
         assert length_unit in ['sec', 'step'], "length_unit should be either 'sec' or 'step'"
 
         if self.__hvo is None:
@@ -1794,9 +1811,10 @@ class HVO_Sequence(object):
         elif length_unit == 'sec':
             length_correct = False
             while not length_correct:
+                self.hvo = np.zeros((1, self.number_of_voices*3)) if self.hvo is None else self.hvo
                 self.hvo = np.concatenate(
-                    [self.hvo, np.zeros((1, self.number_of_voices*3))], axis=0)
-                if self.grid_lines[-1] >= new_length:
+                    [self.hvo, np.zeros((4, self.number_of_voices*3))], axis=0)
+                if self.grid_lines[self.hits.shape[0]] >= new_length:
                     length_correct = True
 
     def trim_length(self, length, length_unit):
@@ -1806,7 +1824,14 @@ class HVO_Sequence(object):
     def find_index_and_offset_for_absolute_time(self, absolute_time):
         # find nearest grid line
         assert self.grid_lines is not None, "Grid lines are not available"
-
+        if len(self.grid_lines) == 1:
+            assert absolute_time <= self.grid_lines[-1]+0.01, \
+                "Absolute time is larger than the length of the sequence. " \
+                "Adjust length first using expand_length() method"
+        else:
+            assert absolute_time <= self.grid_lines[-1]+0.5*(self.grid_lines[-1]-self.grid_lines[-2]), \
+                "Absolute time is larger than the length of the sequence. " \
+                "Adjust length first using expand_length() method"
         # check how many segments are available
         #self.consistent_segment_HVO_Sequences
 
@@ -1820,7 +1845,7 @@ class HVO_Sequence(object):
             offset = dis / (self.grid_lines[ix] - self.grid_lines[ix - 1])
         else:
             offset = dis / (self.grid_lines[ix + 1] - self.grid_lines[ix])
-        return ix, offset
+        return int(ix), offset
 
     def find_index_for_pitch(self, pitch):
         if self.drum_mapping is None:
@@ -1836,7 +1861,10 @@ class HVO_Sequence(object):
     def add_note(self, pitch, velocity, start_sec):
         assert velocity <= 1, "velocity should be between 0 and 1"
         assert self.drum_mapping is not None, "To add a note, drum_mapping should be provided"
-        self.expand_length(start_sec + 1, 'sec') # ensure length is long enough
+        if self.total_len is None:
+            self.expand_length(start_sec + 1, 'sec')  # ensure length is long enough
+        elif start_sec <= self.total_len:
+            self.expand_length(start_sec + 1, 'sec') # ensure length is long enough
         time_ix, offset = self.find_index_and_offset_for_absolute_time(start_sec)
         voice_ix = self.find_index_for_pitch(pitch)
         self.hits[time_ix, voice_ix] = 1
@@ -2075,12 +2103,11 @@ class HVO_Sequence(object):
         unique_pitches = []
         drum_tags = []
         for j, k in enumerate(self.drum_mapping.keys()):
-            if k in notes["instrument"]:
-                unique_pitches.append(j)
-                drum_tags.append(k)
-        if len(unique_pitches) == 0:
-            unique_pitches = [0]
-            drum_tags = ["None"]
+            unique_pitches.append(j)
+            drum_tags.append(k)
+        # if len(unique_pitches) == 0:
+        #     unique_pitches = [0]
+        #     drum_tags = ["None"]
 
         _html_fig.xgrid.grid_line_color = None
         _html_fig.ygrid.grid_line_color = None

@@ -23,38 +23,64 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, only_
     # Create an empty HVO_Sequence instance
     hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
 
-    # Add tempos and time signatures to hvo_seq instance
-    old_qpm = -10
-    for c, tempo in enumerate(ns.tempos):
-        if tempo.qpm != old_qpm:
-            if c != 0:
-                hvo_seq.expand_length(tempo.time, 'sec')
-                ix, = hvo_seq.find_index_and_offset_for_absolute_time(tempo.time)
-            else:
-                ix = 0
-            hvo_seq.add_tempo(ix, tempo.qpm)
-            old_qpm = tempo.qpm
+    # find tempo and time signature consistent regions
+    tempo_tuples = sorted([(x.time, x) for x in ns.tempos], key=lambda x: x[0])
+    ts_tuples = sorted([(x.time, x) for x in ns.time_signatures], key=lambda x: x[0])
+    segment_beginnings = sorted(list(set(([x[0] for x in tempo_tuples] + [x[0] for x in ts_tuples]))))
+    segment_ends = segment_beginnings[1:] + [ns.total_time]
+    segment_tempos = []
+    segment_time_signatures = []
+    for ix, segment_beginning in enumerate(segment_beginnings):
+        candidate_tempo = [x[1] for x in tempo_tuples if x[0] <= segment_beginning][-1]
+        candidate_time_signature = [x[1] for x in ts_tuples if x[0] <= segment_beginning][-1]
+        segment_tempos.append(candidate_tempo)
+        segment_time_signatures.append(candidate_time_signature)
 
-    old_numerator = -10
-    old_denominator = -10
-    for c, time_sig in enumerate(ns.time_signatures):
-        if time_sig.numerator != old_numerator or time_sig.denominator != old_denominator:
-            ix, = hvo_seq.find_index_and_offset_for_absolute_time(time_sig.time) if c!= 0 else (0,)
-            hvo_seq.add_time_signature(
-                time_step=ix,
-                numerator=time_sig.numerator,
-                denominator=time_sig.denominator,
-                beat_division_factors=beat_division_factors
-            )
-            old_numerator = time_sig.numerator
-            old_denominator = time_sig.denominator
+    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
+    hvo_seq.add_time_signature(time_step=0, numerator=segment_time_signatures[0].numerator,
+            denominator=segment_time_signatures[0].denominator, beat_division_factors=beat_division_factors)
+    hvo_seq.add_tempo(time_step=0, qpm=segment_tempos[0].qpm)
+
+    for ix, segment_beginning in enumerate(segment_beginnings[1:]):
+        hvo_seq.expand_length(segment_beginning, 'sec')
+        #!!!!! SEGMENT BEGINNINGS SHOULD BE INDEX!!!!!!
+        time, _ = hvo_seq.find_index_and_offset_for_absolute_time(segment_beginning)
+        hvo_seq.add_time_signature(time_step=time, numerator=segment_time_signatures[ix + 1].numerator,
+                                   denominator=segment_time_signatures[ix + 1].denominator,
+                                   beat_division_factors=beat_division_factors)
+        hvo_seq.add_tempo(time_step=time, qpm=segment_tempos[ix+1].qpm)
+
 
     for nsn in ns.notes:
         if only_drums:
             if nsn.is_drum:
-                hvo_seq.add_note(nsn.pitch, nsn.velocity/127, nsn.start_time)
+                hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
         else:
-            hvo_seq.add_note(nsn.pitch, nsn.velocity/127, nsn.start_time)
+            hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
+
+    # # creat an HVO_Sequence for each segment
+    # segment_hvo_sequences = []
+    # for ix, segment_beginning in enumerate(segment_beginnings):
+    #     segment_hvo_sequences.append(HVO_Sequence(drum_mapping=drum_mapping))
+    #     segment_hvo_sequences[-1].add_tempo(time_step=0, qpm=segment_tempos[ix].qpm)
+    #     segment_hvo_sequences[-1].add_time_signature(
+    #         time_step=0, numerator=segment_time_signatures[ix].numerator,
+    #         denominator=segment_time_signatures[ix].denominator, beat_division_factors=beat_division_factors)
+    #     # find and add notes in the segment
+    #     segment_notes = [x for x in ns.notes if segment_beginning <= x.start_time < segment_ends[ix]]
+    #     for nsn in segment_notes:
+    #         if only_drums:
+    #             if nsn.is_drum:
+    #                 segment_hvo_sequences[-1].add_note(
+    #                     nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
+    #         else:
+    #             segment_hvo_sequences[-1].add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
+    #
+    # # add segments using the + operator
+    # hvo_seq = segment_hvo_sequences[0]
+    # for ix in range(len(segment_beginnings) - 1):
+    #     hvo_seq = hvo_seq + segment_hvo_sequences[ix]
+
     return hvo_seq
 
 def note_seq_to_hvo_seq(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
