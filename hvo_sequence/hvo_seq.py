@@ -216,7 +216,16 @@ class HVO_Sequence(object):
     def time_signatures(self):
         return self.__time_signatures
 
-    def add_time_signature(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None):
+    def add_time_signature(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None, time_mode="step"):
+        '''
+        Add a time signature to the HVO_Sequence object
+        :param time_step:
+        :param numerator:
+        :param denominator:
+        :param beat_division_factors:
+        :param time_mode: 'step' or 'sec', default is 'step'
+        :return:
+        '''
         # ensure beat_division_factors is a list and no two elements are multiples of each other
         if beat_division_factors is not None:
             assert isinstance(beat_division_factors, list), "beat_division_factors must be a list"
@@ -229,7 +238,6 @@ class HVO_Sequence(object):
         if not self.time_signatures:
             time_step = 0
         else:
-
             assert beat_division_factors == self.time_signatures[-1].beat_division_factors, \
                 "Beat division factors must be the same for all time signatures"
 
@@ -237,6 +245,9 @@ class HVO_Sequence(object):
                     == denominator:
                 return False  # no need to add a new time signature if the same as the last one
 
+            if time_mode == "sec" and time_step!=0:
+                self.expand_length(time_step, 'sec')
+                time_step, _ = self.find_index_and_offset_for_absolute_time(time_step)
 
             # find a greater or equal value for time_step that is a multiple of 7
             bdf = self.time_signatures[-1].beat_division_factors
@@ -254,7 +265,7 @@ class HVO_Sequence(object):
     def tempos(self):
         return self.__tempos
 
-    def add_tempo(self, time_step=None, qpm=None):
+    def add_tempo(self, time_step=None, qpm=None, time_mode="step"):
         if not self.tempos:
             time_step = 0
         else:
@@ -263,6 +274,10 @@ class HVO_Sequence(object):
 
             # find a greater or equal value for time_step that is a multiple of number of steps per beat
             if self.time_signatures:
+                if time_mode == "sec" and time_step!=0:
+                    self.expand_length(time_step, 'sec')
+                    time_step, _ = self.find_index_and_offset_for_absolute_time(time_step)
+
                 t = int(time_step)
                 bdf = self.time_signatures[-1].beat_division_factors
                 while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
@@ -271,7 +286,6 @@ class HVO_Sequence(object):
                     warnings.warn("The time_step value was changed from {} to {} to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
             else:
                 raise ValueError("Time signature must be specified before adding a second Tempo")
-
 
         tempo = Tempo(time_step=time_step, qpm=qpm)
         self.tempos.append(tempo)

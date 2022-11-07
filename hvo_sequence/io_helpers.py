@@ -42,13 +42,10 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, only_
     hvo_seq.add_tempo(time_step=0, qpm=segment_tempos[0].qpm)
 
     for ix, segment_beginning in enumerate(segment_beginnings[1:]):
-        hvo_seq.expand_length(segment_beginning, 'sec')
-        #!!!!! SEGMENT BEGINNINGS SHOULD BE INDEX!!!!!!
-        time, _ = hvo_seq.find_index_and_offset_for_absolute_time(segment_beginning)
-        hvo_seq.add_time_signature(time_step=time, numerator=segment_time_signatures[ix + 1].numerator,
+        hvo_seq.add_time_signature(time_step=segment_beginning, numerator=segment_time_signatures[ix + 1].numerator,
                                    denominator=segment_time_signatures[ix + 1].denominator,
-                                   beat_division_factors=beat_division_factors)
-        hvo_seq.add_tempo(time_step=time, qpm=segment_tempos[ix+1].qpm)
+                                   beat_division_factors=beat_division_factors, time_mode='sec')
+        hvo_seq.add_tempo(time_step=segment_beginning, qpm=segment_tempos[ix+1].qpm, time_mode='sec')
 
 
     for nsn in ns.notes:
