@@ -240,11 +240,11 @@ class HVO_Sequence(object):
 
             # find a greater or equal value for time_step that is a multiple of 7
             bdf = self.time_signatures[-1].beat_division_factors
-            t = time_step
+            t = int(time_step)
             while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                 time_step += 1
-            warnings.warn("The time_step value was changed from {} to {} "
-                          "to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
+            if t != time_step:
+                warnings.warn("The time_step value was changed from {} to {} to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
 
         self.time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator,
                                                     beat_division_factors=beat_division_factors))
@@ -263,12 +263,12 @@ class HVO_Sequence(object):
 
             # find a greater or equal value for time_step that is a multiple of number of steps per beat
             if self.time_signatures:
-                t = time_step
+                t = int(time_step)
                 bdf = self.time_signatures[-1].beat_division_factors
                 while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
                     time_step += 1
-                warnings.warn("The time_step value was changed from {} to {} "
-                              "to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
+                if t != time_step:
+                    warnings.warn("The time_step value was changed from {} to {} to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
             else:
                 raise ValueError("Time signature must be specified before adding a second Tempo")
 
