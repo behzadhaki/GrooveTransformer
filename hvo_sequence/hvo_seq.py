@@ -92,6 +92,7 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     def __getstate__(self):
         state_dict = {
+            "created_with_version": self.__version,
             "metadata": self.__metadata,
             "time_signatures": self.__time_signatures,
             "tempos": self.__tempos,
@@ -117,19 +118,35 @@ class HVO_Sequence(object):
         return state_dict
 
     def __setstate__(self, state):
-        self.__version = Version
-        self.__metadata = state["metadata"]
-        self.__time_signatures = state["time_signatures"]
-        self.__tempos = state["tempos"]
-        self.__drum_mapping = state["drum_mapping"]
+        if "created_with_version" in state:
+            print("Loading HVO_Sequence created with version: {}.".format(state["created_with_version"]))
+            if state["created_with_version"] != self.__version:
+                warnings.warn("HVO_Sequence version mismatch. Loading with version: {}.".format(self.__version))
 
-        if "hvo" in state:
-            self.__hvo = np.zeros(state["hvo"]["shape"])
-            self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
+        if "_HVO_Sequence__version" in state:
+            # old version before "0.6.0"
+            self.__hvo = state["_HVO_Sequence__hvo"]
+            self.__metadata = Metadata(state["_HVO_Sequence__metadata"])
+            self.__time_signatures = state["_HVO_Sequence__time_signatures"]
+            self.__tempos = state["_HVO_Sequence__tempos"]
+            self.__drum_mapping = state["_HVO_Sequence__drum_mapping"]
+            self.__version = Version
+            self.__last_grid_state = None   # added from "0.6.0
+
         else:
-            self.__hvo = None
+            self.__version = Version
+            self.__metadata = state["metadata"] if "metadata" in state else Metadata()
+            self.__time_signatures = state["time_signatures"]
+            self.__tempos = state["tempos"]
+            self.__drum_mapping = state["drum_mapping"]
 
-        self.__last_grid_state = None
+            if "hvo" in state:
+                self.__hvo = np.zeros(state["hvo"]["shape"])
+                self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
+            else:
+                self.__hvo = None
+
+            self.__last_grid_state = None
 
     def save(self, path):
         # make sure the path ends with .hvo
