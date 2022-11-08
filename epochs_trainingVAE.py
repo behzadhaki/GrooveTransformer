@@ -1,4 +1,5 @@
 import torch
+
 torch.backends.cudnn.enabled = False
 from model.src.BasicGrooveTransformer_VAE import *
 from helpers.BasicGrooveTransformer_train_VAE import *
@@ -26,7 +27,7 @@ groove_transformer = GrooveTransformerEncoderVAE(d_model_enc, d_model_dec, embed
 
 # =================================================================================================
 # Load dataset as torch.utils.data.Dataset
-from data.dataLoaders import MonotonicGrooveDataset
+from data.src.dataLoaders import MonotonicGrooveDataset
 
 # load dataset as torch.utils.data.Dataset
 training_dataset = MonotonicGrooveDataset(
@@ -39,7 +40,7 @@ training_dataset = MonotonicGrooveDataset(
 
 # use the above dataset in the training pipeline, you need to use torch.utils.data.DataLoader
 from torch.utils.data import DataLoader
-train_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True) #int(32/4)
+train_dataloader = DataLoader(training_dataset, batch_size=10, shuffle=True) #int(32/4)
 
 # =================== optimezer and loss ============
 
@@ -77,3 +78,4 @@ for epoch in range(epochs):
         optimizer.step()
 
         LOSS.append(loss.detach().numpy())
+    #test eval
