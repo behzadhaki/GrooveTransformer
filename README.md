@@ -110,12 +110,15 @@ installing the `pyFluidSynth` pip3 package. (check available modules using `modu
       srun --nodes=1 --partition=short --gres=gpu:1 --cpus-per-task=4 --mem=8g --pty bash -i
       source /etc/profile.d/lmod.sh
       source /etc/profile.d/zz_hpcnow-arch.sh
-      ```
-   
-2. Load the environment
+      
+   ```
+
+
+3. Load the environment
 
 ```commandline
 module load Miniconda3/4.9.2
 module load FluidSynth/2.3.0-GCCcore-10.2.0
+source /soft/easybuild/x86_64/software/Miniconda3/4.9.2/etc/profile.d/conda.sh
 source activate VarGrvTrnsfmr
 ```
