@@ -80,6 +80,9 @@ class HVO_Sequence(object):
         self.__drum_mapping = None
         self.__hvo = None
 
+        # holds the last grid state so as to not recompute it if not needed
+        self.__last_grid_state = None
+
         # Use property setters to initiate properties (DON"T ASSIGN ABOVE so that the correct datatype is checked)
         if drum_mapping:
             self.drum_mapping = drum_mapping
@@ -89,6 +92,7 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
     def __getstate__(self):
         state_dict = {
+            "created_with_version": self.__version,
             "metadata": self.__metadata,
             "time_signatures": self.__time_signatures,
             "tempos": self.__tempos,
@@ -114,17 +118,35 @@ class HVO_Sequence(object):
         return state_dict
 
     def __setstate__(self, state):
-        self.__version = Version
-        self.__metadata = state["metadata"]
-        self.__time_signatures = state["time_signatures"]
-        self.__tempos = state["tempos"]
-        self.__drum_mapping = state["drum_mapping"]
+        if "created_with_version" in state:
+            print("Loading HVO_Sequence created with version: {}.".format(state["created_with_version"]))
+            if state["created_with_version"] != self.__version:
+                warnings.warn("HVO_Sequence version mismatch. Loading with version: {}.".format(self.__version))
 
-        if "hvo" in state:
-            self.__hvo = np.zeros(state["hvo"]["shape"])
-            self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
+        if "_HVO_Sequence__version" in state:
+            # old version before "0.6.0"
+            self.__hvo = state["_HVO_Sequence__hvo"]
+            self.__metadata = Metadata(state["_HVO_Sequence__metadata"])
+            self.__time_signatures = state["_HVO_Sequence__time_signatures"]
+            self.__tempos = state["_HVO_Sequence__tempos"]
+            self.__drum_mapping = state["_HVO_Sequence__drum_mapping"]
+            self.__version = Version
+            self.__last_grid_state = None   # added from "0.6.0
+
         else:
-            self.__hvo = None
+            self.__version = Version
+            self.__metadata = state["metadata"] if "metadata" in state else Metadata()
+            self.__time_signatures = state["time_signatures"]
+            self.__tempos = state["tempos"]
+            self.__drum_mapping = state["drum_mapping"]
+
+            if "hvo" in state:
+                self.__hvo = np.zeros(state["hvo"]["shape"])
+                self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
+            else:
+                self.__hvo = None
+
+            self.__last_grid_state = None
 
     def save(self, path):
         # make sure the path ends with .hvo
@@ -1007,7 +1029,7 @@ class HVO_Sequence(object):
         pos_offsets = np.where(offsets_ratio > 0, offsets_ratio, 0)
 
         # Find negative and positive scaling factors for offset ratios
-        grid = self.grid_lines
+        grid = np.array(self.grid_lines)
         inter_grid_distances = (grid[1:] - grid[:-1]) * 1000    # 1000 for sec to ms
         neg_bar_durations = np.zeros_like(grid)
         pos_bar_durations = np.zeros_like(grid)
@@ -1086,10 +1108,10 @@ class HVO_Sequence(object):
         v = self.get("v")
         o = self.get("o")
         o_sec = self.get_offsets_in_ms()/1000
-        grid_lines_sec = self.grid_lines
+        grid_lines_sec = np.array(self.grid_lines)
 
         drum_voice_tags = [(k, v[0] if isinstance(v, list) else v) for k, v in self.drum_mapping.items()]
-        note_duration = np.min(self.grid_lines[1:] - self.grid_lines[:-1]) / 2.0
+        note_duration = np.min(grid_lines_sec[1:] - grid_lines_sec[:-1]) / 2.0
 
         # for each row of h, find the indices of the nonzero elements
         # and use them to get the corresponding v and o values
@@ -1415,7 +1437,8 @@ class HVO_Sequence(object):
                           self.is_tempos_available(),
                           self.is_time_signatures_available()])
         if calculable:
-            return self.grid_lines[-1] + 0.5 * (self.grid_lines[-1] - self.grid_lines[-2])
+            grid_lines_sec = np.array(self.grid_lines)
+            return grid_lines_sec[-1] + 0.5 * (grid_lines_sec[-1] - grid_lines_sec[-2])
         else:
             return None
 
@@ -1571,12 +1594,18 @@ class HVO_Sequence(object):
             "minor_grid_line_indices": [],
             "downbeat_grid_line_indices": []
         }
-        from copy import deepcopy
-        current_step = 0
+        next_segment_start_time = 0
         segment_starts = self.segment_starts
         segment_ends = self.segment_ends
-        next_segment_start_time = 0
         tmps, tss = self.tempos_and_time_signatures_per_segments
+
+        if self.__last_grid_state is not None:
+            if self.__last_grid_state["segment_starts"] == segment_starts and \
+                    self.__last_grid_state["segment_ends"] == segment_ends and \
+                    self.__last_grid_state["tempos"] == tmps and \
+                    self.__last_grid_state["time_signatures"] == tss:
+                return self.__last_grid_state["grid_lines_with_types"]
+
         for segment_ix, (tempo, time_signature) in enumerate(zip(tmps, tss)):
             beat_duration = (60.0 / tempo.qpm) * 4.0 / time_signature.denominator
             seg_start = segment_starts[segment_ix]
@@ -1611,6 +1640,15 @@ class HVO_Sequence(object):
             output["minor_grid_line_indices"].extend(minor_grid_line_indices)
             output["downbeat_grid_line_indices"].extend(downbeat_grid_line_indices)
             next_segment_start_time = tmp_nxt_strt
+
+
+        self.__last_grid_state = {
+            "segment_starts": segment_starts,
+            "segment_ends": segment_ends,
+            "tempos": tmps,
+            "time_signatures": tss,
+            "grid_lines_with_types": output,
+        }
 
         return output
         #
@@ -1670,7 +1708,7 @@ class HVO_Sequence(object):
         """
 
         """
-        return np.array(self.grid_lines_with_types["grid_lines"])
+        return self.grid_lines_with_types["grid_lines"]
 
     #   ----------------------------------------------------------------------
     #   Utility methods to get STEP specific information
@@ -1836,29 +1874,30 @@ class HVO_Sequence(object):
         pass
 
     def find_index_and_offset_for_absolute_time(self, absolute_time):
+        grid_lines = np.array(self.grid_lines)
         # find nearest grid line
-        assert self.grid_lines is not None, "Grid lines are not available"
-        if len(self.grid_lines) == 1:
-            assert absolute_time <= self.grid_lines[-1]+0.01, \
+        assert grid_lines is not None, "Grid lines are not available"
+        if grid_lines.size == 1:
+            assert absolute_time <= grid_lines[-1]+0.01, \
                 "Absolute time is larger than the length of the sequence. " \
                 "Adjust length first using expand_length() method"
         else:
-            assert absolute_time <= self.grid_lines[-1]+0.5*(self.grid_lines[-1]-self.grid_lines[-2]), \
+            assert absolute_time <= grid_lines[-1]+0.5*(grid_lines[-1]-grid_lines[-2]), \
                 "Absolute time is larger than the length of the sequence. " \
                 "Adjust length first using expand_length() method"
         # check how many segments are available
         #self.consistent_segment_HVO_Sequences
 
-        ix = np.argmin(np.abs(self.grid_lines - absolute_time))
-        dis = absolute_time - self.grid_lines[ix]
+        ix = np.argmin(np.abs(grid_lines - absolute_time))
+        dis = absolute_time - grid_lines[ix]
         if ix == 0 and dis < 0:
-            offset = dis / (self.grid_lines[-1] - self.grid_lines[-2])
-        elif ix == len(self.grid_lines) - 1 and dis > 0:
-            offset = dis / (self.grid_lines[1] - self.grid_lines[0])
+            offset = dis / (grid_lines[-1] - grid_lines[-2])
+        elif ix == len(grid_lines) - 1 and dis > 0:
+            offset = dis / (grid_lines[1] - grid_lines[0])
         elif dis < 0:
-            offset = dis / (self.grid_lines[ix] - self.grid_lines[ix - 1])
+            offset = dis / (grid_lines[ix] - grid_lines[ix - 1])
         else:
-            offset = dis / (self.grid_lines[ix + 1] - self.grid_lines[ix])
+            offset = dis / (grid_lines[ix + 1] - grid_lines[ix])
         return int(ix), offset
 
     def find_index_for_pitch(self, pitch):
@@ -1900,6 +1939,9 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
+        # get grid
+        grid_lines = np.array(self.grid_lines)
+
         # Create a note sequence instance
         ns = music_pb2.NoteSequence()
 
@@ -1910,7 +1952,7 @@ class HVO_Sequence(object):
         pos_instrument_tensors = np.transpose(np.nonzero(self.__hvo[:, :n_voices]))
 
         # Set note duration as 1/2 of the smallest grid distance
-        note_duration = np.min(self.grid_lines[1:] - self.grid_lines[:-1]) / 2.0
+        note_duration = np.min(grid_lines[1:] - grid_lines[:-1]) / 2.0
 
         # Add notes to the NoteSequence object
         for drum_event in pos_instrument_tensors:  # drum_event -> [grid_position, drum_voice_class]
@@ -1927,21 +1969,21 @@ class HVO_Sequence(object):
             if utiming_ratio < 0:
                 # if utiming comes left of grid, figure out the grid resolution left of the grid line
                 if grid_pos > 0:
-                    utiming = (self.grid_lines[grid_pos] - self.grid_lines[grid_pos - 1]) * \
+                    utiming = (grid_lines[grid_pos] - grid_lines[grid_pos - 1]) * \
                               utiming_ratio
                 else:
                     utiming = 0  # if utiming comes left of beginning,  snap it to the very first grid (loc[0]=0)
             elif utiming_ratio > 0:
                 if grid_pos < (self.total_number_of_steps - 2):
-                    utiming = (self.grid_lines[grid_pos + 1] -
-                               self.grid_lines[grid_pos]) * utiming_ratio
+                    utiming = (grid_lines[grid_pos + 1] -
+                               grid_lines[grid_pos]) * utiming_ratio
                 else:
-                    utiming = (self.grid_lines[grid_pos] -
-                               self.grid_lines[grid_pos - 1]) * utiming_ratio
+                    utiming = (grid_lines[grid_pos] -
+                               grid_lines[grid_pos - 1]) * utiming_ratio
                     # if utiming_ratio comes right of the last grid line, use the previous grid resolution for finding
                     # the utiming value in ms
 
-            start_time = self.grid_lines[grid_pos] + utiming  # starting time of note in sec
+            start_time = grid_lines[grid_pos] + utiming  # starting time of note in sec
 
             end_time = start_time + note_duration  # ending time of note in sec
 
@@ -1952,13 +1994,13 @@ class HVO_Sequence(object):
 
         for tempo in self.tempos:
             ns.tempos.add(
-                time=self.grid_lines[tempo.time_step],
+                time=grid_lines[tempo.time_step],
                 qpm=tempo.qpm
             )
 
         for time_sig in self.time_signatures:
             ns.time_signatures.add(
-                time=self.grid_lines[time_sig.time_step],
+                time=grid_lines[time_sig.time_step],
                 numerator=time_sig.numerator,
                 denominator=time_sig.denominator
             )
@@ -2132,7 +2174,7 @@ class HVO_Sequence(object):
         # Add beat and beat_division grid lines
         major_grid_lines, minor_grid_lines = self.major_and_minor_grid_lines
 
-        grid_lines = self.grid_lines
+        grid_lines = np.array(self.grid_lines)
 
         minor_grid_ = []
         for t in minor_grid_lines:
@@ -2436,7 +2478,7 @@ class HVO_Sequence(object):
         mb_onset_detect = detect_onset(mb_onset_strength)
 
         # map to grid
-        grid = self.grid_lines
+        grid = np.array(self.grid_lines)
         strength_grid, onsets_grid = map_onsets_to_grid(grid, mb_onset_strength, mb_onset_detect, n_fft=n_fft,
                                                         hop_length=hop_length, sr=sr)
 
