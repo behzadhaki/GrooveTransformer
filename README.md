@@ -55,14 +55,13 @@ Multiple Models:
 
 
 # Install Environment (On UPF Cluster Use Conda)
-
 ----
 
 Before installing the environment above, do the following:
 
 1. Start an interactive session
 
-      ```
+      ```commandline
       srun --nodes=1 --partition=short --gres=gpu:1 --cpus-per-task=4 --mem=8g --pty bash -i
       source /etc/profile.d/lmod.sh
       source /etc/profile.d/zz_hpcnow-arch.sh
@@ -71,20 +70,23 @@ Before installing the environment above, do the following:
 2. We need to load FluidSynth first. This is needed for running `import fluidsynth` after 
 installing the `pyFluidSynth` pip3 package. (check available modules using `module av` command)
    
-      ```
+      ```commandline
+      module load Miniconda3/4.9.2
       module load FluidSynth/2.3.0-GCCcore-10.2.0
       ```
 
+> Note: to see all available modules, use `module av` command
+
 3. Setup venv environment called `VarGrvTrnsfmr`
    
-      ```
-      conda create --name VarGrvTrnsfmr python=3.6   
+      ```commandline
+      conda create --name VarGrvTrnsfmr python=3.9   
       source activate VarGrvTrnsfmr		           
       ```
 
 4. Install following packages
       
-      ```
+      ```commandline
       conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
       pip3 install note_seq
       pip3 install wandb
@@ -97,3 +99,23 @@ installing the `pyFluidSynth` pip3 package. (check available modules using `modu
       pip3 install pyfluidsynth 
       pip3 install holoviews
       ```
+
+--------
+# Loading Environment on Cluster
+--------
+
+1. Start an interactive session
+
+      ```
+      srun --nodes=1 --partition=short --gres=gpu:1 --cpus-per-task=4 --mem=8g --pty bash -i
+      source /etc/profile.d/lmod.sh
+      source /etc/profile.d/zz_hpcnow-arch.sh
+      ```
+   
+2. Load the environment
+
+```commandline
+module load Miniconda3/4.9.2
+module load FluidSynth/2.3.0-GCCcore-10.2.0
+source activate VarGrvTrnsfmr
+```
