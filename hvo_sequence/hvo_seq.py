@@ -80,6 +80,9 @@ class HVO_Sequence(object):
         self.__drum_mapping = None
         self.__hvo = None
 
+        # holds the last grid state so as to not recompute it if not needed
+        self.__last_grid_state = None
+
         # Use property setters to initiate properties (DON"T ASSIGN ABOVE so that the correct datatype is checked)
         if drum_mapping:
             self.drum_mapping = drum_mapping
@@ -125,6 +128,8 @@ class HVO_Sequence(object):
             self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
         else:
             self.__hvo = None
+
+        self.__last_grid_state = None
 
     def save(self, path):
         # make sure the path ends with .hvo
@@ -1571,12 +1576,20 @@ class HVO_Sequence(object):
             "minor_grid_line_indices": [],
             "downbeat_grid_line_indices": []
         }
-        from copy import deepcopy
-        current_step = 0
+        next_segment_start_time = 0
         segment_starts = self.segment_starts
         segment_ends = self.segment_ends
-        next_segment_start_time = 0
         tmps, tss = self.tempos_and_time_signatures_per_segments
+        
+        if self.__last_grid_state is not None:
+            if self.__last_grid_state["segment_starts"] == segment_starts and \
+                    self.__last_grid_state["segment_ends"] == segment_ends and \
+                    self.__last_grid_state["tempos"] == tmps and \
+                    self.__last_grid_state["time_signatures"] == tss:
+                return self.__last_grid_state["grid_lines_with_types"]
+
+        print("NOT Using cached grid lines")
+
         for segment_ix, (tempo, time_signature) in enumerate(zip(tmps, tss)):
             beat_duration = (60.0 / tempo.qpm) * 4.0 / time_signature.denominator
             seg_start = segment_starts[segment_ix]
@@ -1611,7 +1624,16 @@ class HVO_Sequence(object):
             output["minor_grid_line_indices"].extend(minor_grid_line_indices)
             output["downbeat_grid_line_indices"].extend(downbeat_grid_line_indices)
             next_segment_start_time = tmp_nxt_strt
-
+        
+        
+        self.__last_grid_state = {
+            "segment_starts": segment_starts,
+            "segment_ends": segment_ends,
+            "tempos": tmps,
+            "time_signatures": tss,
+            "grid_lines_with_types": output,
+        }
+        
         return output
         #
         # ts_consistent_lbs = self.time_signature_consistent_segment_lower_bounds
