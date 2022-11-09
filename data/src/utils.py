@@ -7,7 +7,7 @@ from tqdm import tqdm
 import numpy as np
 from bokeh.plotting import figure, gridplot
 from bokeh.io import save
-from bokeh.models import Tabs, #Panel
+from bokeh.models import Tabs, Panel
 from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence
 from hvo_sequence.drum_mappings import get_drum_mapping_using_label
 
