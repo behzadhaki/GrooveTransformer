@@ -10,7 +10,7 @@ from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
 import os
 
-os.environ["WANDB_NOTEBOOK_NAME"] = "testers/evaluator/VAE_testers/sweep_tester_VAE.py"
+os.environ["WANDB_NOTEBOOK_NAME"] = "sweep_tester_VAE.py"
 sweep_config = {
             'method': 'random',
             'metric': {
@@ -124,8 +124,8 @@ def train(config=None):
                 print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
                       f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
 
-                inputs = torch.tenosr(inputs.float()).to(device)
-                outputs = torch.tenosr(outputs.float()).to(device)
+                inputs = torch.tensor(inputs.float()).to(device)
+                outputs = torch.tensor(outputs.float()).to(device)
                 # run one epoch
 
 
