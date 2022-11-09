@@ -44,15 +44,15 @@ parameters_dict = {
                  'max': 1
             },
             'num_encoder_layers': {
-                        'values': [6, 8, 10, 12]},
+                        'values': [1, 2, 3, 4]},
             'num_decoder_layers': {
-                        'values': [6, 8, 10, 12]},
+                        'values': [1, 2, 3, 4]},
             'max_len': {
                     'value': 32},
             'device': {
                     'value': 0},
             'latent_dim': {
-                    'value': int((32 * 27) / 4)},
+                    'value': [16, 32, 64, 128, 256, 512]},
             "epochs": {
                     'value': 100},
             "batch_size": {
@@ -68,8 +68,8 @@ parameters_dict = {
 sweep_config['parameters'] = parameters_dict
 
 # wandb_run = wandb.init(config=sweep_config, project="VAE_sweep1")
-
-sweep_id = wandb.sweep(sweep_config, project="VAE_sweep1")
+wandb.init(project="VAE_sweep1", anonymous="allow")
+sweep_id = wandb.sweep(sweep_config)
 # wandb.init(
 #         project="VAE_sweep1",
 #         config=sweep_config )
