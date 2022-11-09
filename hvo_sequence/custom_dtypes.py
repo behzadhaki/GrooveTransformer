@@ -1,6 +1,12 @@
+import warnings
 from copy import deepcopy
 import numpy as np
+import note_seq
+import math
 
+# ======================================================================================================================
+# === Meta Data, Time Signature, and Tempo Classes =====================================================================
+# ======================================================================================================================
 class Metadata(dict):
     """
     A dictionary that can be appended to.
@@ -61,22 +67,11 @@ class Metadata(dict):
         return list(zip(starts, ends, metadatas))
 
 
-
-# a = Metadata({1: 2, 3: 4})
-# a.append(a, 1)
-# a.append(a, 3)
-# a.time_steps
-#
-# b = Metadata({6: 8, 7: 9, 12: 14})
-# a.append(b, 12)
-# a.split()
-
 class Time_Signature(object):
-    def __init__(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None):
+    def __init__(self, time_step=None, numerator=None, denominator=None):
         self.__time_step = None     # index corresponding to the time_step in hvo where signature change happens
         self.__numerator = None
         self.__denominator = None
-        self.__beat_division_factors = None             # must be a list of integers
 
         if time_step is not None:
             self.time_step = time_step
@@ -84,13 +79,11 @@ class Time_Signature(object):
             self.numerator = numerator
         if denominator is not None:
             self.denominator = denominator
-        if beat_division_factors is not None:
-            self.beat_division_factors = beat_division_factors
 
     def __repr__(self):
         rep = "Time_Signature = { \n " +\
-              "\t time_step: {}, \n \t numerator: {}, \n \t denominator: {}, \n \t beat_division_factors: {}".format(
-                  self.time_step, self.numerator, self.denominator, self.beat_division_factors)+"\n}"
+              "\t time_step: {}, \n \t numerator: {}, \n \t denominator: {}".format(
+                  self.time_step, self.numerator, self.denominator)+"\n}"
         return rep
 
     def __eq__(self, other):
@@ -102,7 +95,7 @@ class Time_Signature(object):
         is_eq = all([
             self.numerator == other.numerator,
             self.denominator == other.denominator,
-            self.beat_division_factors == other.beat_division_factors
+            self.time_step == other.time_step
         ])
         return is_eq
 
@@ -154,26 +147,6 @@ class Time_Signature(object):
             self.__denominator = val
 
     @property
-    def beat_division_factors(self):
-        return self.__beat_division_factors
-
-    @beat_division_factors.setter
-    def beat_division_factors(self, x):
-        if x is None:
-            self.__denominator = None
-        else:
-            # Ensure input is a list
-            assert isinstance(x, list), "Expected a list but received {}".format(type(x))
-            # Ensure the values in list are integers
-            assert all([isinstance(x_i, int) for x_i in x]), "Expected a list of int but received " \
-                                                             "{}".format([type(x_i) for x_i in x])
-            # Ensure the factors is list are either binary or multiple of 3
-            assert all([((not is_power_of_two(factor)) or (factor % 3 != 0)) for factor in x]
-                       ), "beat_division_factors must be either power of 2 or multiple of 3"
-            # Now, Safe to update local beat_division_factors variable
-            self.__beat_division_factors = x
-
-    @property
     def is_ready_to_use(self):
         # Checks to see if all fields are filled and consequently, the Time_Signature is ready to be used externally
         fields_available = list()
@@ -181,6 +154,8 @@ class Time_Signature(object):
             fields_available.append(True) if self.__dict__[key] is not None else fields_available.append(False)
         return all(fields_available)
 
+    def copy(self):
+        return Time_Signature(self.time_step, self.numerator, self.denominator)
 
 class Tempo(object):
     def __init__(self, time_step=None,  qpm=None):
@@ -239,12 +214,13 @@ class Tempo(object):
             type(other))
 
         # ignore the start time index of time_signatures and check whether qpms are equal
-        return self.qpm == other.qpm
+        return (self.qpm == other.qpm) and (self.time_step == other.time_step)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
-
+    def copy(self):
+        return Tempo(self.time_step, self.qpm)
 
 def is_power_of_two(n):
     """
@@ -263,3 +239,402 @@ def is_power_of_two(n):
         return (n & (n - 1) == 0) and n != 0
     else:
         return False
+
+# ======================================================================================================================
+# === GridMaker Class ==================================================================================================
+# Only recalculate the grid when a get_* method is called to access the values have changed back to None
+# ======================================================================================================================
+def are_beat_division_factors_legal(beat_division_factors: list):
+    """beat_division_factors must integers and no two factors can be multiples of each other"""
+    assert isinstance(beat_division_factors, list), "beat_division_factors must be a list"
+    assert all([isinstance(x, int) for x in beat_division_factors]), "beat_division_factors must be a list of integers"
+    assert all([x > 0 for x in beat_division_factors]), "beat_division_factors must be a list of positive integers"
+
+    # check if any two factors are multiples of each other
+    for i in range(len(beat_division_factors)):
+        for j in range(i+1, len(beat_division_factors)):
+            if beat_division_factors[i] % beat_division_factors[j] == 0 or \
+                    beat_division_factors[j] % beat_division_factors[i] == 0:
+                return False
+    return True
+
+
+class GridMaker:
+    """
+    Class to generate a grid for a given time signature and tempo and beat division factors
+    """
+    def __init__(self, beat_division_factors: list):
+        """
+        Class to generate a grid for a given time signature and tempo and beat division factors
+        This class is implemented such that if any information that can modify [1] the grid is changed, the grid is
+        cleared and only recalculated when a get_* method is called to access the values
+
+        [1] The grid is cleared whenever a new time signature, tempo is set or the length of the grid is changed
+
+        :param beat_division_factors:  list of integers that are the factors of the beat divisions.
+        no two factors can be multiples of each other
+        """
+        # must be pickled
+        # ------------------------------------------------------------------------------------------------
+        if are_beat_division_factors_legal(beat_division_factors):
+            self.__beat_division_factors = beat_division_factors
+        else:
+            raise ValueError("The beat division factors must be a list of integers and "
+                             "no two factors can be divisible by each other.")
+        # ------------------------------------------------------------------------------------------------
+        self.__tempos = None
+        self.__time_signatures = None
+        self.__n_steps = -1                  # total steps of grid pre-calculated / must be larger than hvo steps
+
+        # Constructed per segment after unpickling
+        # ------------------------------------------------------------------------------------------------
+        self.__n_steps_per_beat = sum(beat_division_factors)-(len(beat_division_factors)-1)     # num steps per segment
+
+        # Segment Info
+        # ------------------------------------------------------------------------------------------------
+        self.__segment_starts = None          # start time steps of each segment
+        self.__segment_ends = None            # end time steps of each segment **exclusive final step**
+        self.__segment_time_signatures = None             # time signature of each segment
+        self.__segment_tempos = None                      # tempo of each segment
+        self.__segment_durations_in_steps = None          # duration of each seg in num steps (multiple of beat steps)
+        self.__segment_durations_in_sec = None            # tempo of each segment
+        self.__segment_single_beat_grid_locations_in_sec = None            # duration of a single beat in seconds
+
+        # Grid Info
+        # ------------------------------------------------------------------------------------------------
+        self.__grid_lines = []
+        self.__minor_grid_lines = []
+        self.__major_grid_lines = []
+        self.__downbeat_grid_lines = []
+        self.__minor_grid_line_indices = []
+        self.__major_grid_line_indices = []
+        self.__downbeat_grid_line_indices = []
+        self.__total_seconds_prepared = -1
+
+    @property
+    def time_signatures(self):
+        return self.__time_signatures
+
+    @time_signatures.setter
+    def time_signatures(self, ts_list):
+        assert isinstance(ts_list, list), "time_signatures must be a list"
+        assert all([isinstance(x, Time_Signature) for x in ts_list]), "time_signatures must be a list of TimeSignature instances"
+        self.__time_signatures = None
+        for ts in ts_list:
+            self.add_time_signature(ts.time_step, ts.numerator, ts.denominator)
+        self.erase_segment_info()
+        self.erase_grid()
+
+    @property
+    def tempos(self):
+        return self.__tempos
+
+    @tempos.setter
+    def tempos(self, tempo_list):
+        assert isinstance(tempo_list, list), "tempos must be a list"
+        assert all([isinstance(x, Tempo) for x in tempo_list]), "tempos must be a list of Tempo instances"
+        self.__tempos = None
+        for tempo in tempo_list:
+            self.add_tempo(tempo.time_step, tempo.qpm)
+        self.erase_segment_info()
+        self.erase_grid()
+
+    @property
+    def n_steps(self):
+        return self.__n_steps
+
+    @n_steps.setter
+    def n_steps(self, n_steps):
+        """adjusts the number of steps in the grid.
+        Ensures that (1) snaps n_steps to nest available beat, (2) ensure resulting grid steps are at least 1 bar after
+        the last time signature change
+        """
+        assert int(n_steps) == n_steps, "n_steps must be an integer"
+        assert n_steps > 0, "n_steps must be greater than 0"
+        # make sure aligns on beat
+        n_steps = math.ceil(n_steps / self.__n_steps_per_beat) * self.__n_steps_per_beat
+
+        if n_steps > self.__n_steps:
+            self.extract_segment_info()
+            # at least one bar after las
+            ts = self.__time_signatures[-1]
+            last_seg_beginning_at = max(ts.time_step, self.__tempos[-1].time_step)
+            self.__n_steps = max(last_seg_beginning_at + ts.numerator * self.__n_steps_per_beat, n_steps)
+
+            self.erase_segment_info()
+            self.erase_grid()
+
+    def add_time_signature(self, time_step, numerator, denominator):
+        """ Adds a time signature to the grid maker __time_signatures list
+        If two consecutive time signatures exist with the same numerator and denominator, the second one is ignored
+        @param time_step:       time step of the time signature
+        @param numerator:       numerator of the time signature
+        @param denominator:     denominator of the time signature
+        """
+        old_time_signatures = deepcopy(self.__time_signatures if self.__time_signatures is not None else [])
+
+        # Make sure time step is a multiple of n_steps_per_beat
+        time_step = int(round(time_step / self.__n_steps_per_beat) * self.__n_steps_per_beat)
+
+        old_time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator))
+        old_time_signatures.sort(key=lambda x: x.time_step)
+
+        # Ignore time signatures that have the same numerator and denominator as the previous one
+        new_time_signatures = []
+        for i in range(len(old_time_signatures)):
+            if i == 0:
+                new_time_signatures.append(old_time_signatures[i])
+            else:
+                if old_time_signatures[i].numerator != old_time_signatures[i-1].numerator or \
+                        old_time_signatures[i].denominator != old_time_signatures[i-1].denominator:
+                    new_time_signatures.append(old_time_signatures[i])
+                else:
+                    new_time_signatures[i-1].time_step = min(
+                        old_time_signatures[i].time_step, old_time_signatures[i-1].time_step)
+
+        # Update time signatures if any changes were made
+        if new_time_signatures != self.__time_signatures:
+            self.__time_signatures = new_time_signatures
+            self.erase_segment_info()
+            self.erase_grid()
+
+            return True
+        else:
+            return False
+
+    def add_tempo(self, time_step, qpm):
+        """ Adds a tempo to the grid maker __tempos list
+        If two consecutive tempos exist with the same qpm, the second one is ignored
+        @param time_step:       time step of the tempo
+        @param qpm:             qpm of the tempo
+        """
+        old_tempos = deepcopy(self.__tempos if self.__tempos is not None else [])
+
+        # Make sure time step is a multiple of n_steps_per_beat
+        time_step = int(round(time_step / self.__n_steps_per_beat) * self.__n_steps_per_beat)
+
+        old_tempos.append(Tempo(time_step=time_step, qpm=qpm))
+        old_tempos.sort(key=lambda x: x.time_step)
+
+        # Ignore tempos that have the same qpm as the previous one
+        new_tempos = []
+        for i in range(len(old_tempos)):
+            if i == 0:
+                new_tempos.append(old_tempos[i])
+            else:
+                if old_tempos[i].qpm != old_tempos[i-1].qpm:
+                    new_tempos.append(old_tempos[i])
+                else:
+                    new_tempos[i-1].time_step = min(old_tempos[i].time_step, old_tempos[i-1].time_step)
+
+        # Only update if the tempos have changed
+        if new_tempos != self.__tempos:
+            self.__tempos = new_tempos
+            self.erase_grid()
+            self.erase_segment_info()
+            return True
+        else:
+            return False
+
+    def prepare_time_signatures_and_tempos(self):
+        if self.__time_signatures is not None:
+            if self.__time_signatures[0].time_step != 0 or self.__tempos[0].time_step != 0:
+                self.__time_signatures[0].time_step = 0
+                self.__tempos[0].time_step = 0
+                warnings.warn("The first time signature and tempo must start at time step 0. Forced to change.")
+        else:
+            raise ValueError("No time signatures have been added to create the grid")
+
+    def erase_segment_info(self):
+        self.__segment_starts = None
+        self.__segment_ends = None
+        self.__segment_time_signatures = None
+        self.__segment_tempos = None
+        self.__segment_durations_in_steps = None
+        self.__segment_durations_in_sec = None
+        self.__segment_single_beat_grid_locations_in_sec = None
+
+    def extract_segment_info(self):
+        if not self.is_ready():
+            raise ValueError("Time signatures or Tempos are required create a segmented grid")
+
+        # Make sure the first time signature and tempo start at time step 0
+        self.prepare_time_signatures_and_tempos()
+
+        # template size is 2-bars after the beginning of last segment
+        if self.__n_steps == -1:
+            last_ts = max(self.__tempos[-1].time_step, self.__time_signatures[-1].time_step)
+            self.__n_steps = last_ts + 2 * self.__time_signatures[-1].numerator * self.__n_steps_per_beat
+
+        # Create a list of segment starts and ends
+        self.__segment_starts = [x.time_step for x in self.__time_signatures] + [x.time_step for x in self.__tempos]
+        self.__segment_starts = list(set(self.__segment_starts))
+        self.__segment_ends = self.__segment_starts[1:] + [self.__n_steps]
+
+        # find which time signature and tempo each segment starts with
+        self.__segment_time_signatures = []
+        self.__segment_tempos = []
+        for i in range(len(self.__segment_starts)):
+            ts_, tmp_ = None, None
+            for ts in self.__time_signatures:
+                if self.__segment_starts[i] >= ts.time_step:
+                    ts_ = ts.copy()
+            for tmp in self.__tempos:
+                if self.__segment_starts[i] >= tmp.time_step:
+                    tmp_ = tmp.copy()
+            t_ = max(ts_.time_step, tmp_.time_step)
+            ts_.time_step = t_
+            tmp_.time_step = t_
+            self.__segment_time_signatures.append(ts_)
+            self.__segment_tempos.append(tmp_)
+            idx = max(self.__segment_time_signatures[i].time_step, self.__segment_tempos[i].time_step)
+            self.__segment_time_signatures[i].time_step = idx
+            self.__segment_time_signatures[i].time_step = idx
+
+        # Create a list of segment durations
+        self.__segment_durations_in_steps = [
+            self.__segment_ends[i] - self.__segment_starts[i] for i in range(len(self.__segment_starts))]
+
+        self.__segment_durations_in_sec = []
+        self.__segment_single_beat_grid_locations_in_sec = []
+        for i in range(len(self.__segment_starts)):
+            # calculate the duration of each segment in seconds
+            n_beats = (self.__segment_ends[i] - self.__segment_starts[i]) / self.__n_steps_per_beat
+            secs_per_beat = (60.0 / self.__segment_tempos[i].qpm) * 4.0 / self.__segment_time_signatures[i].denominator
+            secs = n_beats * secs_per_beat
+            self.__segment_durations_in_sec.append(round(secs, 3))
+
+            locs = []
+            for bdf in self.__beat_division_factors:
+                locs.extend([round(i*secs_per_beat/bdf, 3) for i in range(int(bdf))])
+            self.__segment_single_beat_grid_locations_in_sec.append(sorted(set(locs)))
+
+        # Make sure the total number of steps is at least 1 bar after the beginning of last segment
+        self.__n_steps = max(
+            self.__segment_time_signatures[-1].time_step * self.__n_steps_per_beat,
+            self.__n_steps)
+
+    def is_ready(self):
+        return all([self.__time_signatures is not None, self.__tempos is not None])
+
+    def erase_grid(self):
+        self.__grid_lines = []
+        self.__minor_grid_lines = []
+        self.__major_grid_lines = []
+        self.__downbeat_grid_lines = []
+        self.__minor_grid_line_indices = []
+        self.__major_grid_line_indices = []
+        self.__downbeat_grid_line_indices = []
+        self.__total_seconds_prepared = -1
+
+    def make_grid(self, n_steps=None):
+        if not self.is_ready():
+            raise ValueError("Time signatures or Tempos are required create a segmented grid")
+
+        if n_steps is not None:
+            if n_steps > self.__n_steps:
+                self.n_steps = n_steps
+
+        if not self.__grid_lines:
+            self.extract_segment_info()
+
+        for seg_ix in range(len(self.__segment_starts)):
+            n_beats = self.__segment_durations_in_steps[seg_ix] / self.__n_steps_per_beat
+            t_shift = sum(self.__segment_durations_in_sec[:seg_ix])
+            ix_shift = sum(self.__segment_durations_in_steps[:seg_ix])
+            beat_dur_sec = self.__segment_durations_in_sec[seg_ix] / n_beats
+            for beat_ix in range(int(n_beats)):
+                for ix_from_beat, secs_from_beat in enumerate(self.__segment_single_beat_grid_locations_in_sec[seg_ix]):
+                    t = round(secs_from_beat + beat_dur_sec * beat_ix + t_shift, 3)
+                    in_seg_index = beat_ix * self.__n_steps_per_beat + ix_from_beat
+                    from_beg_index = in_seg_index + ix_shift
+                    self.__grid_lines.append(t)
+                    if in_seg_index % (self.__segment_time_signatures[seg_ix].numerator * self.__n_steps_per_beat) == 0:
+                        self.__downbeat_grid_lines.append(t)
+                        self.__downbeat_grid_line_indices.append(from_beg_index)
+                        self.__major_grid_lines.append(t)
+                        self.__major_grid_line_indices.append(from_beg_index)
+                    elif in_seg_index % self.__n_steps_per_beat == 0:
+                        self.__major_grid_lines.append(t)
+                        self.__major_grid_line_indices.append(from_beg_index)
+                    else:
+                        self.__minor_grid_lines.append(t)
+                        self.__minor_grid_line_indices.append(from_beg_index)
+
+        if len(self.__grid_lines) > 1:
+            self.__total_seconds_prepared = \
+                self.__grid_lines[-1] + (self.__grid_lines[-1] - self.__grid_lines[-2]) / 2.0
+        else:
+            return False
+
+    def get_grid_lines(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__grid_lines:
+            self.make_grid()
+        return self.__grid_lines[:n_steps]
+
+    def get_major_grid_lines(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__major_grid_lines:
+            self.make_grid()
+        return self.__major_grid_lines[:n_steps]
+
+    def get_minor_grid_lines(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__minor_grid_lines:
+            self.make_grid()
+        return self.__minor_grid_lines[:n_steps]
+
+    def get_downbeat_grid_lines(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__downbeat_grid_lines:
+            self.make_grid()
+        return self.__downbeat_grid_lines[:n_steps]
+
+    def get_minor_grid_line_indices(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__minor_grid_line_indices:
+            self.make_grid()
+        return self.__minor_grid_line_indices[:n_steps]
+
+    def get_major_grid_line_indices(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__major_grid_line_indices:
+            self.make_grid()
+        return self.__major_grid_line_indices[:n_steps]
+
+    def get_downbeat_grid_line_indices(self, n_steps):
+        if n_steps > self.__n_steps:
+            self.n_steps = n_steps
+        if not self.__downbeat_grid_line_indices:
+            self.make_grid()
+        return self.__downbeat_grid_line_indices[:n_steps]
+
+
+
+if __name__=="__main__":
+    gridMaker = GridMaker([3, 4])
+    # # add time signatures
+    gridMaker.add_time_signature(20, 3, 4)
+    # #gridMaker.add_time_signature(8, 2, 4)
+    # gridMaker.add_time_signature(16, 3, 4)
+    #
+    # # Add tempos
+    gridMaker.add_tempo(100, 120)
+    # gridMaker.add_tempo(30, 50)
+    #
+    # # Make grid
+    # gridMaker.make_grid()
+    #
+    # # print grid
+    # # gridMaker.__dict__
+    import time
+    start = time.time()
+    gridMaker.get_grid_lines(1000)
+    print(time.time() - start)
