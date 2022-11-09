@@ -124,8 +124,10 @@ def train(config=None):
                 print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
                       f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
 
-                inputs = torch.tensor(inputs.float()).to(device)
-                outputs = torch.tensor(outputs.float()).to(device)
+                #inputs = inputs.clone().detach()#torch.tensor(inputs.float())
+                inputs.to(device)
+                #outputs = torch.tensor(outputs.float())
+                outputs.to(device)
                 # run one epoch
 
 
@@ -149,9 +151,10 @@ def train(config=None):
                            }
 
             groove_transformer.eval()
-            output_test = test_dataset.outputs.to(device)
-            inputs_test = test_dataset.inputs.to(device)
-
+            output_test = test_dataset.outputs
+            output_test.to(device)
+            inputs_test = test_dataset.inputs
+            inputs_test.to(device)
             output_net_test = groove_transformer(inputs_test)
             val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
                                               hit_loss_penalty, config.bce, config.dice)
