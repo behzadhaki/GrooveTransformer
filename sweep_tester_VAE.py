@@ -67,6 +67,8 @@ parameters_dict = {
 
 sweep_config['parameters'] = parameters_dict
 
+# wandb_run = wandb.init(config=sweep_config, project="VAE_sweep1")
+
 sweep_id = wandb.sweep(sweep_config, project="VAE_sweep1")
 # wandb.init(
 #         project="VAE_sweep1",
