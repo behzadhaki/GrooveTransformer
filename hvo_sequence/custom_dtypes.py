@@ -311,6 +311,20 @@ class GridMaker:
         self.__downbeat_grid_line_indices = []
         self.__total_seconds_prepared = -1
 
+    def __getstate__(self):
+        state = {
+            'beat_division_factors': self.__beat_division_factors,
+            'tempos': self.__tempos,
+            'time_signatures': self.__time_signatures,
+            'n_steps': self.__n_steps,
+        }
+
+    def __setstate__(self, state):
+        self.__beat_division_factors = state['beat_division_factors']
+        self.__tempos = state['tempos']
+        self.__time_signatures = state['time_signatures']
+        self.__n_steps = state['n_steps']
+
     @property
     def time_signatures(self):
         return self.__time_signatures
@@ -616,9 +630,42 @@ class GridMaker:
             self.make_grid()
         return self.__downbeat_grid_line_indices[:n_steps]
 
+    def get_index_and_offset_at_sec(self, t_sec):
+        if not self.__segment_starts:
+            self.extract_segment_info()
+
+        if t_sec >= (self.__total_seconds_prepared-1):
+            last_seg_start = sum(self.__segment_durations_in_sec[:-1])
+            time_diff = t_sec - last_seg_start
+            ts = self.__segment_time_signatures[-1]
+            tmp = self.__segment_tempos[-1]
+            secs_per_beat = (60.0 / tmp.qpm) * 4.0 / ts.denominator
+            min_steps_needed = math.ceil(time_diff / secs_per_beat) * self.__n_steps_per_beat
+            n_steps = ts.time_step + min_steps_needed + 1
+            print("self.n_steps {}".format(self.__n_steps), "n_steps: {}".format(n_steps), "min_steps_needed: {}".format(min_steps_needed))
+            self.make_grid(n_steps)
+        else:
+            if not self.__grid_lines:
+                self.make_grid()
+
+        # use math to get index of closest value to t_sec
+        idx, grid_val = min(enumerate(self.__grid_lines), key=lambda x: abs(x[1]-t_sec))
+        print("t_sec: {}".format(t_sec), "grid_val: {}".format(grid_val), "idx: {}".format(idx))
+        diff = t_sec - grid_val
+        print("idx: ", idx, "grid_val: ", grid_val, "len(grid_lines): ", len(self.__grid_lines), "diff: ", diff)
+
+        if diff != 0:
+            offset = diff / (self.__grid_lines[idx+1] - self.__grid_lines[idx]) if diff > 0 else \
+                diff / (self.__grid_lines[idx] - self.__grid_lines[idx-1])
+        else:
+            offset = 0
+        return idx, round(offset, 3)
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
+
+    import time
+
     gridMaker = GridMaker([3, 4])
     # # add time signatures
     gridMaker.add_time_signature(20, 3, 4)
@@ -626,7 +673,7 @@ if __name__=="__main__":
     # gridMaker.add_time_signature(16, 3, 4)
     #
     # # Add tempos
-    gridMaker.add_tempo(100, 120)
+    gridMaker.add_tempo(33, 20)
     # gridMaker.add_tempo(30, 50)
     #
     # # Make grid
@@ -634,7 +681,10 @@ if __name__=="__main__":
     #
     # # print grid
     # # gridMaker.__dict__
-    import time
+    # len(gridMaker.get_grid_lines(1003))
+
     start = time.time()
-    gridMaker.get_grid_lines(1000)
+    gridMaker.get_index_and_offset_at_sec(200)
     print(time.time() - start)
+
+    print(gridMaker.__dict__)
