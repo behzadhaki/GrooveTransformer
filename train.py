@@ -113,7 +113,7 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            metrics = {"train/train_loss": loss.detach().numpy(),
+            metrics = {"train/train_loss": loss.cpu().detach().numpy(),
                        "train/epoch": epoch,
                        "train/h_loss": losses['loss_h'],
                        "train/v_loss": losses['loss_v'],
@@ -124,14 +124,14 @@ if __name__ == "__main__":
                 torch.cuda.empty_cache()
 
         groove_transformer.eval()
-        output_test = test_dataset.outputs
-        output_test.to(device)
-        inputs_test = test_dataset.inputs
-        inputs_test.to(device)
+        output_test = test_dataset.outputs.to(device)
+
+        inputs_test = test_dataset.inputs.to(device)
+
         output_net_test = groove_transformer(inputs_test)
         val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
                                                   hit_loss_penalty, config.bce, config.dice)
-        val_metrics = {"val/train_loss": val_loss.detach().numpy(),
+        val_metrics = {"val/train_loss": val_loss.cpu().detach().numpy(),
                        "val/h_loss": val_losses['loss_h'],
                        "val/v_loss": val_losses['loss_v'],
                        "val/o_loss": val_losses['loss_o'],
