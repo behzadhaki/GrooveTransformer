@@ -1,0 +1,5 @@
+cd GrooveTransformer
+source VarGrvTrnsfmr/bin/activate
+
+export PATH="$HOME/GrooveTransformer/VarGrvTrnsfmr/bin:$PATH"
+VarGrvTrnsfmr/bin/wandb agent hdperezn/transformerVAE1/rsc4pg89

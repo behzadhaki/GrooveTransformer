@@ -81,7 +81,7 @@ if __name__ == "__main__":
                                                      device,
                                                      config.bce)
 
-    groove_transformer = groove_transformer_cpu.cuda() if torch.cuda.is_available() else groove_transformer_cpu
+    groove_transformer = groove_transformer_cpu.to(device)#groove_transformer_cpu.cuda() if torch.cuda.is_available() else groove_transformer_cpu
     optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
     batch_size = config.batch_size
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
@@ -92,11 +92,14 @@ if __name__ == "__main__":
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
             print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
                   f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
-
+            logger.warning(f"model device is {groove_transformer.device}")
             # inputs = inputs.clone().detach()#torch.tensor(inputs.float())
             inputs.to(device)
+            logger.warning(f"inputs device is {inputs.device}")
             # outputs = torch.tensor(outputs.float())
             outputs.to(device)
+            logger.warning(f"output device is {outputs.device}")
+
             # run one epoch
 
             # forward + backward + optimize
