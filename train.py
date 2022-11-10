@@ -70,7 +70,7 @@ if __name__ == "__main__":
     mse_fn = torch.nn.MSELoss(reduction='none')
     hit_loss_penalty = config.loss_hit_penalty_multiplier
 
-    groove_transformer = GrooveTransformerEncoderVAE(config.d_model_enc, config.d_model_dec,
+    groove_transformer_cpu = GrooveTransformerEncoderVAE(config.d_model_enc, config.d_model_dec,
                                                      config.embedding_size_src,
                                                      config.embedding_size_tgt, config.nhead_enc,
                                                      config.nhead_dec,
@@ -80,7 +80,7 @@ if __name__ == "__main__":
                                                      config.max_len,
                                                      config.device,
                                                      config.bce)
-    groove_transformer.to(device)
+    groove_transformer = groove_transformer_cpu.cuda() if torch.cuda.is_available() else groove_transformer_cpu
     optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
     batch_size = config.batch_size
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
