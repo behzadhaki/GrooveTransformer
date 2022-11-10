@@ -1,17 +1,17 @@
-import sys
-sys.path.insert(1, "/")
-sys.path.insert(1, "../")
-import os
 import wandb
-import math
-import random
-import torch, torchvision
-from model.src.BasicGrooveTransformer_VAE import *
-from helpers.BasicGrooveTransformer_train_VAE import *
+import torch
+from model.src.BasicGrooveTransformer_VAE import GrooveTransformerEncoderVAE
+from helpers.BasicGrooveTransformer_train_VAE import calculate_loss_VAE
 # Load dataset as torch.utils.data.Dataset
 from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
 
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# logger.info("MAKE SURE YOU DO THIS")
+# logger.warning("this is a warning!")
 
 hyperparameter_defaults = dict(
     nhead_enc=2,
@@ -78,13 +78,15 @@ if __name__ == "__main__":
                                                      config.num_encoder_layers,
                                                      config.latent_dim, config.num_decoder_layers,
                                                      config.max_len,
-                                                     config.device,
+                                                     device,
                                                      config.bce)
+
     groove_transformer = groove_transformer_cpu.cuda() if torch.cuda.is_available() else groove_transformer_cpu
     optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
     batch_size = config.batch_size
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
+    metrics = dict()
     for epoch in range(config.epochs):
         groove_transformer.train()  # train mode
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
@@ -115,6 +117,8 @@ if __name__ == "__main__":
                        "train/o_loss": losses['loss_o'],
                        "train/KL_loss": losses['KL_loss'],
                        }
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         groove_transformer.eval()
         output_test = test_dataset.outputs
@@ -124,11 +128,11 @@ if __name__ == "__main__":
         output_net_test = groove_transformer(inputs_test)
         val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
                                                   hit_loss_penalty, config.bce, config.dice)
-        val_metrics = {"val/train_loss": loss.detach().numpy(),
-                       "val/h_loss": losses['loss_h'],
-                       "val/v_loss": losses['loss_v'],
-                       "val/o_loss": losses['loss_o'],
-                       "val/KL_loss": losses['KL_loss']
+        val_metrics = {"val/train_loss": val_loss.detach().numpy(),
+                       "val/h_loss": val_losses['loss_h'],
+                       "val/v_loss": val_losses['loss_v'],
+                       "val/o_loss": val_losses['loss_o'],
+                       "val/KL_loss": val_losses['KL_loss']
                        }
 
         wandb.log({**metrics, **val_metrics})
