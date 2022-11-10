@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -J sweep_small
-#SBATCH -p long
+#SBATCH -p medium
 #SBATCH -N 1
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --cpus-per-task=4
