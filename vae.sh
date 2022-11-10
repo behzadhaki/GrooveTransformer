@@ -5,8 +5,8 @@
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16g
-#SBATCH -o /homedtic/hperez/error/%N.%J.VAE_test_loader.out
-#SBATCH -e /homedtic/hperez/error/%N.%J.VAE_test_loader.err
+#SBATCH -o /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.out
+#SBATCH -e /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.err
 
 export PATH="$HOME/GrooveTransformer/VarGrvTrnsfmr/bin:$PATH"
 
