@@ -94,10 +94,10 @@ if __name__ == "__main__":
                   f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
             logger.warning(f"model device is {groove_transformer.device}")
             # inputs = inputs.clone().detach()#torch.tensor(inputs.float())
-            inputs.to(device)
+            inputs = inputs.to(device)
             logger.warning(f"inputs device is {inputs.device}")
             # outputs = torch.tensor(outputs.float())
-            outputs.to(device)
+            outputs = outputs.to(device)
             logger.warning(f"output device is {outputs.device}")
 
             # run one epoch
