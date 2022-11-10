@@ -1,4 +1,6 @@
 import torch
+import json
+import os
 
 from model.src.shared_model_components_VAE import *
 from model.src.utils import *
@@ -62,3 +64,29 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             h = get_hits_activation(_h, use_thres=use_thres, thres=thres, use_pd=use_pd)
 
         return h, v, o
+
+    def save(self, save_path, additional_info=None):
+        if not save_path.endswith('.pth'):
+            save_path += '.pth'
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+        params_dict = {
+            'd_model_enc': self.d_model_enc,
+            'd_model_dec': self.d_model_dec,
+            'embedding_size_src': self.embedding_size_src,
+            'embedding_size_tgt': self.embedding_size_tgt,
+            #trasnformers dims and params
+            'nhead_enc': self.nhead_enc,
+            'nhead_dec': self.nhead_dec,
+            'dim_feedforward': self.dim_feedforward,
+            'dropout': self.dropout,
+            'max_len': self.max_len,
+            'num_encoder_layers': self.num_encoder_layers,
+            'num_decoder_layers': self.num_decoder_layers,
+            'latent_dim': self.latent_dim,
+            'device': self.device.type if isinstance(self.device, torch.device) else self.device,
+        }
+
+        json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
+        torch.save({'model_state_dict': self.state_dict(), 'params': params_dict,
+                    'additional_info': additional_info}, save_path)

@@ -1,11 +1,12 @@
 import wandb
 import torch
+from statistics import mean
 from model.src.BasicGrooveTransformer_VAE import GrooveTransformerEncoderVAE
 from helpers.BasicGrooveTransformer_train_VAE import calculate_loss_VAE
 # Load dataset as torch.utils.data.Dataset
 from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
-
+import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -26,20 +27,23 @@ hyperparameter_defaults = dict(
     num_encoder_layers=2,
     num_decoder_layers=2,
     max_len=32,
-    device=0,
+    device="cpu",
     latent_dim=32,
     epochs=1,
     batch_size=16,
     lr=1e-3,
     bce=True,
-    dice=True)
+    dice=True)  # TODO add dice loss to log
 
 # sweep_config['parameters'] = parameters_dict
-wandb_run = wandb.init(config=hyperparameter_defaults, project="transformerVAE1", anonymous="allow")
+wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small", anonymous="allow", entity="mmil_vae_g2d",
+                       settings=wandb.Settings(code_dir="."))
 # this config will be set by Sweep Controller
 config = wandb.config
+run_name = wandb_run.name
+run_id = wandb_run.id
 
-
+model_artifact = wandb.Artifact('model', type='model')
 
 
 if __name__ == "__main__":
@@ -85,20 +89,23 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)
     batch_size = config.batch_size
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
     metrics = dict()
     for epoch in range(config.epochs):
+        #train loop
         groove_transformer.train()  # train mode
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
-            print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
-                  f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
-            logger.warning(f"model device is {groove_transformer.device}")
+            if batch_count % 40 == 0:
+                print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
+                      f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
+            #logger.warning(f"model device is {groove_transformer.device}")
             # inputs = inputs.clone().detach()#torch.tensor(inputs.float())
             inputs = inputs.to(device)
-            logger.warning(f"inputs device is {inputs.device}")
+            #logger.warning(f"inputs device is {inputs.device}")
             # outputs = torch.tensor(outputs.float())
             outputs = outputs.to(device)
-            logger.warning(f"output device is {outputs.device}")
+            #logger.warning(f"output device is {outputs.device}")
 
             # run one epoch
 
@@ -113,34 +120,58 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            metrics = {"train/train_loss": loss.cpu().detach().numpy(),
+            metrics = {"train/loss_total": loss.cpu().detach().numpy(),
                        "train/epoch": epoch,
-                       "train/h_loss": losses['loss_h'],
-                       "train/v_loss": losses['loss_v'],
-                       "train/o_loss": losses['loss_o'],
-                       "train/KL_loss": losses['KL_loss'],
+                       "train/loss_h": losses['loss_h'],
+                       "train/loss_v": losses['loss_v'],
+                       "train/loss_o": losses['loss_o'],
+                       "train/loss_KL": losses['loss_KL'],
                        }
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
+
+        # test loop
         groove_transformer.eval()
-        output_test = test_dataset.outputs.to(device)
+        loss_total = np.array([])
+        loss_h = np.array([])
+        loss_v = np.array([])
+        loss_o = np.array([])
+        loss_KL = np.array([])
 
-        inputs_test = test_dataset.inputs.to(device)
+        for batch_count, (inputs, outputs, indices) in enumerate(test_dataloader):
 
-        output_net_test = groove_transformer(inputs_test)
-        val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
-                                                  hit_loss_penalty, config.bce, config.dice)
-        val_metrics = {"val/train_loss": val_loss.cpu().detach().numpy(),
-                       "val/h_loss": val_losses['loss_h'],
-                       "val/v_loss": val_losses['loss_v'],
-                       "val/o_loss": val_losses['loss_o'],
-                       "val/KL_loss": val_losses['KL_loss']
+            output_test = inputs.to(device)
+            inputs_test = outputs.to(device)
+
+            output_net_test = groove_transformer(inputs_test)
+            val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
+                                                      hit_loss_penalty, config.bce, config.dice)
+
+            loss_total = np.append(loss_total, val_loss.cpu().detach().numpy())
+            loss_h = np.append(loss_h, val_losses['loss_h'])
+            loss_v = np.append(loss_v, val_losses['loss_v'])
+            loss_o = np.append(loss_o, val_losses['loss_o'])
+            loss_KL = np.append(loss_KL, val_losses['loss_KL'])
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        val_metrics = {"val/loss_total": loss_total.mean(),
+                       "val/loss_h": loss_h.mean(),
+                       "val/loss_v":  loss_v.mean(),
+                       "val/loss_o":  loss_o.mean(),
+                       "val/loss_KL":  loss_KL.mean()
                        }
-
         wandb.log({**metrics, **val_metrics})
-            #
-            # finally:
-            # print("\nDone!")
-            # wandb.finish()
+
+        print(f"Epoch {epoch} Finished with total loss of {loss_total.mean()}")
+
+        if epoch % 5 == 0 or epoch == 0:
+            model_path = f"misc/sweeps/{run_name}_{run_id}/{epoch}.pth"
+            groove_transformer.save(model_path)
+            model_artifact.add_file(model_path)
+            wandb_run.log_artifact(model_artifact)
+
+    wandb.finish()
 

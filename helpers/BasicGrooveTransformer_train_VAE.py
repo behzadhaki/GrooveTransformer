@@ -80,8 +80,7 @@ def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = F
         'loss_h': loss_hits.item(),
         'loss_v': loss_velocities.item(),
         'loss_o': loss_offsets.item(),
-        'KL_loss': kld_loss,
-
+        'loss_KL': kld_loss.item()
     }
 
     return total_loss, losses
