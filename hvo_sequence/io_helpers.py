@@ -1,154 +1,75 @@
 import pickle
 import note_seq
 import soundfile as sf
-import numpy as np
 import pretty_midi
-
+import numpy as np
 from hvo_sequence.utils import find_nearest, find_pitch_and_tag
 from hvo_sequence.hvo_seq import HVO_Sequence
 
 
-def empty_like(other_hvo_sequence):
+def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, num_steps=None, only_drums=False):
+    """ Converts a note sequence to an HVO sequence
+    :param ns:                note sequence object
+    :param drum_mapping:        dict of {'Drum Voice Tag': [midi numbers]}
+    :param beat_division_factors:   list of beat division factors
+    :param num_steps:           number of steps in the HVO sequence
+    :param only_drums:          if True, only ns.note.is_drum==True are considered
+    :return:
     """
-    Creates an HVO_Sequence instance with the same fields as other_hvo_sequence. However, the hvo array for the
-    returned sequence will be None (i.e. empty)
 
-    :param other_hvo_sequence:      a HVO_Sequence instance
-    :return:                        a HVO_Sequence instance same as other_hvo_sequence except the hvo field
-    """
-
-    new_hvo_seq = HVO_Sequence()
-
-def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, only_drums=False):
     # Create an empty HVO_Sequence instance
-    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
+    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
 
-    # find tempo and time signature consistent regions
-    tempo_tuples = sorted([(x.time, x) for x in ns.tempos], key=lambda x: x[0])
-    ts_tuples = sorted([(x.time, x) for x in ns.time_signatures], key=lambda x: x[0])
-    segment_beginnings = sorted(list(set(([x[0] for x in tempo_tuples] + [x[0] for x in ts_tuples]))))
-    segment_ends = segment_beginnings[1:] + [ns.total_time]
-    segment_tempos = []
-    segment_time_signatures = []
-    for ix, segment_beginning in enumerate(segment_beginnings):
-        candidate_tempo = [x[1] for x in tempo_tuples if x[0] <= segment_beginning][-1]
-        candidate_time_signature = [x[1] for x in ts_tuples if x[0] <= segment_beginning][-1]
-        segment_tempos.append(candidate_tempo)
-        segment_time_signatures.append(candidate_time_signature)
+    # sort time_sigs and tempos by time
+    time_sigs = sorted(ns.time_signatures, key=lambda x: x.time)
+    tempos = sorted(ns.tempos, key=lambda x: x.time)
 
-    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
-    hvo_seq.add_time_signature(time_step=0, numerator=segment_time_signatures[0].numerator,
-            denominator=segment_time_signatures[0].denominator, beat_division_factors=beat_division_factors)
-    hvo_seq.add_tempo(time_step=0, qpm=segment_tempos[0].qpm)
+    # add first tempo and time_sig at index 0 (even if they are stamped later), this
+    # is necessary for the hvo_seq to be able to interpolate between time stamps in
+    # seconds and time stamps as grid steps
+    hvo_seq.add_time_signature(0, time_sigs[0].numerator, time_sigs[0].denominator)
+    hvo_seq.add_tempo(0, tempos[0].qpm)
 
-    for ix, segment_beginning in enumerate(segment_beginnings[1:]):
-        hvo_seq.add_time_signature(time_step=segment_beginning, numerator=segment_time_signatures[ix + 1].numerator,
-                                   denominator=segment_time_signatures[ix + 1].denominator,
-                                   beat_division_factors=beat_division_factors, time_mode='sec')
-        hvo_seq.add_tempo(time_step=segment_beginning, qpm=segment_tempos[ix+1].qpm, time_mode='sec')
+    # add the rest of time sigs
+    for time_sig in time_sigs[1:]:
+        t_index, _ = hvo_seq.grid_maker.get_index_and_offset_at_sec(time_sig.time)
+        hvo_seq.add_time_signature(t_index, time_sig.numerator, time_sig.denominator)
 
+    # add the rest of tempos
+    for tempo in tempos[1:]:
+        t_index, _ = hvo_seq.grid_maker.get_index_and_offset_at_sec(tempo.time)
+        hvo_seq.add_tempo(t_index, tempo.qpm)
 
-    for nsn in ns.notes:
+    # add notes from latest to earliest
+    for nsn in sorted(ns.notes, key=lambda x: x.start_time, reverse=True):
+        note2add = None
         if only_drums:
             if nsn.is_drum:
-                hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
+                note2add = nsn
         else:
-            hvo_seq.add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time)
+            note2add = nsn
 
-    # # creat an HVO_Sequence for each segment
-    # segment_hvo_sequences = []
-    # for ix, segment_beginning in enumerate(segment_beginnings):
-    #     segment_hvo_sequences.append(HVO_Sequence(drum_mapping=drum_mapping))
-    #     segment_hvo_sequences[-1].add_tempo(time_step=0, qpm=segment_tempos[ix].qpm)
-    #     segment_hvo_sequences[-1].add_time_signature(
-    #         time_step=0, numerator=segment_time_signatures[ix].numerator,
-    #         denominator=segment_time_signatures[ix].denominator, beat_division_factors=beat_division_factors)
-    #     # find and add notes in the segment
-    #     segment_notes = [x for x in ns.notes if segment_beginning <= x.start_time < segment_ends[ix]]
-    #     for nsn in segment_notes:
-    #         if only_drums:
-    #             if nsn.is_drum:
-    #                 segment_hvo_sequences[-1].add_note(
-    #                     nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
-    #         else:
-    #             segment_hvo_sequences[-1].add_note(nsn.pitch, nsn.velocity / 127, nsn.start_time-segment_beginnings[ix])
-    #
-    # # add segments using the + operator
-    # hvo_seq = segment_hvo_sequences[0]
-    # for ix in range(len(segment_beginnings) - 1):
-    #     hvo_seq = hvo_seq + segment_hvo_sequences[ix]
+        if note2add:
+            hvo_seq.add_note(
+                start_sec=note2add.start_time,
+                pitch=note2add.pitch,
+                velocity=note2add.velocity / 127.,
+                overdub_with_louder_only=False)
+
+    # if length is specified, pad the sequence with zeros
+    if num_steps:
+        hvo_seq.adjust_length(num_steps)
 
     return hvo_seq
 
-def note_seq_to_hvo_seq(ns, drum_mapping, beat_division_factors=[4], max_n_bars=None):
-    """
-            # Note_Sequence importer. Converts the note sequence to hvo format
-            @param ns:                          Note_Sequence drum score
-            @param beat_division_factors:       the number of divisions for each beat (must be a list)
-            @param max_n_bars:                  maximum number of bars to import
-            @return:
-            """
-
-    # Get tempo and time signature time stamps
-    tempo_and_time_signature_time_stamps = list()
-    tempo_time_stamps = np.array([x.time for x in ns.tempos])
-    time_signature_time_stamps = np.array([x.time for x in ns.time_signatures])
-    tempo_and_time_signature_time_stamps = np.unique(np.append(tempo_time_stamps, time_signature_time_stamps, axis=0))
-
-    segment_lower_bounds = np.unique(np.array(tempo_and_time_signature_time_stamps))
-    segment_upper_bounds = np.append(segment_lower_bounds[1:], ns.total_time)
-
-    def get_tempo_and_time_signature_at_step(ix):
-        _time_sig_ix = np.where((time_signature_time_stamps-ix)<=0,
-                                time_signature_time_stamps-ix, -np.inf).argmax()
-        _tempo_ix = np.where((tempo_time_stamps - ix) <= 0,
-                             tempo_time_stamps - ix, -np.inf).argmax()
-        _ns_time_sig = ns.time_signatures[_time_sig_ix]
-        _ns_tempo = ns.tempos[_tempo_ix]
-        return _ns_tempo, _ns_time_sig
-
-    grid_lines = np.array([])
-
-    for segment_ix, (lower_b, upper_b) in enumerate(zip(segment_lower_bounds, segment_upper_bounds)):
-        ns_tempo, ns_time_sig = get_tempo_and_time_signature_at_step(lower_b)
-        segment_grid_lines = np.array([])
-        for beat_div in beat_division_factors:
-            beat_duration_in_segment = (60.0 / ns_tempo.qpm) * 4.0 / ns_time_sig.denominator
-            step_duration = beat_duration_in_segment/beat_div
-            segment_grid_lines = np.append(segment_grid_lines, np.arange(lower_b, upper_b, step_duration))
-        grid_lines = np.append(grid_lines, np.unique(segment_grid_lines))
-
-    def snap_time_stamp_to_grid(time_stamp):
-        time_step, _ = find_nearest(grid_lines, time_stamp)
-        return int(time_step)
-
-    # Create an empty HVO_Sequence instance
-    hvo_seq = HVO_Sequence(drum_mapping=drum_mapping)
-
-    # Add tempos and time signatures to hvo_seq instance
-    for tempo in ns.tempos:
-        hvo_seq.add_tempo(snap_time_stamp_to_grid(tempo.time), tempo.qpm)
-    for time_sig in ns.time_signatures:
-        hvo_seq.add_time_signature(
-            time_step=snap_time_stamp_to_grid(time_sig.time),
-            numerator=time_sig.numerator,
-            denominator=time_sig.denominator,
-            beat_division_factors=beat_division_factors
-        )
-
-    # Create an empty hvo_array
-    hvo_seq.hvo = np.zeros((len(grid_lines), 3*len(drum_mapping.keys())))
-
-    for ns_note in ns.notes:
-        hvo_seq.hvo = place_note_in_hvo(ns_note=ns_note, hvo=hvo_seq.hvo, grid=grid_lines, drum_mapping=drum_mapping)
-    return hvo_seq
 
 def midi_to_note_seq(filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
     ns = note_seq.midi_io.midi_to_note_sequence(midi_data)
     return ns
 
-def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors=[4]):
+
+def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors):
     ns = midi_to_note_seq(filename)
     return note_sequence_to_hvo_sequence(ns, drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
 
@@ -264,7 +185,9 @@ def load_HVO_Sequence_from_file(pickle_path):
 
     return hvo_seq
 
+
 #   --------------- Data type Convertors --------------------
+
 
 def get_reduced_pitch(pitch_query, pitch_class_list):
     """
@@ -301,8 +224,6 @@ def unique_pitches_in_note_sequence(ns):
 def save_note_sequence_to_midi(ns, filename="temp.mid"):
     pm = note_seq.note_sequence_to_pretty_midi(ns)
     pm.write(filename)
-
-
 
 
 #   -------------------- Audio Synthesizers --------------------
