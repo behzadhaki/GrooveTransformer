@@ -29,21 +29,25 @@ hyperparameter_defaults = dict(
     max_len=32,
     device="cpu",
     latent_dim=32,
-    epochs=1,
+    epochs=10,
     batch_size=16,
     lr=1e-3,
     bce=True,
     dice=True)  # TODO add dice loss to log
 
 # sweep_config['parameters'] = parameters_dict
-wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small", anonymous="allow", entity="mmil_vae_g2d",
-                       settings=wandb.Settings(code_dir="."))
+#wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small", anonymous="allow", entity="mmil_vae_g2d",
+#                       settings=wandb.Settings(code_dir="."))
+
+wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small_save", anonymous="allow",
+                       settings=wandb.Settings(code_dir="train.py"))
+
 # this config will be set by Sweep Controller
 config = wandb.config
 run_name = wandb_run.name
 run_id = wandb_run.id
 
-model_artifact = wandb.Artifact('model', type='model')
+
 
 
 if __name__ == "__main__":
@@ -93,6 +97,7 @@ if __name__ == "__main__":
 
     metrics = dict()
     for epoch in range(config.epochs):
+
         #train loop
         groove_transformer.train()  # train mode
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
@@ -167,7 +172,11 @@ if __name__ == "__main__":
 
         print(f"Epoch {epoch} Finished with total loss of {loss_total.mean()}")
 
-        if epoch % 5 == 0 or epoch == 0:
+
+
+        if epoch % 5 == 0:
+            model_artifact = wandb.Artifact(f'model_epoch{epoch}', type='model')
+
             model_path = f"misc/sweeps/{run_name}_{run_id}/{epoch}.pth"
             groove_transformer.save(model_path)
             model_artifact.add_file(model_path)
