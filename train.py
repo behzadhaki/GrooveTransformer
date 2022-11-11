@@ -36,11 +36,11 @@ hyperparameter_defaults = dict(
     dice=True)  # TODO add dice loss to log
 
 # sweep_config['parameters'] = parameters_dict
-#wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small", anonymous="allow", entity="mmil_vae_g2d",
-#                       settings=wandb.Settings(code_dir="."))
+wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small", anonymous="allow", entity="mmil_vae_g2d",
+                      settings=wandb.Settings(code_dir="train.py"))
 
-wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small_save", anonymous="allow",
-                       settings=wandb.Settings(code_dir="train.py"))
+# wandb_run = wandb.init(config=hyperparameter_defaults, project="sweeps_small_save", anonymous="allow",
+#                        settings=wandb.Settings(code_dir="train.py"))
 
 # this config will be set by Sweep Controller
 config = wandb.config
