@@ -29,7 +29,7 @@ hyperparameter_defaults = dict(
     max_len=32,
     device="cpu",
     latent_dim=32,
-    epochs=10,
+    epochs=2,
     batch_size=16,
     lr=1e-3,
     bce=True,
@@ -101,9 +101,9 @@ if __name__ == "__main__":
         #train loop
         groove_transformer.train()  # train mode
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
-            if batch_count % 40 == 0:
-                print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
-                      f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
+            # if batch_count % 40 == 0:
+            #     print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
+            #           f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
             #logger.warning(f"model device is {groove_transformer.device}")
             # inputs = inputs.clone().detach()#torch.tensor(inputs.float())
             inputs = inputs.to(device)

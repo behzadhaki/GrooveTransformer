@@ -1,3 +1,6 @@
+srun --nodes=1 --partition=short --gres=gpu:tesla:1 --cpus-per-task=4 --mem=16g --pty bash -i
+
+
 cd GrooveTransformer
 source VarGrvTrnsfmr/bin/activate
 
