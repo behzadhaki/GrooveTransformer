@@ -276,11 +276,10 @@ class GridMaker:
         """
         # must be pickled
         # ------------------------------------------------------------------------------------------------
-        if are_beat_division_factors_legal(beat_division_factors):
-            self.__beat_division_factors = beat_division_factors
-        else:
-            raise ValueError("The beat division factors must be a list of integers and "
-                             "no two factors can be divisible by each other.")
+        assert are_beat_division_factors_legal(beat_division_factors), \
+            "beat_division_factors must be a list of integers and no two factors can be multiples of each other"
+        self.__beat_division_factors = beat_division_factors
+
         # ------------------------------------------------------------------------------------------------
         self.__tempos = None
         self.__time_signatures = None
@@ -303,12 +302,9 @@ class GridMaker:
         # Grid Info
         # ------------------------------------------------------------------------------------------------
         self.__grid_lines = []
-        self.__minor_grid_lines = []
-        self.__major_grid_lines = []
-        self.__downbeat_grid_lines = []
-        self.__minor_grid_line_indices = []
-        self.__major_grid_line_indices = []
-        self.__downbeat_grid_line_indices = []
+        self.__is_minor_grid_lines = []
+        self.__is_major_grid_lines = []
+        self.__is_downbeat_grid_line = []
         self.__total_seconds_prepared = -1
 
     def __getstate__(self):
@@ -318,6 +314,7 @@ class GridMaker:
             'time_signatures': self.__time_signatures,
             'n_steps': self.__n_steps,
         }
+        return state
 
     def __setstate__(self, state):
         self.__beat_division_factors = state['beat_division_factors']
@@ -325,9 +322,38 @@ class GridMaker:
         self.__time_signatures = state['time_signatures']
         self.__n_steps = state['n_steps']
 
+        # Constructed per segment after unpickling
+        # ------------------------------------------------------------------------------------------------
+        self.__n_steps_per_beat = \
+            sum(self.__beat_division_factors) - (len(self.__beat_division_factors) - 1)  # num steps per segment
+
+        # Segment Info
+        # ------------------------------------------------------------------------------------------------
+        self.__segment_starts = None  # start time steps of each segment
+        self.__segment_ends = None  # end time steps of each segment **exclusive final step**
+        self.__segment_time_signatures = None  # time signature of each segment
+        self.__segment_tempos = None  # tempo of each segment
+        self.__segment_durations_in_steps = None  # duration of each seg in num steps (multiple of beat steps)
+        self.__segment_durations_in_sec = None  # tempo of each segment
+        self.__segment_single_beat_grid_locations_in_sec = None  # duration of a single beat in seconds
+
+        # Grid Info
+        # ------------------------------------------------------------------------------------------------
+        self.__grid_lines = []
+        self.__is_minor_grid_lines = []
+        self.__is_major_grid_lines = []
+        self.__is_downbeat_grid_line = []
+        self.__total_seconds_prepared = -1
+
+    @property
+    def beat_division_factors(self):
+        return self.__beat_division_factors
+
     @property
     def time_signatures(self):
-        return self.__time_signatures
+        ts_ = sorted([ts for ts in self.__time_signatures], key=lambda x: x.time_step)
+        ts_[0].time_step = 0
+        return ts_
 
     @time_signatures.setter
     def time_signatures(self, ts_list):
@@ -341,7 +367,9 @@ class GridMaker:
 
     @property
     def tempos(self):
-        return self.__tempos
+        tempos_ = sorted([t for t in self.__tempos], key=lambda x: x.time_step)
+        tempos_[0].time_step = 0
+        return tempos_
 
     @tempos.setter
     def tempos(self, tempo_list):
@@ -371,8 +399,8 @@ class GridMaker:
         if n_steps > self.__n_steps:
             self.extract_segment_info()
             # at least one bar after las
-            ts = self.__time_signatures[-1]
-            last_seg_beginning_at = max(ts.time_step, self.__tempos[-1].time_step)
+            ts = self.__segment_time_signatures[-1]
+            last_seg_beginning_at = max(ts.time_step, self.__segment_tempos[-1].time_step)
             self.__n_steps = max(last_seg_beginning_at + ts.numerator * self.__n_steps_per_beat, n_steps)
 
             self.erase_segment_info()
@@ -533,108 +561,90 @@ class GridMaker:
 
     def erase_grid(self):
         self.__grid_lines = []
-        self.__minor_grid_lines = []
-        self.__major_grid_lines = []
-        self.__downbeat_grid_lines = []
-        self.__minor_grid_line_indices = []
-        self.__major_grid_line_indices = []
-        self.__downbeat_grid_line_indices = []
+        self.__is_minor_grid_lines = []
+        self.__is_major_grid_lines = []
+        self.__is_downbeat_grid_line = []
         self.__total_seconds_prepared = -1
 
-    def make_grid(self, n_steps=None):
+    def prepare_grid_for_n_steps(self, n_steps=None):
         if not self.is_ready():
             raise ValueError("Time signatures or Tempos are required create a segmented grid")
 
-        if n_steps is not None:
-            if n_steps > self.__n_steps:
-                self.n_steps = n_steps
 
+        # it would automatically clear the grid if steps expanded
+        if n_steps is None:
+            if self.__n_steps <= 0:
+                # create a grid for at least two bars after the end of the last segment
+                last_time_sig = self.time_signatures[-1]
+                n_steps = int(last_time_sig.time_step + 2 * last_time_sig.numerator * self.__n_steps_per_beat)
+                n_steps = int(last_time_sig.time_step + 2 * last_time_sig.numerator * self.__n_steps_per_beat)
+        else:
+            self.n_steps = n_steps
+
+        # if makes it here then a new grid is required,
+        # either because grid was empty or grid length needs to be extended
         if not self.__grid_lines:
             self.extract_segment_info()
 
-        for seg_ix in range(len(self.__segment_starts)):
-            n_beats = self.__segment_durations_in_steps[seg_ix] / self.__n_steps_per_beat
-            t_shift = sum(self.__segment_durations_in_sec[:seg_ix])
-            ix_shift = sum(self.__segment_durations_in_steps[:seg_ix])
-            beat_dur_sec = self.__segment_durations_in_sec[seg_ix] / n_beats
-            for beat_ix in range(int(n_beats)):
-                for ix_from_beat, secs_from_beat in enumerate(self.__segment_single_beat_grid_locations_in_sec[seg_ix]):
-                    t = round(secs_from_beat + beat_dur_sec * beat_ix + t_shift, 3)
-                    in_seg_index = beat_ix * self.__n_steps_per_beat + ix_from_beat
-                    from_beg_index = in_seg_index + ix_shift
-                    self.__grid_lines.append(t)
-                    if in_seg_index % (self.__segment_time_signatures[seg_ix].numerator * self.__n_steps_per_beat) == 0:
-                        self.__downbeat_grid_lines.append(t)
-                        self.__downbeat_grid_line_indices.append(from_beg_index)
-                        self.__major_grid_lines.append(t)
-                        self.__major_grid_line_indices.append(from_beg_index)
-                    elif in_seg_index % self.__n_steps_per_beat == 0:
-                        self.__major_grid_lines.append(t)
-                        self.__major_grid_line_indices.append(from_beg_index)
-                    else:
-                        self.__minor_grid_lines.append(t)
-                        self.__minor_grid_line_indices.append(from_beg_index)
-
-        if len(self.__grid_lines) > 1:
-            self.__total_seconds_prepared = \
-                self.__grid_lines[-1] + (self.__grid_lines[-1] - self.__grid_lines[-2]) / 2.0
+            for seg_ix in range(len(self.__segment_starts)):
+                n_beats = self.__segment_durations_in_steps[seg_ix] / self.__n_steps_per_beat
+                t_shift = sum(self.__segment_durations_in_sec[:seg_ix])
+                ix_shift = sum(self.__segment_durations_in_steps[:seg_ix])
+                beat_dur_sec = self.__segment_durations_in_sec[seg_ix] / n_beats
+                for beat_ix in range(int(n_beats)):
+                    for ix_from_beat, secs_from_beat in enumerate(self.__segment_single_beat_grid_locations_in_sec[seg_ix]):
+                        t = round(secs_from_beat + beat_dur_sec * beat_ix + t_shift, 3)
+                        in_seg_index = beat_ix * self.__n_steps_per_beat + ix_from_beat
+                        from_beg_index = in_seg_index + ix_shift
+                        self.__grid_lines.append(t)
+                        self.__is_downbeat_grid_line.append(
+                            in_seg_index %
+                            (self.__segment_time_signatures[seg_ix].numerator * self.__n_steps_per_beat) == 0)
+                        self.__is_major_grid_lines.append(in_seg_index % self.__n_steps_per_beat == 0)
+                        self.__is_minor_grid_lines.append(in_seg_index % self.__n_steps_per_beat != 0)
+            if len(self.__grid_lines) > 1:
+                self.__total_seconds_prepared = \
+                    self.__grid_lines[-1] + (self.__grid_lines[-1] - self.__grid_lines[-2]) / 2.0
         else:
             return False
 
     def get_grid_lines(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__grid_lines:
-            self.make_grid()
+        self.prepare_grid_for_n_steps(n_steps)
         return self.__grid_lines[:n_steps]
+        
+    def get_grid_lines_for_n_beats(self, n_beats):
+        n_steps = n_beats * self.__n_steps_per_beat
+        return self.get_grid_lines(n_steps)
 
     def get_major_grid_lines(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__major_grid_lines:
-            self.make_grid()
-        return self.__major_grid_lines[:n_steps]
+        self.prepare_grid_for_n_steps(n_steps)
+        return [self.__grid_lines[i] for i in range(n_steps) if self.__is_major_grid_lines[i]]
 
     def get_minor_grid_lines(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__minor_grid_lines:
-            self.make_grid()
-        return self.__minor_grid_lines[:n_steps]
+        self.prepare_grid_for_n_steps(n_steps)
+        return [self.__grid_lines[i] for i in range(n_steps) if self.__is_minor_grid_lines[i]]
 
     def get_downbeat_grid_lines(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__downbeat_grid_lines:
-            self.make_grid()
-        return self.__downbeat_grid_lines[:n_steps]
-
-    def get_minor_grid_line_indices(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__minor_grid_line_indices:
-            self.make_grid()
-        return self.__minor_grid_line_indices[:n_steps]
+        self.prepare_grid_for_n_steps(n_steps)
+        return [self.__grid_lines[i] for i in range(n_steps) if self.__is_downbeat_grid_line[i]]
 
     def get_major_grid_line_indices(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__major_grid_line_indices:
-            self.make_grid()
-        return self.__major_grid_line_indices[:n_steps]
+        self.prepare_grid_for_n_steps(n_steps)
+        return [i for i in range(n_steps) if self.__is_major_grid_lines[i]]
+
+    def get_minor_grid_line_indices(self, n_steps):
+        self.prepare_grid_for_n_steps(n_steps)
+        return [i for i in range(n_steps) if self.__is_minor_grid_lines[i]]
 
     def get_downbeat_grid_line_indices(self, n_steps):
-        if n_steps > self.__n_steps:
-            self.n_steps = n_steps
-        if not self.__downbeat_grid_line_indices:
-            self.make_grid()
-        return self.__downbeat_grid_line_indices[:n_steps]
+        self.prepare_grid_for_n_steps(n_steps)
+        return [i for i in range(n_steps) if self.__is_downbeat_grid_line[i]]
 
     def get_index_and_offset_at_sec(self, t_sec):
-        if not self.__segment_starts:
-            self.extract_segment_info()
+        if not self.__grid_lines:
+            self.prepare_grid_for_n_steps()
 
-        if t_sec >= (self.__total_seconds_prepared-1):
+        if t_sec > self.__grid_lines[-1]:
             last_seg_start = sum(self.__segment_durations_in_sec[:-1])
             time_diff = t_sec - last_seg_start
             ts = self.__segment_time_signatures[-1]
@@ -642,17 +652,11 @@ class GridMaker:
             secs_per_beat = (60.0 / tmp.qpm) * 4.0 / ts.denominator
             min_steps_needed = math.ceil(time_diff / secs_per_beat) * self.__n_steps_per_beat
             n_steps = ts.time_step + min_steps_needed + 1
-            print("self.n_steps {}".format(self.__n_steps), "n_steps: {}".format(n_steps), "min_steps_needed: {}".format(min_steps_needed))
-            self.make_grid(n_steps)
-        else:
-            if not self.__grid_lines:
-                self.make_grid()
+            self.prepare_grid_for_n_steps(n_steps)
 
         # use math to get index of closest value to t_sec
         idx, grid_val = min(enumerate(self.__grid_lines), key=lambda x: abs(x[1]-t_sec))
-        print("t_sec: {}".format(t_sec), "grid_val: {}".format(grid_val), "idx: {}".format(idx))
         diff = t_sec - grid_val
-        print("idx: ", idx, "grid_val: ", grid_val, "len(grid_lines): ", len(self.__grid_lines), "diff: ", diff)
 
         if diff != 0:
             offset = diff / (self.__grid_lines[idx+1] - self.__grid_lines[idx]) if diff > 0 else \
@@ -661,23 +665,32 @@ class GridMaker:
             offset = 0
         return idx, round(offset, 3)
 
+    def get_segments_info(self):
+        if not self.__segment_starts:
+            self.extract_segment_info()
+        return {
+            "segment_starts": self.__segment_starts,
+            "segment_ends": self.__segment_ends,
+            "tempos": self.__segment_tempos,
+            "time_signatures": self.__segment_time_signatures
+        }
 
 if __name__ == "__main__":
 
     import time
 
-    gridMaker = GridMaker([3, 4])
+    gridMaker = GridMaker([4])
     # # add time signatures
-    gridMaker.add_time_signature(20, 3, 4)
+    gridMaker.add_time_signature(0, 3, 4)
     # #gridMaker.add_time_signature(8, 2, 4)
     # gridMaker.add_time_signature(16, 3, 4)
     #
     # # Add tempos
-    gridMaker.add_tempo(33, 20)
+    gridMaker.add_tempo(0, 120)
     # gridMaker.add_tempo(30, 50)
     #
     # # Make grid
-    # gridMaker.make_grid()
+    # gridMaker.prepare_grid_for_n_steps()
     #
     # # print grid
     # # gridMaker.__dict__
