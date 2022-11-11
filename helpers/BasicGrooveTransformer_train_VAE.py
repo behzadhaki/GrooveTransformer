@@ -1,6 +1,6 @@
 import os
 import torch
-from torchmetrics import Accuracy
+#from torchmetrics import Accuracy
 import wandb
 import re
 import numpy as np
@@ -29,9 +29,13 @@ def hits_accuracy(prediction, y):
     preds, mu, log_var = prediction
     pred_h, pred_v, pred_o = preds
 
-    accuracy = Accuracy()
-    acc = accuracy(torch.reshape(pred_h.int(), (-1,)), torch.reshape(y_h.int(), (-1,)) )
-    return acc.item()
+    #accuracy = Accuracy()
+    y_true = torch.reshape(y_h, (-1,)).cpu().detach().numpy()
+    y_pred = torch.reshape(pred_h, (-1,)).cpu().detach().numpy()
+
+    #acc = accuracy(y_true,y_pred )
+    acc = np.sum(np.equal(y_true.astype(int), y_pred.astype(int))) / len(y_true)
+    return acc
 
 
 def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = False, bce = False):
