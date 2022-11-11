@@ -19,6 +19,10 @@ from bokeh.palettes import Category20c
 from bokeh.plotting import figure, show
 from bokeh.transform import cumsum
 
+import logging
+logger = logging.getLogger("data.src.utils")
+logger.setLevel(logging.DEBUG)
+
 def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE
     passed_conditions = [True]  # initialized with true in case no filters are required
     for fkey_, fval_ in filter_dict.items():
@@ -40,16 +44,13 @@ def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path):
     main_path = f"data/{dataset_tag}/resources/cached/"
     last_directory = ""
     filter_dict = json.load(open(dataset_setting_json_path, "r"))["settings"][dataset_tag]
-    print("filter_dict: ", filter_dict)
     global_dict = json.load(open(dataset_setting_json_path, "r"))["global"]
-    print("global_dict: ", global_dict)
 
     for key_, val_ in global_dict.items():
         main_path += f"{key_}_{val_}/"
 
     for key_, val_ in filter_dict.items():
         if val_ is not None:
-            print(key_, " ", val_)
             last_directory += f"{key_}_{val_}_"
 
     return main_path + last_directory[:-1]  # remove last underline
@@ -69,8 +70,10 @@ def pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path):
     if not os.path.exists(dir__):
         os.makedirs(dir__)
 
+
     # collect and dump samples that match filter
-    filter_dict_ = json.load(open(dataset_setting_json_path, "r"))[dataset_tag]
+    dataset = json.load(open(dataset_setting_json_path, "r"))
+    filter_dict_ = dataset["settings"][dataset_tag]
     for set_key_, set_data_ in hvo_dict.items():
         filtered_samples = []
         num_samples = len(set_data_)
@@ -189,7 +192,7 @@ def get_bokeh_histogram(hist_dict, file_name=None, hist_width=0.3, x_axis_label=
             file_name += ".html"
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         save(p, filename=file_name)
-        print(f"saved at {file_name}")
+        logger.info(f"saved at {file_name}")
 
     return p
 
@@ -223,7 +226,7 @@ def get_per_performer_bokeh_histogram(hvo_seq_list, dataset_label, ncols=3, file
         "loop_id": loop_ids
     })
 
-    print(f"there are {len(df.index)} number of samples in the dataset")
+    logger.info(f"there are {len(df.index)} number of samples in the dataset")
     # 16195 in train set
 
     # lets study the number of loops per performer =====================================================================
@@ -279,7 +282,8 @@ def get_per_performer_bokeh_histogram(hvo_seq_list, dataset_label, ncols=3, file
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         save(p, filename=filename)
-        print(f"saved at {filename}")
+        logger.info(f"saved at {filename}")
+
 
     return p
 
@@ -309,7 +313,8 @@ def create_pi_chart(x_dict, use_percentage=True, title="", filename=None):
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         save(p, filename=filename)
-        print(f"saved at {filename}")
+        logger.info(f"saved at {filename}")
+
 
     return p
 
@@ -344,7 +349,7 @@ def get_per_performer_bokeh_pi_chart(hvo_seq_list, dataset_label, ncols=3, filen
         "loop_id": loop_ids
     })
 
-    print(f"there are {len(df.index)} number of samples in the dataset")
+    logger.info(f"there are {len(df.index)} number of samples in the dataset")
     # 16195 in train set
     total_loops = len(df.index)
 
@@ -355,7 +360,6 @@ def get_per_performer_bokeh_pi_chart(hvo_seq_list, dataset_label, ncols=3, filen
     })
 
     temp = df.groupby("performer").count()
-    print(temp)
     loops_per_performer = {k: v for k, v in zip(temp.index.values, temp.values.flatten())}
     figures_to_plot.append(create_pi_chart(loops_per_performer, title=f"Loop Count - (Total Number of Loops = {total_loops})"))
     titles.append("Loop Count")
@@ -390,7 +394,7 @@ def get_per_performer_bokeh_pi_chart(hvo_seq_list, dataset_label, ncols=3, filen
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         save(p, filename=filename)
-        print(f"saved at {filename}")
+        logger.info(f"saved at {filename}")
 
     return p
 
