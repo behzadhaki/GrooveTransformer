@@ -12,5 +12,5 @@ export PATH="$HOME/GrooveTransformer/VarGrvTrnsfmr/bin:$PATH"
 
 cd GrooveTransformer
 source VarGrvTrnsfmr/bin/activate
-wandb agent mmil_vae_g2d/sweeps_small/oacvriid
+wandb agent mmil_vae_g2d/sweeps_small/hkvr5uqs
 #python sweep_tester_VAE.py
