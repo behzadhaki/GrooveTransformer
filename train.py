@@ -2,7 +2,7 @@ import wandb
 import torch
 from statistics import mean
 from model.src.BasicGrooveTransformer_VAE import GrooveTransformerEncoderVAE
-from helpers.BasicGrooveTransformer_train_VAE import calculate_loss_VAE
+from helpers.BasicGrooveTransformer_train_VAE import calculate_loss_VAE, hits_accuracy
 # Load dataset as torch.utils.data.Dataset
 from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             # loss = calculate_loss_VAE(outputs, labels)
 
             loss, losses = calculate_loss_VAE(output_net, outputs, bce_fn, mse_fn,
-                                              hit_loss_penalty, config.bce, config.dice)
+                                              hit_loss_penalty, config.dice, config.bce)
 
             optimizer.zero_grad()
             loss.backward()
@@ -138,6 +138,7 @@ if __name__ == "__main__":
 
         # test loop
         groove_transformer.eval()
+        accuracy_h = np.array([])
         loss_total = np.array([])
         loss_h = np.array([])
         loss_v = np.array([])
@@ -152,7 +153,9 @@ if __name__ == "__main__":
             output_net_test = groove_transformer(inputs_test)
             val_loss, val_losses = calculate_loss_VAE(output_net_test, output_test, bce_fn, mse_fn,
                                                       hit_loss_penalty, config.bce, config.dice)
+            acc = hits_accuracy(output_net_test, output_test)
 
+            accuracy_h = np.append(accuracy_h, acc)
             loss_total = np.append(loss_total, val_loss.cpu().detach().numpy())
             loss_h = np.append(loss_h, val_losses['loss_h'])
             loss_v = np.append(loss_v, val_losses['loss_v'])
@@ -162,7 +165,8 @@ if __name__ == "__main__":
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        val_metrics = {"val/loss_total": loss_total.mean(),
+        val_metrics = {"val/accuracy_h": accuracy_h.mean(),
+                       "val/loss_total": loss_total.mean(),
                        "val/loss_h": loss_h.mean(),
                        "val/loss_v":  loss_v.mean(),
                        "val/loss_o":  loss_o.mean(),
@@ -170,7 +174,7 @@ if __name__ == "__main__":
                        }
         wandb.log({**metrics, **val_metrics})
 
-        print(f"Epoch {epoch} Finished with total loss of {loss_total.mean()}")
+        print(f"Epoch {epoch} Finished with total loss of {loss_total.mean()} and acc of {accuracy_h.mean()}")
 
 
 

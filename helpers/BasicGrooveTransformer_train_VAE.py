@@ -1,20 +1,19 @@
 import os
 import torch
-#import wandb
+from torchmetrics import Accuracy
+import wandb
 import re
 import numpy as np
 from model.src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
 
 
-def dice_loss(pred, target):
+def dice_fn(pred, target):
     """This definition generalize to real valued pred and target vector.
 This should be differentiable.
     pred: tensor with first dimension as batch
     target: tensor with first dimension as batch
     """
-
     smooth = 1.
-
     # have to use contiguous since they may from a torch.view op
     iflat = pred.contiguous().view(-1)
     tflat = target.contiguous().view(-1)
@@ -24,6 +23,16 @@ This should be differentiable.
     B_sum = torch.sum(tflat * tflat)
 
     return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
+def hits_accuracy(prediction, y):
+    y_h, y_v, y_o = torch.split(y, int(y.shape[2] / 3), 2)  # split in voices
+
+    preds, mu, log_var = prediction
+    pred_h, pred_v, pred_o = preds
+
+    accuracy = Accuracy()
+    acc = accuracy(torch.reshape(pred_h.int(), (-1,)), torch.reshape(y_h.int(), (-1,)) )
+    return acc.item()
+
 
 def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = False, bce = False):
 
@@ -37,7 +46,7 @@ def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = F
 
     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
     if dice == True:
-        loss_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+        loss_h = dice_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
     else:
         loss_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
     bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
