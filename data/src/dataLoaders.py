@@ -6,6 +6,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 dataLoaderLogger = logging.getLogger("data.src.dataLoaders")
 
+
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
     Loads the hvo_sequences using the settings provided in the json file.
@@ -79,7 +80,6 @@ class MonotonicGrooveDataset(Dataset):
             if sort_by_metada_key in subset[0].metadata[sort_by_metada_key]:
                 subset = sorted(subset, key=lambda x: x.metadata[sort_by_metada_key])
 
-
         # collect input tensors, output tensors, and hvo_sequences
         for idx, hvo_seq in enumerate(tqdm(subset)):
             if hvo_seq.hits is not None:
@@ -96,7 +96,6 @@ class MonotonicGrooveDataset(Dataset):
             self.outputs = torch.tensor(np.array(self.outputs), dtype=torch.float32)
 
         dataLoaderLogger.info(f"Loaded {len(self.inputs)} sequences")
-
 
     def __len__(self):
         return len(self.hvo_sequences)

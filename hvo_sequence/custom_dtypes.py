@@ -7,6 +7,8 @@ import math
 # ======================================================================================================================
 # === Meta Data, Time Signature, and Tempo Classes =====================================================================
 # ======================================================================================================================
+
+
 class Metadata(dict):
     """
     A dictionary that can be appended to.
@@ -18,7 +20,7 @@ class Metadata(dict):
         super().__init__(*args, **kwargs)
         self.time_steps = [0]   # keeps track of the time steps for sequenece of metadata info
 
-    def append(self, other, start_at_time_step):
+    def __append_single_metadata(self, other, start_at_time_step):
         assert isinstance(other, Metadata), "the object to append must be of type Metadata"
         assert start_at_time_step > max(self.time_steps), \
             "the start time step must be greater than the last time step of the current metadata" \
@@ -54,6 +56,10 @@ class Metadata(dict):
             for key in set(self.keys()).union(set(other_.keys())):
                 self[key].append(other_[key][ix])
 
+    def append(self, other, start_at_time_step):
+        for start, end, metadata in other.split():
+            self.__append_single_metadata(metadata, start_at_time_step + start)
+
     def split(self):
         """
         Split the metadata into a list of metadata objects, one for each meta data consistent region.
@@ -62,8 +68,11 @@ class Metadata(dict):
         starts = self.time_steps
         ends = np.array(starts[1:] + [np.inf])-1
         metadatas = []
-        for i in range(len(starts)):
-            metadatas.append(Metadata({k: v[i] for k, v in self.items()}))
+        if len(starts) == 1:
+            return [(0, np.inf, self)]
+        else:
+            for i in range(len(starts)):
+                metadatas.append(Metadata({k: v[i] for k, v in self.items()}))
         return list(zip(starts, ends, metadatas))
 
 
@@ -397,18 +406,23 @@ class GridMaker:
         n_steps = math.ceil(n_steps / self.__n_steps_per_beat) * self.__n_steps_per_beat
 
         if n_steps > self.__n_steps:
-            self.extract_segment_info()
-            # at least one bar after las
-            ts = self.__segment_time_signatures[-1]
-            last_seg_beginning_at = max(ts.time_step, self.__segment_tempos[-1].time_step)
-            self.__n_steps = max(last_seg_beginning_at + ts.numerator * self.__n_steps_per_beat, n_steps)
-
             self.erase_segment_info()
             self.erase_grid()
+            # self.extract_segment_info()
+            # at least one bar after las
+            ts = sorted(self.time_signatures, key=lambda x: x.time_step)[-1]
+            tp = sorted(self.tempos, key=lambda x: x.time_step)[-1]
+            last_seg_beginning_at = max(ts.time_step, tp.time_step)
+            self.__n_steps = max(last_seg_beginning_at + ts.numerator * self.__n_steps_per_beat, n_steps)
+
+    @property
+    def n_steps_per_beat(self):
+        return self.__n_steps_per_beat
 
     def add_time_signature(self, time_step, numerator, denominator):
         """ Adds a time signature to the grid maker __time_signatures list
         If two consecutive time signatures exist with the same numerator and denominator, the second one is ignored
+        Also, if two consecutive time signatures exist with the same time_step, the latest one is kept
         @param time_step:       time step of the time signature
         @param numerator:       numerator of the time signature
         @param denominator:     denominator of the time signature
@@ -417,6 +431,10 @@ class GridMaker:
 
         # Make sure time step is a multiple of n_steps_per_beat
         time_step = int(round(time_step / self.__n_steps_per_beat) * self.__n_steps_per_beat)
+
+        for i, prev_ts in enumerate(old_time_signatures):
+            if prev_ts.time_step == time_step:
+                old_time_signatures[i] = Time_Signature(time_step, numerator, denominator)
 
         old_time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator))
         old_time_signatures.sort(key=lambda x: x.time_step)
@@ -435,14 +453,10 @@ class GridMaker:
                         old_time_signatures[i].time_step, old_time_signatures[i-1].time_step)
 
         # Update time signatures if any changes were made
-        if new_time_signatures != self.__time_signatures:
-            self.__time_signatures = new_time_signatures
-            self.erase_segment_info()
-            self.erase_grid()
-
-            return True
-        else:
-            return False
+        # if new_time_signatures != self.__time_signatures:
+        self.__time_signatures = new_time_signatures
+        self.erase_segment_info()
+        self.erase_grid()
 
     def add_tempo(self, time_step, qpm):
         """ Adds a tempo to the grid maker __tempos list
@@ -503,14 +517,15 @@ class GridMaker:
         # Make sure the first time signature and tempo start at time step 0
         self.prepare_time_signatures_and_tempos()
 
-        # template size is 2-bars after the beginning of last segment
-        if self.__n_steps == -1:
-            last_ts = max(self.__tempos[-1].time_step, self.__time_signatures[-1].time_step)
-            self.__n_steps = last_ts + 2 * self.__time_signatures[-1].numerator * self.__n_steps_per_beat
+        # Make sure the total number of steps is at least 1 bar after the beginning of last segment
+        last_ts = max(self.__tempos[-1].time_step, self.__time_signatures[-1].time_step)
+        self.n_steps = max(
+            last_ts + 2 * self.__time_signatures[-1].numerator * self.__n_steps_per_beat,
+            self.n_steps)
 
         # Create a list of segment starts and ends
         self.__segment_starts = [x.time_step for x in self.__time_signatures] + [x.time_step for x in self.__tempos]
-        self.__segment_starts = list(set(self.__segment_starts))
+        self.__segment_starts = list(sorted(set(self.__segment_starts)))
         self.__segment_ends = self.__segment_starts[1:] + [self.__n_steps]
 
         # find which time signature and tempo each segment starts with
@@ -551,10 +566,7 @@ class GridMaker:
                 locs.extend([round(i*secs_per_beat/bdf, 3) for i in range(int(bdf))])
             self.__segment_single_beat_grid_locations_in_sec.append(sorted(set(locs)))
 
-        # Make sure the total number of steps is at least 1 bar after the beginning of last segment
-        self.__n_steps = max(
-            self.__segment_time_signatures[-1].time_step * self.__n_steps_per_beat,
-            self.__n_steps)
+
 
     def is_ready(self):
         return all([self.__time_signatures is not None, self.__tempos is not None])
@@ -570,14 +582,12 @@ class GridMaker:
         if not self.is_ready():
             raise ValueError("Time signatures or Tempos are required create a segmented grid")
 
-
         # it would automatically clear the grid if steps expanded
         if n_steps is None:
             if self.__n_steps <= 0:
                 # create a grid for at least two bars after the end of the last segment
                 last_time_sig = self.time_signatures[-1]
-                n_steps = int(last_time_sig.time_step + 2 * last_time_sig.numerator * self.__n_steps_per_beat)
-                n_steps = int(last_time_sig.time_step + 2 * last_time_sig.numerator * self.__n_steps_per_beat)
+                self.n_steps = int(last_time_sig.time_step + 2 * last_time_sig.numerator * self.__n_steps_per_beat)
         else:
             self.n_steps = n_steps
 
@@ -611,7 +621,7 @@ class GridMaker:
     def get_grid_lines(self, n_steps):
         self.prepare_grid_for_n_steps(n_steps)
         return self.__grid_lines[:n_steps]
-        
+
     def get_grid_lines_for_n_beats(self, n_beats):
         n_steps = n_beats * self.__n_steps_per_beat
         return self.get_grid_lines(n_steps)
@@ -644,7 +654,7 @@ class GridMaker:
         if not self.__grid_lines:
             self.prepare_grid_for_n_steps()
 
-        if t_sec > self.__grid_lines[-1]:
+        if t_sec > self.__grid_lines[-2]:
             last_seg_start = sum(self.__segment_durations_in_sec[:-1])
             time_diff = t_sec - last_seg_start
             ts = self.__segment_time_signatures[-1]
@@ -654,15 +664,18 @@ class GridMaker:
             n_steps = ts.time_step + min_steps_needed + 1
             self.prepare_grid_for_n_steps(n_steps)
 
-        # use math to get index of closest value to t_sec
+        # find index and diff from grid line
         idx, grid_val = min(enumerate(self.__grid_lines), key=lambda x: abs(x[1]-t_sec))
         diff = t_sec - grid_val
-
+        print("idx: {}, diff: {}".format(idx, diff))
         if diff != 0:
+            print(f"grid line len inside grid maker {len(self.__grid_lines)}")
+            print(f"self.n_steps {self.n_steps}")
             offset = diff / (self.__grid_lines[idx+1] - self.__grid_lines[idx]) if diff > 0 else \
                 diff / (self.__grid_lines[idx] - self.__grid_lines[idx-1])
         else:
             offset = 0
+
         return idx, round(offset, 3)
 
     def get_segments_info(self):

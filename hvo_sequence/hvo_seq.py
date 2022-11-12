@@ -157,18 +157,25 @@ class HVO_Sequence(object):
         assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
         assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
 
+
         first_part = self.copy()
         other = other_.copy()
 
+        # ensure second one starts on the next available beat
         next_t_step = first_part.hvo.shape[0]
-        while next_t_step % (sum(self.time_signatures[-1].beat_division_factors)-1) != 0:
+        while next_t_step % self.grid_maker.n_steps_per_beat != 0:
             next_t_step += 1
+        first_part.adjust_length(next_t_step)
+        print("next_t_step: {}".format(next_t_step), "first_part.hvo.shape: {}".format(first_part.hvo.shape))
 
         if other.tempos:
-            for tempo in other.tempos:
+            for tempo in sorted(other.tempos, key=lambda x: x.time_step):
+                print(f"tempo tim in other: {tempo.time_step}, after adjustment: {tempo.time_step + next_t_step}")
                 first_part.add_tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm)
+
         if other.time_signatures:
-            for time_sig in other.time_signatures:
+            for time_sig in sorted(other.time_signatures, key=lambda x: x.time_step):
+                print(f"time_sig tim in other: {time_sig.time_step}, after adjustment: {time_sig.time_step + next_t_step}")
                 first_part.add_time_signature(
                     time_step=time_sig.time_step + next_t_step,
                     numerator=time_sig.numerator, denominator=time_sig.denominator)
@@ -176,11 +183,9 @@ class HVO_Sequence(object):
         if other.metadata.keys() is not None:
             first_part.metadata.append(other.metadata, next_t_step)
 
-        if other.hvo is not None:
-            if first_part.hvo is not None:
-                first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
-            else:
-                first_part.hvo = other.hvo
+        first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
+        print(f"HVO_Sequence concatenated length: {first_part.hvo.shape[0]}, "
+              f"number_of_steps: {first_part.number_of_steps}")
 
         return first_part
 
@@ -288,6 +293,7 @@ class HVO_Sequence(object):
 
         # Now, safe to update the local hvo score array
         self.__hvo = x
+        self.number_of_steps = x.shape[0]
 
     @property
     def number_of_steps(self):
@@ -339,10 +345,11 @@ class HVO_Sequence(object):
                 m_end = m_seg[1]
                 meta = m_seg[2]
                 # check if start time within segment
-                if segments_info["segment_starts"][m_seg_ix] <= m_start <= segments_info["segment_ends"][m_seg_ix]:
+                if segments_info["segment_starts"][m_seg_ix] <= meta.time_steps[0]\
+                        <= segments_info["segment_ends"][m_seg_ix]:
                     metas_to_add.append((m_start-segments_info["segment_starts"][m_seg_ix], meta))
                 # check if left overlapping
-                elif m_start < segments_info["segment_starts"][m_seg_ix] < m_end:
+                elif m_start < meta.time_steps[0] < m_end:
                     metas_to_add.append((0, meta))
             metas_to_add = sorted(metas_to_add, key=lambda x: x[0])
             for m_ix, m in enumerate(metas_to_add):
@@ -448,6 +455,7 @@ class HVO_Sequence(object):
     def adjust_length(self, max_size):
         """Adjusts the length of the hvo sequence to the specified number of steps.
         Adjustment by truncation or padding with zeros"""
+        self.grid_maker.n_steps = max_size  # make sure grid is long enough
         if self.number_of_steps == 0:
             self.zeros(max_size)
         elif max_size < self.number_of_steps:
@@ -1065,6 +1073,8 @@ class HVO_Sequence(object):
 
         # expand the score if necessary
         time_ix, offset = self.__grid_maker.get_index_and_offset_at_sec(start_sec)
+        print(f"time_ix: {time_ix}, offset: {offset}, start_sec: {start_sec}, "
+              f"number_of_steps: {self.number_of_steps}, grid_len: {self.grid_maker.n_steps}")
         if time_ix >= self.number_of_steps:
             self.adjust_length(time_ix+1)
 
@@ -1317,9 +1327,11 @@ class HVO_Sequence(object):
         _html_fig.yaxis.ticker = list(unique_pitches)
         _html_fig.yaxis.major_label_overrides = dict(zip(unique_pitches, drum_tags))
 
+        print(f"num steps before grid rendering: {self.number_of_steps}, hvo shape: {self.hvo.shape}")
         # Add beat and beat_division grid lines
         major_grid_lines = self.__grid_maker.get_major_grid_lines(self.number_of_steps)
         minor_grid_lines = self.__grid_maker.get_minor_grid_lines(self.number_of_steps)
+        print(f"num steps after grid rendering: {self.number_of_steps}, hvo shape: {self.hvo.shape}")
 
         minor_grid_ = []
         for t in minor_grid_lines:
@@ -1343,17 +1355,20 @@ class HVO_Sequence(object):
             _html_fig.add_layout(downbeat_grid_[-1])
 
         if self.number_of_steps > 0:
+            print(f"grid using {self.number_of_steps} steps")
             grid = self.__grid_maker.get_grid_lines(self.number_of_steps)
         else:
+            print(f"grid using 2 beats")
             grid = self.__grid_maker.get_grid_lines_for_n_beats(2)
 
         if show_tempo:
-            tempo_dict = {"x": [], "y": [], "tempo": []}
+            tempo_dict = {"x": [], "y": [], "tempo": [], "grid_index": []}
             for ix, tempo in enumerate(self.tempos):
                 if tempo.time_step <= len(grid):
                     tempo_dict["x"].append(grid[tempo.time_step])
                     tempo_dict["y"].append(unique_pitches[-1] + 1.5)
                     tempo_dict["tempo"].append(tempo.qpm)
+                    tempo_dict["grid_index"].append(tempo.time_step)
             temp = _html_fig.circle(x="x", y="y", source=tempo_dict, size=10,
                                     line_color=colors[0], fill_color=colors[0], legend_label="Tempo")
 
@@ -1363,13 +1378,14 @@ class HVO_Sequence(object):
                 HoverTool(tooltips=[(f"{k}", f"@{k}") for k in tempo_dict.keys()], renderers=[temp]))
 
         if show_time_signature:
-            time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": []}
+            time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": [], "grid_index": []}
             for ix, ts in enumerate(self.time_signatures):
                 if ts.time_step <= len(grid):
                     time_signature_dict["x"].append(grid[ts.time_step])
                     time_signature_dict["y"].append(unique_pitches[-1] + 1)
                     time_signature_dict["Numerator"].append(ts.numerator)
                     time_signature_dict["Denominator"].append(ts.denominator)
+                    time_signature_dict["grid_index"].append(ts.time_step)
 
             temp = _html_fig.circle(x="x", y="y", source=time_signature_dict, size=10,
                                     line_color=colors[-4], fill_color=colors[-4], legend_label="Time Signature")
@@ -1381,8 +1397,9 @@ class HVO_Sequence(object):
 
         if show_metadata:
             if self.metadata.keys() is not None:
+                print("grid length", len(grid))
                 metadata = {
-                    'x': [self.__grid_maker.get_grid_lines(self.number_of_steps)[ix] for ix in self.metadata.time_steps],
+                    'x': [grid[ix] for ix in self.metadata.time_steps],
                     'y': [list(unique_pitches)[-1] + 0.5] * len(self.metadata.time_steps)
                 }
                 metadata.update({k: [] for k, v in self.metadata.items()})
