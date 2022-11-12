@@ -36,7 +36,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # --------------------- #
-Version = "0.7.0"
+Version = "0.8.0"
 # --------------------- #
 
 
@@ -147,6 +147,9 @@ class HVO_Sequence(object):
     def __add__(self, other_):
         """
         Overridden operator for adding two HVO_Sequence objects together
+
+        if any of the HVO_Sequences are empty, the length is set to 1 bar after the beginning of the last segment
+
         :param other_:      another HVO_Sequence object
         :return:            a new HVO_Sequence object
         """
@@ -154,28 +157,35 @@ class HVO_Sequence(object):
         assert self.time_signatures, \
             "The time signature of the object on the Left side of the + operator can't be empty"
         assert self.tempos, "The tempo of the object on the Left side of the + operator can't be empty"
-        assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
-        assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
-
 
         first_part = self.copy()
         other = other_.copy()
+
+        if first_part.hvo is None:
+            last_time_sig = sorted(first_part.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(first_part.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * first_part.grid_maker.n_steps_per_beat
+            first_part.zeros(n_steps)
+        if other.hvo is None:
+            last_time_sig = sorted(other.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(other.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * other.grid_maker.n_steps_per_beat
+            other.zeros(n_steps)
 
         # ensure second one starts on the next available beat
         next_t_step = first_part.hvo.shape[0]
         while next_t_step % self.grid_maker.n_steps_per_beat != 0:
             next_t_step += 1
         first_part.adjust_length(next_t_step)
-        print("next_t_step: {}".format(next_t_step), "first_part.hvo.shape: {}".format(first_part.hvo.shape))
 
         if other.tempos:
             for tempo in sorted(other.tempos, key=lambda x: x.time_step):
-                print(f"tempo tim in other: {tempo.time_step}, after adjustment: {tempo.time_step + next_t_step}")
                 first_part.add_tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm)
 
         if other.time_signatures:
             for time_sig in sorted(other.time_signatures, key=lambda x: x.time_step):
-                print(f"time_sig tim in other: {time_sig.time_step}, after adjustment: {time_sig.time_step + next_t_step}")
                 first_part.add_time_signature(
                     time_step=time_sig.time_step + next_t_step,
                     numerator=time_sig.numerator, denominator=time_sig.denominator)
@@ -184,8 +194,6 @@ class HVO_Sequence(object):
             first_part.metadata.append(other.metadata, next_t_step)
 
         first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
-        print(f"HVO_Sequence concatenated length: {first_part.hvo.shape[0]}, "
-              f"number_of_steps: {first_part.number_of_steps}")
 
         return first_part
 
@@ -1073,8 +1081,7 @@ class HVO_Sequence(object):
 
         # expand the score if necessary
         time_ix, offset = self.__grid_maker.get_index_and_offset_at_sec(start_sec)
-        print(f"time_ix: {time_ix}, offset: {offset}, start_sec: {start_sec}, "
-              f"number_of_steps: {self.number_of_steps}, grid_len: {self.grid_maker.n_steps}")
+
         if time_ix >= self.number_of_steps:
             self.adjust_length(time_ix+1)
 
@@ -1285,7 +1292,12 @@ class HVO_Sequence(object):
         assert self.drum_mapping is not None, "Drum mapping not set"
 
         if self.is_ready_for_use() is False:
-            return None
+            logger.warning(".hvo is initialized to 1 bar after the beginning of the last tempo or time sig change.")
+            last_time_sig = sorted(self.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(self.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * self.grid_maker.n_steps_per_beat
+            self.zeros(n_steps)
 
         notes = self.get_notes(return_tuples=False)
         colors = viridis(15)
@@ -1327,11 +1339,9 @@ class HVO_Sequence(object):
         _html_fig.yaxis.ticker = list(unique_pitches)
         _html_fig.yaxis.major_label_overrides = dict(zip(unique_pitches, drum_tags))
 
-        print(f"num steps before grid rendering: {self.number_of_steps}, hvo shape: {self.hvo.shape}")
         # Add beat and beat_division grid lines
         major_grid_lines = self.__grid_maker.get_major_grid_lines(self.number_of_steps)
         minor_grid_lines = self.__grid_maker.get_minor_grid_lines(self.number_of_steps)
-        print(f"num steps after grid rendering: {self.number_of_steps}, hvo shape: {self.hvo.shape}")
 
         minor_grid_ = []
         for t in minor_grid_lines:
@@ -1355,10 +1365,8 @@ class HVO_Sequence(object):
             _html_fig.add_layout(downbeat_grid_[-1])
 
         if self.number_of_steps > 0:
-            print(f"grid using {self.number_of_steps} steps")
             grid = self.__grid_maker.get_grid_lines(self.number_of_steps)
         else:
-            print(f"grid using 2 beats")
             grid = self.__grid_maker.get_grid_lines_for_n_beats(2)
 
         if show_tempo:
@@ -1397,7 +1405,6 @@ class HVO_Sequence(object):
 
         if show_metadata:
             if self.metadata.keys() is not None:
-                print("grid length", len(grid))
                 metadata = {
                     'x': [grid[ix] for ix in self.metadata.time_steps],
                     'y': [list(unique_pitches)[-1] + 0.5] * len(self.metadata.time_steps)

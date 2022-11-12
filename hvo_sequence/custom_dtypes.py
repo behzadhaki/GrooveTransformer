@@ -166,6 +166,7 @@ class Time_Signature(object):
     def copy(self):
         return Time_Signature(self.time_step, self.numerator, self.denominator)
 
+
 class Tempo(object):
     def __init__(self, time_step=None,  qpm=None):
         self.__time_step = None    # index corresponding to the time_step in hvo where signature change happens
@@ -250,9 +251,11 @@ def is_power_of_two(n):
         return False
 
 # ======================================================================================================================
-# === GridMaker Class ==================================================================================================
+# === GridMaker Class
 # Only recalculate the grid when a get_* method is called to access the values have changed back to None
 # ======================================================================================================================
+
+
 def are_beat_division_factors_legal(beat_division_factors: list):
     """beat_division_factors must integers and no two factors can be multiples of each other"""
     assert isinstance(beat_division_factors, list), "beat_division_factors must be a list"
@@ -275,10 +278,16 @@ class GridMaker:
     def __init__(self, beat_division_factors: list):
         """
         Class to generate a grid for a given time signature and tempo and beat division factors
-        This class is implemented such that if any information that can modify [1] the grid is changed, the grid is
-        cleared and only recalculated when a get_* method is called to access the values
+        This class is implemented such that:
 
         [1] The grid is cleared whenever a new time signature, tempo is set or the length of the grid is changed
+
+        [2] The grid is recalculated only when a get_* method is called to access the values
+
+        [3] The cached internal grid is pre-generated to a length >= to the number of time steps requested
+
+        [4] If the earliest time_signature and/or tempo starts after the first time step, the time step will be
+            forced to start at zero
 
         :param beat_division_factors:  list of integers that are the factors of the beat divisions.
         no two factors can be multiples of each other
@@ -360,6 +369,7 @@ class GridMaker:
 
     @property
     def time_signatures(self):
+        # returns the sorted time signatures
         ts_ = sorted([ts for ts in self.__time_signatures], key=lambda x: x.time_step)
         ts_[0].time_step = 0
         return ts_
@@ -376,7 +386,8 @@ class GridMaker:
 
     @property
     def tempos(self):
-        tempos_ = sorted([t for t in self.__tempos], key=lambda x: x.time_step)
+        # returns the sorted tempos
+        tempos_ = sorted([tempo for tempo in self.__tempos], key=lambda x: x.time_step)
         tempos_[0].time_step = 0
         return tempos_
 
@@ -667,10 +678,7 @@ class GridMaker:
         # find index and diff from grid line
         idx, grid_val = min(enumerate(self.__grid_lines), key=lambda x: abs(x[1]-t_sec))
         diff = t_sec - grid_val
-        print("idx: {}, diff: {}".format(idx, diff))
         if diff != 0:
-            print(f"grid line len inside grid maker {len(self.__grid_lines)}")
-            print(f"self.n_steps {self.n_steps}")
             offset = diff / (self.__grid_lines[idx+1] - self.__grid_lines[idx]) if diff > 0 else \
                 diff / (self.__grid_lines[idx] - self.__grid_lines[idx-1])
         else:
