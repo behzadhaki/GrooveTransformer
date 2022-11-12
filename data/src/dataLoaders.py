@@ -68,11 +68,6 @@ class MonotonicGrooveDataset(Dataset):
         self.inputs = list()
         self.outputs = list()
         self.hvo_sequences = list()
-        self.info = {
-            "style_primary": list(),
-            "master_id": list(),
-            "bpm": list(),
-        }
 
         subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
 

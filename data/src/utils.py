@@ -94,7 +94,7 @@ def load_original_gmd_dataset_pickle(gmd_pickle_path):
     return gmd_dict
 
 
-def extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping):
+def extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping, dataset_label = "Groove MIDI Dataset"):
     """ extracts hvo_sequences from the original gmd_dict
 
     :param gmd_dict: [dict] dict of format {"train": [note_sequences], "test": [note_sequences], "validation": [note_sequences]}
@@ -116,14 +116,19 @@ def extract_hvo_sequences_dict(gmd_dict, beat_division_factor, drum_mapping):
                 drum_mapping=drum_mapping,
                 beat_division_factors=beat_division_factor
             )
+            _hvo_seq.metadata.update({"Source": dataset_label})
             if len(_hvo_seq.time_signatures) == 1 and len(_hvo_seq.tempos) == 1:
                 # get metadata
                 for key_ in gmd_dict[set].keys():
-                    if key_ not in ["midi", "note_sequence", "hvo_sequence"]:
+                    if key_ not in ["midi", "note_sequence", "hvo_sequence", "loop_id"]:
                         _hvo_seq.metadata.update({key_: str(gmd_dict[set][key_][ix])})
+                    if key_ == "loop_id":
+                        loop_id = gmd_dict[set][key_][ix]
+                        loop_id = loop_id.split(":")
+                        loop_id = ":".join([loop_id[0], loop_id[-1]])
+                        _hvo_seq.metadata.update({key_: str(loop_id)})
 
                 hvo_seqs.append(_hvo_seq)
-
         # add hvo_sequences to dictionary
         gmd_hvo_seq_dict.update({set: hvo_seqs})
 
