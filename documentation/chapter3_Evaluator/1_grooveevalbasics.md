@@ -15,7 +15,7 @@
 
 ## 2. GrooveEvaluator Basics <a name="2"></a>
 
-### _All codes provided below are also available [here](../../testers/GrooveEvaluator/01_grooveevalbasics_demo.py)_
+### _All codes provided below are also available [here](../../demos/GrooveEvaluator/01_grooveevalbasics_demo.py)_
 
 
 ---
@@ -169,9 +169,9 @@ To save the model, use the `dump` method. You can the `path` parameter to specif
 you can use the `fname`, to add aditional information.
 
 ```python
-evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
+evaluator_test_set.dump(path="demos/evaluator/examples", fname=f"{model_name}.Eval.bz2")
 
-# Output >> Dumped Evaluator to testers/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2
+# Output >> Dumped Evaluator to demos/evaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2
 ```
 
 > **Note**

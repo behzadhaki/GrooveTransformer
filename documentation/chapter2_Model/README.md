@@ -29,7 +29,7 @@ A groove transformer similar to the original transformer consisting of
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder) 
 and [transformerDecoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerDecoder.html#torch.nn.TransformerDecoder).
 
-Source code available [here](../../testers/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
+Source code available [here](../../demos/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
 
 ```python
 # Instantiating a model
@@ -82,7 +82,7 @@ A groove transformer consisting of the
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
 only section of the original transformer
 
-Source code available [here](../../testers/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
+Source code available [here](../../demos/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
 
 ```python
 from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
@@ -155,7 +155,7 @@ The models are:
 
 To load the model, use the `load_groove_transformer_encoder_model` method from 
 the `modelLoadesSamplers` module as discussed above. For example, to load the `misunderstood_bush_246` model,
-use the following [code](../../testers/model/monotonic_groove_transformer_v1/load_pretrained_versions_available.py):
+use the following [code](../../demos/model/monotonic_groove_transformer_v1/load_pretrained_versions_available.py):
 ```python
 
 ```python
@@ -164,7 +164,7 @@ model_path = f"model/saved/monotonic_groove_transformer_v1/latest/misunderstood_
 GrooveTransformer = load_groove_transformer_encoder_model(model_path)
 ```
 ### 3.v Generation <a name="3_v"></a>
-Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
+Source code available [here](../../demos/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
 Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),
 [load a midi file](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#load-from-midi-), 

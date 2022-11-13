@@ -26,7 +26,7 @@ The MultiSetEvaluator is very similar to the [GrooveEvaluator](), with the excep
 
 > **Warning** The MultiSetEvaluator can be computationally expensive, so it is recommended to use it after the training process
 
-> **Note** All codes used in this chapter are available [here](../../testers/MultiSetEvaluator/demo.py)_
+> **Note** All codes used in this chapter are available [here](../../demos/MultiSetEvaluator/demo.py)_
 
 ## 1. Prepare the sets used for cross comparison <a name="2_i"></a>
 
@@ -37,8 +37,8 @@ from eval.GrooveEvaluator import load_evaluator
 from eval.MultiSetEvaluator import MultiSetEvaluator
 
 # prepare input data
-eval_1 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
-eval_2 = load_evaluator("testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+eval_1 = load_evaluator("demos/GrooveEvaluator/examples/test_set_full_robust_sweep_29.Eval.bz2")
+eval_2 = load_evaluator("demos/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
 groove_evaluator_sets={"Model 1": eval_1, "Model 2": eval_2, "Model 3": eval_2}
 ```
@@ -74,11 +74,11 @@ msEvaluator = MultiSetEvaluator(
 
 ```python
 # dump MultiSetEvaluator
-msEvaluator.dump("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
+msEvaluator.dump("demos/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
 
 # load MultiSetEvaluator
 from eval.MultiSetEvaluator import load_multi_set_evaluator
-msEvaluator = load_multi_set_evaluator("testers/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
+msEvaluator = load_multi_set_evaluator("demos/MultiSetEvaluator/misc/inter_intra_evaluator.MSEval.bz2")
 ```
 
 ## 4. Available Analyzers <a name="2_v"></a>
@@ -89,7 +89,7 @@ msEvaluator = load_multi_set_evaluator("testers/MultiSetEvaluator/misc/inter_int
 
 ```python
 # save statistics
-msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/MultiSetEvaluator/misc/multi_set_evaluator")
+msEvaluator.save_statistics_of_inter_intra_distances(dir_path="demos/MultiSetEvaluator/misc/multi_set_evaluator")
 ```
 ```pycon
 >>> Saved statistics of inter intra distances to:  testers/MultiSetEvaluator/misc/multi_set_evaluator/GT_Model 1_Model 2_inter_intra_statistics.csv
@@ -103,7 +103,7 @@ msEvaluator.save_statistics_of_inter_intra_distances(dir_path="testers/MultiSetE
 ```python
 # save inter intra pdf plots
 iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(
-    filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/iid_pdfs.html")
+    filename="demos/MultiSetEvaluator/misc/multi_set_evaluator/iid_pdfs.html")
 ```
 <img src="assets/images/iid_plots.png" width="400">
 
@@ -111,7 +111,7 @@ iid_pdfs_bokeh = msEvaluator.get_inter_intra_pdf_plots(
 
 ```python
 # save kl oa plots
-KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/MultiSetEvaluator/misc/multi_set_evaluator")
+KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="demos/MultiSetEvaluator/misc/multi_set_evaluator")
 ```
 
 <img src="assets/images/kl_oa_img.png" width="400">
@@ -123,7 +123,7 @@ KL_OA_plot = msEvaluator.get_kl_oa_plots(filename="testers/MultiSetEvaluator/mis
 ```python
 # get pos neg hit score plots
 pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(
-    filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
+    filename="demos/MultiSetEvaluator/misc/multi_set_evaluator/pos_neg_hit_scores.html")
 ```
 <img src="assets/images/hit_count_mse.png" width="400">
 
@@ -135,7 +135,7 @@ pos_neg_hit_score_plots = msEvaluator.get_pos_neg_hit_score_plots(
 ```python
 # get velocity distribution plots
 velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(
-    filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/velocity_distributions.html")
+    filename="demos/MultiSetEvaluator/misc/multi_set_evaluator/velocity_distributions.html")
 ```
 
 <img src="assets/images/vels_mse.png" width="400">
@@ -145,7 +145,7 @@ velocity_distribution_plots = msEvaluator.get_velocity_distribution_plots(
 ```python
 # get offset distribution plots
 offset_distribution_plots = msEvaluator.get_offset_distribution_plots(
-    filename="testers/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
+    filename="demos/MultiSetEvaluator/misc/multi_set_evaluator/offset_distributions.html")
 ```
 )
 <img src="assets/images/offset_mse.png" width="400">
@@ -186,7 +186,7 @@ logging_media_partial = msEvaluator.get_logging_media(identifier="Analysis X", n
 ```python
 logging_media_and_saved = msEvaluator.get_logging_media(
     identifier="Analysis X",
-    save_directory="testers/MultiSetEvaluator/misc/logging_media")
+    save_directory="demos/MultiSetEvaluator/misc/logging_media")
 ```
 
 <img src="assets/images/img_1.png" width="250">
@@ -197,7 +197,7 @@ logging_media_and_saved = msEvaluator.get_logging_media(
 # get logging media for wandb
 logging_media_wandb = msEvaluator.get_logging_media(
     identifier="Analysis X",
-    save_directory="testers/MultiSetEvaluator/misc/logging_media",
+    save_directory="demos/MultiSetEvaluator/misc/logging_media",
     prepare_for_wandb=True, need_inter_intra_pdf_plots=False, need_kl_oa_plots=False,
     need_pos_neg_hit_score_plots=True, need_velocity_distribution_plots=True, need_offset_distribution_plots=True)
 ```
