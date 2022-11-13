@@ -16,7 +16,6 @@ import pickle
 import os
 from tqdm import tqdm
 import copy
-from eval.post_training_evaluations.src.mgeval_rytm_utils import flatten_subset_genres
 import pandas as pd
 from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_score, matthews_corrcoef
 from scipy.io.wavfile import write
@@ -182,30 +181,51 @@ class Evaluator:
         self._cached_predicted_logging_data_wandb = None  # Cached data for predicted logging
 
     def __getstate__(self):
-        need_states = (self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio,
-                       self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,
-                       self.need_offset_distributions, self.need_rhythmic_distances, self.need_kl_oa)
 
-        gt_subset_states = (self._gt_tags, self._gt_subsets)
-        pd_prediction_hvos_array = self._prediction_hvos_array
-        general_states = (self._identifier, self._identifier)
-        audio_pianoroll_states = (self.audio_sample_locations, self.piano_roll_sample_locations)
+        state = {
+            "need_hit_scores": self.need_hit_scores,
+            "need_velocity_distributions": self.need_velocity_distributions,
+            "need_offset_distributions": self.need_offset_distributions,
+            "need_rhythmic_distances": self.need_rhythmic_distances,
+            "need_heatmap": self.need_heatmap,
+            "need_global_features": self.need_global_features,
+            "need_piano_roll": self.need_piano_roll,
+            "need_audio": self.need_audio,
+            "need_kl_oa": self.need_kl_oa,
+            "disable_tqdm": self.disable_tqdm,
+            "num_voices": self.num_voices,
+            "_gt_tags": self._gt_tags,
+            "_gt_subsets": self._gt_subsets,
+            "_identifier": self._identifier,
+            "audio_sample_locations": self.audio_sample_locations,
+            "piano_roll_sample_locations": self.piano_roll_sample_locations,
+            "_prediction_hvos_array": self._prediction_hvos_array
+        }
 
-        return (need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states)
+        return state
 
     def __setstate__(self, state):
         # reload the states
-        need_states, gt_subset_states, pd_prediction_hvos_array, general_states, audio_pianoroll_states = state
-        self.need_heatmap, self.need_global_features, self.need_piano_roll, self.need_audio, \
-        self.disable_tqdm, self.need_hit_scores, self.need_velocity_distributions,\
-        self.need_offset_distributions, self.need_rhythmic_distances, self.need_kl_oa = need_states
+        self.need_hit_scores = state["need_hit_scores"]
+        self.need_velocity_distributions = state["need_velocity_distributions"]
+        self.need_offset_distributions = state["need_offset_distributions"]
+        self.need_rhythmic_distances = state["need_rhythmic_distances"]
+        self.need_heatmap = state["need_heatmap"]
+        self.need_global_features = state["need_global_features"]
+        self.need_piano_roll = state["need_piano_roll"]
+        self.need_audio = state["need_audio"]
+        self.need_kl_oa = state["need_kl_oa"]
+        self.disable_tqdm = state["disable_tqdm"]
+        self.num_voices = state["num_voices"]
+        self._gt_tags = state["_gt_tags"]
+        self._gt_subsets = state["_gt_subsets"]
+        self._identifier = state["_identifier"]
+        self.audio_sample_locations = state["audio_sample_locations"]
+        self.piano_roll_sample_locations = state["piano_roll_sample_locations"]
+        self._prediction_hvos_array = state["_prediction_hvos_array"]
 
-        self._gt_tags, self._gt_subsets = gt_subset_states
-        self._prediction_hvos_array = pd_prediction_hvos_array
-        self._identifier, self._identifier = general_states
-        self.audio_sample_locations, self.piano_roll_sample_locations = audio_pianoroll_states
-
-        # initialize the rest of the states
+        # _gt_hvos_array_tags --> ground truth tags for each
+        # _gt_hvos_arrayS --> a numpy array containing all samples in hvo format
         self._gt_hvo_sequences = []
         self._gt_hvos_array_tags, self._gt_hvos_array, self._prediction_hvo_seq_templates = [], [], []
         for subset_ix, tag in enumerate(self._gt_tags):
@@ -215,8 +235,8 @@ class Evaluator:
                 self._gt_hvos_array.append(sample_hvo.get("hvo"))
                 self._prediction_hvo_seq_templates.append(sample_hvo.copy_empty())
 
-        self._gt_hvos_array = np.stack(self._gt_hvos_array)
-        self.num_voices = int(self._gt_hvos_array.shape[-1] / 3)
+        self._gt_hvos_array = np.stack(self._gt_hvos_array) if len(self._gt_hvos_array) > 1 \
+            else self._gt_hvos_array
 
         # Subset evaluator for ground_truth data
         self.gt_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
@@ -233,28 +253,13 @@ class Evaluator:
         self._prediction_tags, self._prediction_subsets = None, None
         self.prediction_SubSet_Evaluator = None
 
-        if self._prediction_hvos_array is not None:
-            self._prediction_tags, self._prediction_subsets = \
-                subsetters.convert_hvos_array_to_subsets(
-                    self._gt_hvos_array_tags,
-                    self._prediction_hvos_array,
-                    self._prediction_hvo_seq_templates
-                )
-
-            self.prediction_SubSet_Evaluator = HVOSeq_SubSet_Evaluator(
-                self._prediction_subsets,
-                self._prediction_tags,
-                "{}_Predictions".format(self._identifier),  # a name for the subset
-                disable_tqdm=self.disable_tqdm,
-                group_by_minor_keys=True,
-                need_heatmap=self.need_heatmap,
-                need_global_features=self.need_global_features
-            )
-
         self._cached_gt_logging_data = None  # Cached data for ground truth logging
         self._cached_predicted_logging_data = None  # Cached data for predicted logging
         self._cached_gt_logging_data_wandb = None  # Cached data for ground truth logging
         self._cached_predicted_logging_data_wandb = None  # Cached data for predicted logging
+
+        if self._prediction_hvos_array is not None:
+            self.add_predictions(self._prediction_hvos_array)
 
     # ==================================================================================================================
     #  Get Logging dict or WandB Artifacts for ground truth data and/or predictions
