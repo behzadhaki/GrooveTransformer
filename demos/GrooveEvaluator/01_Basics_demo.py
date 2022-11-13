@@ -47,14 +47,12 @@ if __name__ == "__main__":
 
     # 2.3.2 Pass the ground truth data to the model
     from model import load_groove_transformer_encoder_model
-    from model.saved.monotonic_groove_transformer_v1.params import model_params
     import torch
     import numpy as np
 
     model_name = "colorful_sweep_41" # robust_sweep_29
-    model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
-    model_param = model_params[model_name]
-    GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
+    model_path = f"model/saved/monotonic_groove_transformer_v1/latest/{model_name}.pth"
+    GrooveTransformer = load_groove_transformer_encoder_model(model_path)
     predictions = GrooveTransformer.predict(torch.tensor(evaluator_test_set.get_ground_truth_hvos_array(), dtype=torch.float32))
     predictions = torch.cat(predictions, -1)
 
@@ -62,11 +60,11 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="demos/evaluator/examples", fname=f"{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="demos/GrooveEvaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"demos/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"demos/GrooveEvaluator/examples/test_set_full_{model_name}.Eval.bz2")
 
 
 

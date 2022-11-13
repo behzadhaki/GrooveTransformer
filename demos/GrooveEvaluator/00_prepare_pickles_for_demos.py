@@ -24,7 +24,7 @@ if __name__ == "__main__":
         test_set,
         list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
         _identifier="test_set_full",
-        n_samples_to_use=20, #-1,
+        n_samples_to_use=-1, #-1,
         max_hvo_shape=(32, 27),
         need_hit_scores=True,
         need_velocity_distributions=True,
@@ -37,19 +37,6 @@ if __name__ == "__main__":
         n_samples_to_synthesize_and_draw=5,   # "all",
         disable_tqdm=False
     )
-
-    # 2.3.1 - get ground truth hvo pianoroll scores
-    evaluator_test_set.get_ground_truth_hvos_array()
-    evaluator_test_set.dump(path="demos/GrooveEvaluator/examples", fname=f"GT_without_Predictions.Eval.bz2")
-
-    # 2.3.1 - get ground truth monotonic grooves
-    import numpy as np
-    input = np.array(
-    [hvo_seq.flatten_voices(voice_idx=2) for hvo_seq in evaluator_test_set.get_ground_truth_hvo_sequences()])
-
-
-    # predicted_hvos_array = model.predict(input)
-    # predicted_hvos_array = evaluator_test_set.get_ground_truth_hvos_array()   # This is here just to make sure the code doesnt rely on the model here
 
     # 2.3.3 - Add the predictions to the evaluator
     from model import load_groove_transformer_encoder_model

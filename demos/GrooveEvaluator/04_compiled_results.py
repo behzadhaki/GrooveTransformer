@@ -2,7 +2,8 @@ if __name__ == "__main__":
 
     # Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator("demos/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    evaluator_test_set = load_evaluator("demos/GrooveEvaluator/examples/latest/"
+                                        "test_set_full_misunderstood_bush_246.Eval.bz2")
 
     # get logging media associated with default plot flags
     logging_media = evaluator_test_set.get_logging_media()
