@@ -25,6 +25,7 @@ from bokeh.models.widgets import Panel, Tabs
 from bokeh.io import save
 
 from eval.MultiSetEvaluator import MultiSetEvaluator
+from copy import deepcopy
 
 def flatten(t):
     if len(t) >=1:
@@ -75,7 +76,7 @@ class Evaluator:
 
     def __init__(
             self,
-            hvo_sequences_list,
+            hvo_sequences_list_,
             list_of_filter_dicts_for_subsets=None,
             _identifier="Train",
             n_samples_to_use=-1,
@@ -97,7 +98,7 @@ class Evaluator:
         """
         This class will perform a thorough Intra- and Inter- evaluation between ground truth data and predictions
 
-        :param hvo_sequences_list: A 1D list of HVO_Sequence objects corresponding to ground truth data
+        :param hvo_sequences_list_: A 1D list of HVO_Sequence objects corresponding to ground truth data
         :param list_of_filter_dicts_for_subsets: (Default: None, means use all data without subsetting) The filter dictionaries using which the dataset will be subsetted into different groups. Note that the HVO_Sequence objects must contain `metadata` attributes with the keys specified in the filter dictionaries.
         :param _identifier: A string label to identify the set of HVO_Sequence objects. This is used to name the output files.
         :param n_samples_to_use: (Default: -1, means use all data) The number of samples to use for evaluation in case you don't want to use all the samples. THese are randomly selected.
@@ -123,6 +124,8 @@ class Evaluator:
         self.disable_tqdm = disable_tqdm
         self.num_voices = int(max_hvo_shape[-1] / 3)
 
+        hvo_sequences_list = deepcopy(hvo_sequences_list_)
+
         n_samples_to_use = len(hvo_sequences_list) if n_samples_to_use == -1 else n_samples_to_use
 
         # Create subsets of data
@@ -147,7 +150,8 @@ class Evaluator:
                 self._gt_hvos_array.append(sample_hvo.get("hvo"))
                 self._prediction_hvo_seq_templates.append(sample_hvo.copy_empty())
 
-        self._gt_hvos_array = np.stack(self._gt_hvos_array)
+        self._gt_hvos_array = np.stack(self._gt_hvos_array) if len(self._gt_hvos_array) > 1\
+            else self._gt_hvos_array
 
         # a text to identify the evaluator (exp "Train_Epoch1", "Test_Epoch1")
         self._identifier = _identifier
@@ -1577,5 +1581,5 @@ def load_evaluator (full_path):
     return evaluator
 
 if __name__ == "__main__":
-    # For testing use testers/GrooveEvaluator/ .py files
+    # For testing use demos/GrooveEvaluator/ .py files
     pass
