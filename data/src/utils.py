@@ -32,7 +32,7 @@ def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE
     return all(passed_conditions)
 
 
-def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path):
+def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path, down_sampled_ratio=None):
     """
     returns the directory path from which the data corresponding to the
     specified data/dataset_json_settings/4_4_Beats_gmd.json file is located or should be stored
@@ -53,7 +53,10 @@ def get_data_directory_using_filters(dataset_tag, dataset_setting_json_path):
         if val_ is not None:
             last_directory += f"{key_}_{val_}_"
 
-    return main_path + last_directory[:-1]  # remove last underline
+    if down_sampled_ratio is None:
+        return main_path + last_directory[:-1]  # remove last underline
+    else:
+        return main_path + last_directory[:-1] + f"/_downsampled_{down_sampled_ratio}"
 
 
 def pickle_hvo_dict(hvo_dict, dataset_tag, dataset_setting_json_path):
