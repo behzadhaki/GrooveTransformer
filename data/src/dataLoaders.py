@@ -2,10 +2,12 @@ from data.src.utils import *
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from math import ceil
 import logging
 logging.basicConfig(level=logging.DEBUG)
 dataLoaderLogger = logging.getLogger("data.src.dataLoaders")
-
+import json
+import os, sys
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
@@ -107,7 +109,147 @@ class MonotonicGrooveDataset(Dataset):
     def get_outputs_at(self, idx):
         return self.outputs[idx]
 
+# ---------------------------------------------------------------------------------------------- #
+# loading a downsampled dataset
+# ---------------------------------------------------------------------------------------------- #
+
+
+def down_sample_dataset(hvo_seq_list, down_sample_ratio):
+    """
+    Down sample the dataset by a given ratio, the ratio of the performers and the ratio of the performances
+    are kept the same as much as possible.
+    :param hvo_seq_list:
+    :param down_sample_ratio:
+    :return:
+    """
+    down_sampled_size = ceil(len(hvo_seq_list) * down_sample_ratio)
+
+    # =================================================================================================
+    # Divide up the performances by performer
+    # =================================================================================================
+    per_performer_per_performance_data = dict()
+    for hs in tqdm(hvo_seq_list):
+        performer = hs.metadata["drummer"]
+        performance_id = hs.metadata["master_id"]
+        if performer not in per_performer_per_performance_data:
+            per_performer_per_performance_data[performer] = {}
+        if performance_id not in per_performer_per_performance_data[performer]:
+            per_performer_per_performance_data[performer][performance_id] = []
+        per_performer_per_performance_data[performer][performance_id].append(hs)
+
+    # =================================================================================================
+    # Figure out how many loops to grab from each performer
+    # =================================================================================================
+    def flatten(l):
+        if isinstance(l[0], list):
+            return [item for sublist in l for item in sublist]
+        else:
+            return l
+
+    ratios_to_other_performers = dict()
+
+    # All samples per performer
+    existing_sample_ratios_by_performer = dict()
+    for performer, performances in per_performer_per_performance_data.items():
+        existing_sample_ratios_by_performer[performer] = \
+            len(flatten([performances[p] for p in performances])) / len(hvo_seq_list)
+
+    new_samples_per_performer = dict()
+    for performer, ratio in existing_sample_ratios_by_performer.items():
+        samples = ceil(down_sampled_size * ratio)
+        if samples > 0:
+            new_samples_per_performer[performer] = samples
+
+    # =================================================================================================
+    # Figure out for each performer, how many samples to grab from each performance
+    # =================================================================================================
+    num_loops_from_each_performance_compiled_for_all_performers = dict()
+    for performer, performances in per_performer_per_performance_data.items():
+        total_samples = len(flatten([performances[p] for p in performances]))
+        if performer in new_samples_per_performer:
+            needed_samples = new_samples_per_performer[performer]
+            num_loops_from_each_performance = dict()
+            for performance_id, hs_list in performances.items():
+                samples_to_select = ceil(needed_samples * len(hs_list) / total_samples)
+                if samples_to_select > 0:
+                    num_loops_from_each_performance[performance_id] = samples_to_select
+            if num_loops_from_each_performance:
+                num_loops_from_each_performance_compiled_for_all_performers[performer] = \
+                    num_loops_from_each_performance
+
+    # =================================================================================================
+    # Sample required number of loops from each performance
+    # THE SELECTION IS DONE BY RANKING THE TOTAL NUMBER OF HITS / TOTAL NUMBER OF VOICES ACTIVE
+    # then selecting N equally spaced samples from the ranked list
+    # =================================================================================================
+    for performer, performances in per_performer_per_performance_data.items():
+        for performance, hvo_seqs in performances.items():
+            seqs_sorted = sorted(
+                hvo_seqs,
+                key=lambda x: x.hits.sum() / x.get_number_of_active_voices(), reverse=True)
+            indices = np.linspace(
+                0,
+                len(seqs_sorted) - 1,
+                num_loops_from_each_performance_compiled_for_all_performers[performer][performance],
+                dtype=int)
+            per_performer_per_performance_data[performer][performance] = [seqs_sorted[i] for i in indices]
+
+    downsampled_hvo_sequences = []
+    for performer, performances in per_performer_per_performance_data.items():
+        for performance, hvo_seqs in performances.items():
+            downsampled_hvo_sequences.extend(hvo_seqs)
+
+    return downsampled_hvo_sequences
+
+
+def load_down_sampled_gmd_hvo_sequences(
+        dataset_setting_json_path, subset_tag, down_sampled_ratio, force_regenerate=False):
+    """
+    Loads the hvo_sequences using the settings provided in the json file.
+
+    :param dataset_setting_json_path: path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
+    :param subset_tag: [str] whether to load the train/test/validation set
+    :param down_sampled_ratio: [float] the ratio of the dataset to downsample to
+    :param force_regenerate: [bool] if True, will regenerate the hvo_sequences from the raw data regardless of cache
+    :return:
+    """
+    dataset_tag = "gmd"
+    dir__ = get_data_directory_using_filters(dataset_tag,
+                                             dataset_setting_json_path,
+                                             down_sampled_ratio=down_sampled_ratio)
+    if (not os.path.exists(dir__)) or force_regenerate is True:
+        dataLoaderLogger.info(f"No Cached Version Available Here: {dir__}. ")
+        dataLoaderLogger.info(f"Downsampling the dataset to {down_sampled_ratio} and saving to {dir__}.")
+
+        down_sampled_dict = {}
+        for subset_tag in ["train", "validation", "test"]:
+            hvo_seq_set = load_gmd_hvo_sequences(
+                dataset_setting_json_path=dataset_setting_json_path,
+                subset_tag=subset_tag,
+                force_regenerate=False)
+            down_sampled_dict.update({subset_tag: down_sample_dataset(hvo_seq_set, down_sampled_ratio)})
+
+        # create directories if needed
+        if not os.path.exists(dir__):
+            os.makedirs(dir__)
+
+        # collect and dump samples that match filter
+        for set_key_, set_data_ in down_sampled_dict.items():
+            ofile = bz2.BZ2File(os.path.join(dir__, f"{set_key_}.bz2pickle"), 'wb')
+            pickle.dump(set_data_, ofile)
+            ofile.close()
+    else:
+        dataLoaderLogger.info(f"Loading Cached Version from: {dir__}")
+
+    ifile = bz2.BZ2File(os.path.join(dir__, f"{subset_tag}.bz2pickle"), 'rb')
+    data = pickle.load(ifile)
+    ifile.close()
+
+    dataLoaderLogger.info(f"Loaded {len(data)} {subset_tag} samples from {dir__}")
+
+    return data
+
 
 if __name__ == "__main__":
     # tester
-    dataLoaderLogger.info("Run testers/data/demo.py to test")
+    dataLoaderLogger.info("Run demos/data/demo.py to test")
