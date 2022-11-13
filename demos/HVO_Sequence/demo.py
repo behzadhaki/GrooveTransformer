@@ -2,9 +2,12 @@ from hvo_sequence import HVO_Sequence
 from hvo_sequence import ROLAND_REDUCED_MAPPING
 from hvo_sequence import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
 
+
 import pretty_midi, note_seq
 
-hvo_seq = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING)
+beat_div_factor = [4]           # divide each quarter note in 4 divisions
+hvo_seq = HVO_Sequence(beat_division_factors=beat_div_factor,
+                       drum_mapping=ROLAND_REDUCED_MAPPING)
 
 # ----------------------------------------------------------------
 # -----------           CREATE A SCORE              --------------
@@ -12,26 +15,25 @@ hvo_seq = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING)
 
 # Add two time_signatures
 t_sig = [4, 4]
-beat_div_factor = [4]           # divide each quarter note in 4 divisions
 t_stamp = 0
-hvo_seq.add_time_signature(t_stamp, t_sig[0], t_sig[0], beat_div_factor)
+hvo_seq.add_time_signature(t_stamp, t_sig[0], t_sig[0])
 
 # Add two tempos
-hvo_seq.add_tempo(0, 50)
+hvo_seq.add_tempo(0, 120)
 
 # Create a random hvo for 32 time steps and 9 voices
-hvo_seq.random(32, 9)
+hvo_seq.random(32)
 
 # -------------------------------------------------------------------
 # -----------           saving                         --------------
 # -------------------------------------------------------------------
-hvo_seq.save("testers/HVO_Sequence/misc/empty.hvo")
+hvo_seq.save("demos/HVO_Sequence/misc/empty.hvo")
 
 # -------------------------------------------------------------------
 # -----------           Loading                         --------------
 # -------------------------------------------------------------------
-hvo_seq_loaded = HVO_Sequence()
-hvo_seq_loaded.load("testers/HVO_Sequence/misc/empty.hvo")
+from pickle import load
+hvo_seq_loaded = load(open("demos/HVO_Sequence/misc/empty.hvo", "rb"))
 
 if hvo_seq_loaded == hvo_seq:
     print ("Loaded sequence is equal to the saved one")
@@ -44,7 +46,7 @@ hvo_seq.get("v")    # get vel
 hvo_seq.get("o")    # get offsets
 
 hvo_seq.get("vo")    # get vel with offsets
-hvo_seq.get("hv0")    # get hvwith offsets replaced as 0
+hvo_seq.get("hv0")    # get hv with offsets replaced as 0
 hvo_seq.get("ovhhv0")    # use h v o and 0 to create any tensor
 
 

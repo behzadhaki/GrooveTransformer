@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # 2.3.1 - get ground truth hvo pianoroll scores
     evaluator_test_set.get_ground_truth_hvos_array()
-    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples", fname=f"GT_without_Predictions.Eval.bz2")
+    evaluator_test_set.dump(path="demos/GrooveEvaluator/examples", fname=f"GT_without_Predictions.Eval.bz2")
 
     # 2.3.1 - get ground truth monotonic grooves
     import numpy as np
@@ -65,11 +65,11 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples/latest/", fname=f"{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="demos/GrooveEvaluator/examples/latest/", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/latest/test_set_full_{model_name}.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"demos/GrooveEvaluator/examples/latest/test_set_full_{model_name}.Eval.bz2")
 
     model_name = "rosy_durian_248"
     model_path = f"model/saved/monotonic_groove_transformer_v1/latest/{model_name}.pth"
@@ -79,8 +79,8 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="testers/GrooveEvaluator/examples/latest/", fname=f"testset_{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="demos/GrooveEvaluator/examples/latest/", fname=f"testset_{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/latest/test_set_full_testset_rosy_durian_248.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"demos/GrooveEvaluator/examples/latest/test_set_full_testset_rosy_durian_248.Eval.bz2")

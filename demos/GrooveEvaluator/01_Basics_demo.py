@@ -62,11 +62,11 @@ if __name__ == "__main__":
     evaluator_test_set.add_predictions(predictions.detach().numpy())
 
     # 2.4 -      Save Evaluator
-    evaluator_test_set.dump(path="testers/evaluator/examples", fname=f"{model_name}.Eval.bz2")
+    evaluator_test_set.dump(path="demos/evaluator/examples", fname=f"{model_name}.Eval.bz2")
 
     # 2.4 -      Load Evaluator using full path with extension
     from eval.GrooveEvaluator import load_evaluator
-    evaluator_test_set = load_evaluator(f"testers/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
+    evaluator_test_set = load_evaluator(f"demos/GrooveEvaluator/examples/test_set_full_colorful_sweep_41.Eval.bz2")
 
 
 
