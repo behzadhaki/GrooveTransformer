@@ -1,18 +1,12 @@
-# --------------------- #
-Version = "0.6.0"
-# --------------------- #
-
 import os.path
 import numpy as np
 import note_seq
 from note_seq.protobuf import music_pb2
-import soundfile as sf
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 from bokeh.plotting import output_file, show, save
-from bokeh.models import Span, Label, Legend
-import warnings
+from bokeh.models import Span
 from scipy import stats
 from scipy.signal import find_peaks
 import math
@@ -20,72 +14,59 @@ import copy
 import random
 import pickle
 
-from hvo_sequence.utils import is_power_of_two, find_pitch_and_tag, cosine_similarity, cosine_distance
+from hvo_sequence.utils import cosine_similarity, cosine_distance
 from hvo_sequence.utils import _weight_groove, _reduce_part, fuzzy_Hamming_distance
 from hvo_sequence.utils import _get_kick_and_snare_syncopations, get_monophonic_syncopation
 from hvo_sequence.utils import get_weak_to_strong_ratio, _getmicrotiming_event_profile_1bar
 from hvo_sequence.utils import onset_strength_spec, reduce_f_bands_in_spec, detect_onset, map_onsets_to_grid, logf_stft
 from hvo_sequence.utils import get_hvo_idxs_for_voice
 
-from hvo_sequence.custom_dtypes import Tempo, Time_Signature, Metadata
+from hvo_sequence.custom_dtypes import Metadata, GridMaker
 from hvo_sequence.drum_mappings import Groove_Toolbox_5Part_keymap, Groove_Toolbox_3Part_keymap
 
 from hvo_sequence.metrical_profiles import WITEK_SYNCOPATION_METRICAL_PROFILE_4_4_16th_NOTE
 from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_16th_NOTE
-from hvo_sequence.metrical_profiles import RHYTHM_SALIENCE_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
-from bokeh.models import HoverTool
+from bokeh.models import HoverTool, Legend
 from bokeh.palettes import viridis
 from scipy.io import wavfile
 
+import logging
+logger = logging.getLogger(__name__)
+
+# --------------------- #
+Version = "0.8.0"
+# --------------------- #
+
+
 class HVO_Sequence(object):
 
-    def __init__(self, drum_mapping=None):
+    def __init__(self, beat_division_factors, drum_mapping):
         """
-
-        @param drum_mapping:                        a dictionary of grouped midi notes and corresponding names
-                                                    {..., "Snare": [38, 37, 40], ...}
-
-        Note:                                       A user can only manually modify the following parameters:
-
-                                                        time signature
-                                                        tempo
-                                                        beat division factors
-                                                        pitch class groups and tags
-                                                        hvo array of (time_steps, 3*n_voices)
-        """
-
-        # Create ESSENTIAL fields used for the sequence
-        # NOTE: DO NOT MODIFY THE BELOW MANGLED VARIABLES DIRECTLY
-        #       RATHER USE THE PROPERTY GETTER AND SETTERS TO ENSURE
-        #       DATATYPE CONSISTENCY
-
-        """
-        ADD VERSION ACCORDING TO: https://semver.org/
-        
-        Given a version number MAJOR.MINOR.PATCH, increment the:
-        
-        MAJOR version when you make incompatible API changes,
-        MINOR version when you add functionality in a backwards compatible manner, and
-        PATCH version when you make backwards compatible bug fixes.
+        A piano roll representation of a drum sequence.
+        :param beat_division_factors:       list of integers specifying how many subdivisions of a beat are used.
+                                            beat is always considered to be the denominator of the time signature.
+        :param drum_mapping:                dict mapping drum names to integers.
+                                            exp:
+                                            {
+                                                "kick": [36, 38],
+                                                "snare": [37, 40],
+                                                ...
+                                            }
         """
 
         self.__version = Version
 
         self.__metadata = Metadata()
 
-        self.__time_signatures = list()
-        self.__tempos = list()
+        self.__grid_maker = GridMaker(beat_division_factors)
+
         self.__drum_mapping = None
         self.__hvo = None
 
-        # holds the last grid state so as to not recompute it if not needed
-        self.__last_grid_state = None
-
         # Use property setters to initiate properties (DON"T ASSIGN ABOVE so that the correct datatype is checked)
-        if drum_mapping:
-            self.drum_mapping = drum_mapping
+        self.drum_mapping = drum_mapping
 
     #   ----------------------------------------------------------------------
     #           Pickling Strategies
@@ -94,8 +75,7 @@ class HVO_Sequence(object):
         state_dict = {
             "created_with_version": self.__version,
             "metadata": self.__metadata,
-            "time_signatures": self.__time_signatures,
-            "tempos": self.__tempos,
+            "grid_maker": self.__grid_maker,
             "drum_mapping": self.__drum_mapping,
         }
 
@@ -118,10 +98,10 @@ class HVO_Sequence(object):
         return state_dict
 
     def __setstate__(self, state):
-        if "created_with_version" in state:
-            print("Loading HVO_Sequence created with version: {}.".format(state["created_with_version"]))
-            if state["created_with_version"] != self.__version:
-                warnings.warn("HVO_Sequence version mismatch. Loading with version: {}.".format(self.__version))
+        # if "created_with_version" in state:
+        #     logger.info("Pickled HVO_Sequence was created using version: {}.".format(state["created_with_version"]))
+        #     if state["created_with_version"] != Version:
+        #         logger.warning("Version Mismatch. Loaded with Version: {}.".format(Version))
 
         if "_HVO_Sequence__version" in state:
             # old version before "0.6.0"
@@ -131,13 +111,11 @@ class HVO_Sequence(object):
             self.__tempos = state["_HVO_Sequence__tempos"]
             self.__drum_mapping = state["_HVO_Sequence__drum_mapping"]
             self.__version = Version
-            self.__last_grid_state = None   # added from "0.6.0
 
         else:
             self.__version = Version
             self.__metadata = state["metadata"] if "metadata" in state else Metadata()
-            self.__time_signatures = state["time_signatures"]
-            self.__tempos = state["tempos"]
+            self.__grid_maker = state["grid_maker"]
             self.__drum_mapping = state["drum_mapping"]
 
             if "hvo" in state:
@@ -145,8 +123,6 @@ class HVO_Sequence(object):
                 self.__hvo[state["hvo"]["event_idx"]] = state["hvo"]["event_vals"]
             else:
                 self.__hvo = None
-
-            self.__last_grid_state = None
 
     def save(self, path):
         # make sure the path ends with .hvo
@@ -156,10 +132,12 @@ class HVO_Sequence(object):
 
         with open(path, "wb") as f:
             pickle.dump(self, f)
+            logging.info("HVO_Sequence saved to: {}".format(path))
 
     def load(self, path):
         with open(path, "rb") as f:
             hvo_seq = pickle.load(f)
+            logging.info("HVO_Sequence loaded from: {}".format(path))
         self.__dict__ = hvo_seq.__dict__
         return self
 
@@ -169,48 +147,59 @@ class HVO_Sequence(object):
     def __add__(self, other_):
         """
         Overridden operator for adding two HVO_Sequence objects together
-        @param other_:      another HVO_Sequence object
-        @return:            a new HVO_Sequence object
+
+        if any of the HVO_Sequences are empty, the length is set to 1 bar after the beginning of the last segment
+
+        :param other_:      another HVO_Sequence object
+        :return:            a new HVO_Sequence object
         """
         assert (self.drum_mapping == other_.drum_mapping), "Drum mappings are not the same"
-        assert (self.time_signatures), "The time signature of the object on the Left side of the + operator can't be empty"
-        assert (self.tempos), "The tempo of the object on the Left side of the + operator can't be empty"
-        assert self.hvo is not None, "The hvo score on the Left side of the + operator can't be empty"
-        assert other_.hvo is not None, "The hvo score on the Right side of the + operator can't be empty"
+        assert self.time_signatures, \
+            "The time signature of the object on the Left side of the + operator can't be empty"
+        assert self.tempos, "The tempo of the object on the Left side of the + operator can't be empty"
 
-        first_part = copy.deepcopy(self)
-        other = copy.deepcopy(other_)
+        first_part = self.copy()
+        other = other_.copy()
 
+        if first_part.hvo is None:
+            last_time_sig = sorted(first_part.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(first_part.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * first_part.grid_maker.n_steps_per_beat
+            first_part.zeros(n_steps)
+        if other.hvo is None:
+            last_time_sig = sorted(other.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(other.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * other.grid_maker.n_steps_per_beat
+            other.zeros(n_steps)
+
+        # ensure second one starts on the next available beat
         next_t_step = first_part.hvo.shape[0]
-        while next_t_step % (sum(self.time_signatures[-1].beat_division_factors)-1) != 0:
+        while next_t_step % self.grid_maker.n_steps_per_beat != 0:
             next_t_step += 1
+        first_part.adjust_length(next_t_step)
 
         if other.tempos:
-            for tempo in other.tempos:
+            for tempo in sorted(other.tempos, key=lambda x: x.time_step):
                 first_part.add_tempo(time_step=tempo.time_step + next_t_step, qpm=tempo.qpm)
+
         if other.time_signatures:
-            for time_sig in other.time_signatures:
-                first_part.add_time_signature(time_step=time_sig.time_step + next_t_step, numerator=time_sig.numerator,
-                                                denominator=time_sig.denominator, beat_division_factors=time_sig.beat_division_factors)
+            for time_sig in sorted(other.time_signatures, key=lambda x: x.time_step):
+                first_part.add_time_signature(
+                    time_step=time_sig.time_step + next_t_step,
+                    numerator=time_sig.numerator, denominator=time_sig.denominator)
 
         if other.metadata.keys() is not None:
             first_part.metadata.append(other.metadata, next_t_step)
 
-        if other.hvo is not None:
-            if first_part.hvo is not None:
-                first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
-            else:
-                first_part.hvo = other.hvo
+        first_part.hvo = np.concatenate((first_part.hvo, other.hvo), axis=0)
 
         return first_part
 
     def __eq__(self, other):
-        checks = []
-        checks.append(self.__metadata == other.__metadata)
-        checks.append(self.__time_signatures == other.__time_signatures)
-        checks.append(self.__tempos == other.__tempos)
-        checks.append(self.__drum_mapping == other.__drum_mapping)
-        checks.append(np.array_equal(self.__hvo, other.__hvo))
+        checks = [self.__metadata == other.__metadata, self.__grid_maker == other.__grid_maker,
+                  self.__drum_mapping == other.__drum_mapping, np.array_equal(self.__hvo, other.__hvo)]
         checks = all(checks)
         return checks
 
@@ -224,7 +213,13 @@ class HVO_Sequence(object):
 
     @property
     def metadata(self):
+        """ Gives access to the metadata of the HVO_Sequence as a Metadata object """
         return self.__metadata
+
+    @property
+    def grid_maker(self):
+        """gives access to the grid_maker object of type GridData"""
+        return self.__grid_maker
 
     @metadata.setter
     def metadata(self, metadata_instance):
@@ -236,91 +231,31 @@ class HVO_Sequence(object):
 
     @property
     def time_signatures(self):
-        return self.__time_signatures
+        """ Adds a Time_Signature at a given time step index (not in seconds) to the grid_maker"""
+        return self.__grid_maker.time_signatures
 
-    def add_time_signature(self, time_step=None, numerator=None, denominator=None, beat_division_factors=None, time_mode="step"):
-        '''
-        Add a time signature to the HVO_Sequence object
-        :param time_step:
-        :param numerator:
-        :param denominator:
-        :param beat_division_factors:
-        :param time_mode: 'step' or 'sec', default is 'step'
-        :return:
-        '''
-        # ensure beat_division_factors is a list and no two elements are multiples of each other
-        if beat_division_factors is not None:
-            assert isinstance(beat_division_factors, list), "beat_division_factors must be a list"
-            for i in range(len(beat_division_factors)):
-                for j in range(len(beat_division_factors)):
-                    if i != j:
-                        assert not (beat_division_factors[i] % beat_division_factors[j] == 0), \
-                            "beat_division_factors must not have multiples of each other"
-
-        if not self.time_signatures:
-            time_step = 0
-        else:
-            assert beat_division_factors == self.time_signatures[-1].beat_division_factors, \
-                "Beat division factors must be the same for all time signatures"
-
-            if self.time_signatures[-1].numerator == numerator and self.time_signatures[-1].denominator \
-                    == denominator:
-                return False  # no need to add a new time signature if the same as the last one
-
-            if time_mode == "sec" and time_step!=0:
-                self.expand_length(time_step, 'sec')
-                time_step, _ = self.find_index_and_offset_for_absolute_time(time_step)
-
-            # find a greater or equal value for time_step that is a multiple of 7
-            bdf = self.time_signatures[-1].beat_division_factors
-            t = int(time_step)
-            while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
-                time_step += 1
-            if t != time_step:
-                warnings.warn("The time_step value was changed from {} to {} to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
-
-        self.time_signatures.append(Time_Signature(time_step=time_step, numerator=numerator, denominator=denominator,
-                                                    beat_division_factors=beat_division_factors))
-        return True
+    def add_time_signature(self, time_step=None, numerator=None, denominator=None):
+        self.__grid_maker.add_time_signature(time_step=time_step, numerator=numerator, denominator=denominator)
 
     @property
     def tempos(self):
-        return self.__tempos
+        """ Gives access to the tempos of the HVO_Sequence stored in grid_maker"""
+        return self.__grid_maker.tempos
 
-    def add_tempo(self, time_step=None, qpm=None, time_mode="step"):
-        if not self.tempos:
-            time_step = 0
-        else:
-            if self.tempos[-1].qpm == qpm:
-                return False  # no need to add a new tempo if the same as the last one
-
-            # find a greater or equal value for time_step that is a multiple of number of steps per beat
-            if self.time_signatures:
-                if time_mode == "sec" and time_step!=0:
-                    self.expand_length(time_step, 'sec')
-                    time_step, _ = self.find_index_and_offset_for_absolute_time(time_step)
-
-                t = int(time_step)
-                bdf = self.time_signatures[-1].beat_division_factors
-                while time_step % (sum(bdf) - (len(bdf) - 1)) != 0:
-                    time_step += 1
-                if t != time_step:
-                    warnings.warn("The time_step value was changed from {} to {} to be a multiple of {} (total number of steps per beat".format(t, time_step, bdf))
-            else:
-                raise ValueError("Time signature must be specified before adding a second Tempo")
-
-        tempo = Tempo(time_step=time_step, qpm=qpm)
-        self.tempos.append(tempo)
-        return True
+    def add_tempo(self, time_step=None, qpm=None):
+        """ Adds a Tempo at a given time step index (not in seconds) to the grid_maker"""
+        self.__grid_maker.add_tempo(time_step=time_step, qpm=qpm)
 
     @property
     def drum_mapping(self):
+        """ Gives access to the drum_mapping of the HVO_Sequence"""
         if not self.__drum_mapping:
-            warnings.warn("drum_mapping is not specified")
+            logger.warning("drum_mapping is not specified")
         return self.__drum_mapping
 
     @drum_mapping.setter
     def drum_mapping(self, drum_map):
+        """ Sets the drum_mapping of the HVO_Sequence"""
         # Ensure drum map is a dictionary
         assert isinstance(drum_map, dict), "drum_mapping should be a dict" \
                                            "of {'Drum Voice Tag': [midi numbers]}"
@@ -345,12 +280,11 @@ class HVO_Sequence(object):
 
     @property
     def hvo(self):
-
+        """returns 'synced' hvo np.array, meaning for hits == 0, velocities and offsets are set to 0"""
         if self.__hvo is not None:
             # Return 'synced' hvo array, meaning for hits == 0, velocities and offsets are set to 0
             # i.e. the actual values stored internally will be overridden by 0
             n_voices = int(self.__hvo.shape[1] / 3)
-            hits_tmp = self.__hvo[:, :n_voices]
             self.__hvo[:, n_voices:2*n_voices] = self.__hvo[:, n_voices:2*n_voices]*self.__hvo[:, :n_voices]
             self.__hvo[:, 2*n_voices:] = self.__hvo[:, 2*n_voices:]*self.__hvo[:, :n_voices]
 
@@ -358,50 +292,56 @@ class HVO_Sequence(object):
 
     @hvo.setter
     def hvo(self, x):
+        """sets the hvo array of the HVO_Sequence"""
         # Ensure x is a numpy.ndarray of shape (number of steps, 3*number of drum voices)
         assert isinstance(x, np.ndarray), "Expected numpy.ndarray of shape (time_steps, 3 * number of voices), " \
                                           "but received {}".format(type(x))
-        # if drum_mapping already exists, the dimension at each time-step should be 3 times
-        #   the number of voices in the drum_mapping
-        if self.drum_mapping:
-            assert x.shape[1] / len(self.drum_mapping.keys()) == 3, \
-                "The second dimension of hvo should be three times the number of drum voices, len(drum_mapping.keys())"
+        assert x.shape[1] / len(self.drum_mapping.keys()) == 3, \
+            f"The second dimension of hvo should be three times the number of drum voices, {len(self.drum_mapping)}"
 
         # Now, safe to update the local hvo score array
         self.__hvo = x
+        self.number_of_steps = x.shape[0]
 
     @property
-    def consistent_segment_HVO_Sequences(self):
+    def number_of_steps(self):
+        """returns the length of the HVO_Sequence in number steps"""
+        return 0 if self.hvo is None else self.hvo.shape[0]
 
-        # Grab or create a drum mapping (To ensure that per segment HVO_Sequence objects are consistent)
-        if self.drum_mapping:
-            dmap = self.drum_mapping
-        else:
-            dmap = {f"{i}": [36 + i] for i in range(self.hits.shape[1])}
+    @number_of_steps.setter
+    def number_of_steps(self, n_steps):
+        self.adjust_length(n_steps)
+
+    @property
+    def consistent_segment_hvo_sequences(self):
+        """
+        Returns a list of hvo sequences, where each sequence is a time_sig and
+        tempo consistent segment of the original hvo sequence.
+        """
+        # todo make compatible with grid_maker
 
         # Start Segmentation
         segments = []                   # List of HVO_Sequences
-        segment_starts = self.segment_starts
-        segment_ends = self.segment_ends
 
-        # Get the tempos and time signatures for each segment
-        tmp, ts = self.tempos_and_time_signatures_per_segments
+        segments_info = self.__grid_maker.get_segments_info()
 
         # Iterate over each segment and find correct Metadata and Create the HVO_Sequence according to the segment
-        for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
-            # Create the HVO_Sequence templates
-            segments.append(HVO_Sequence(drum_mapping=dmap))
-            segments[-1].add_time_signature(time_step=timesig.time_step, numerator=timesig.numerator,
-                                            denominator=timesig.denominator, beat_division_factors=timesig.beat_division_factors)
-            segments[-1].add_tempo(time_step=tempo.time_step, qpm=tempo.qpm)
+        for i, (tempo, time_sig) in enumerate(zip(segments_info["tempos"], segments_info["time_signatures"])):
+            if segments_info["segment_starts"][i] <= self.number_of_steps:
+                # Create the HVO_Sequence templates
+                segments.append(
+                    HVO_Sequence(beat_division_factors=self.__grid_maker.beat_division_factors,
+                                 drum_mapping=self.drum_mapping))
+                segments[-1].add_time_signature(time_step=time_sig.time_step, numerator=time_sig.numerator,
+                                                denominator=time_sig.denominator)
+                segments[-1].add_tempo(time_step=tempo.time_step, qpm=tempo.qpm)
 
         # add score and metadata to each segment
         # segment_ends = np.array(segment_starts[1:] + [np.inf])-1
         for ix, segment in enumerate(segments):
-            seg_start = segment_starts[ix]
-            seg_end = segment_ends[ix]
+
             if self.hvo is not None:
-                segment.hvo = self.hvo[seg_start:(seg_end+1), :]
+                segment.hvo = self.hvo[segments_info["segment_starts"][ix]:segments_info["segment_ends"][ix], :]
 
             # Split the Metadata Segments
             starts_ends_metas = self.metadata.split() if self.metadata else None
@@ -413,73 +353,43 @@ class HVO_Sequence(object):
                 m_end = m_seg[1]
                 meta = m_seg[2]
                 # check if start time within segment
-                if seg_start <= m_start <= seg_end:
-                    metas_to_add.append((m_start-seg_start, meta))
+                if segments_info["segment_starts"][m_seg_ix] <= meta.time_steps[0]\
+                        <= segments_info["segment_ends"][m_seg_ix]:
+                    metas_to_add.append((m_start-segments_info["segment_starts"][m_seg_ix], meta))
                 # check if left overlapping
-                elif m_start < seg_start < m_end:
+                elif m_start < meta.time_steps[0] < m_end:
                     metas_to_add.append((0, meta))
             metas_to_add = sorted(metas_to_add, key=lambda x: x[0])
-            for ix, m in enumerate(metas_to_add):
-                if ix == 0:
+            for m_ix, m in enumerate(metas_to_add):
+                if m_ix == 0:
                     segment.metadata = m[1]
                 else:
                     segment.metadata.append(m[1], start_at_time_step=m[0])
 
-        return segments, segment_starts
-
-    @property
-    def segment_starts(self):
-        segment_starts = []  # List of start times for each segment
-
-        # Get the tempos and time signatures for each segment
-        tmp, ts = self.tempos_and_time_signatures_per_segments
-
-        # Iterate over each segment and find correct Metadata and Create the HVO_Sequence according to the segment
-        for i, (tempo, timesig) in enumerate(zip(tmp, ts)):
-            # Segment start can be derived from either the tempo or time signature (which ever is larger)
-            segment_starts.append(int(max(tempo.time_step, timesig.time_step)))
-
-        # make sure the score is not empty so as to be able to also calculate the end
-        self.hvo = np.zeros((1, self.number_of_voices * 3)) if self.hvo is None else self.hvo
-
-        return segment_starts
-
-    @property
-    def segment_ends(self):
-        # make sure the score is not empty so as to be able to also calculate the end
-        self.hvo = np.zeros((1, self.number_of_voices * 3)) if self.hvo is None else self.hvo
-
-        # add score and metadata to each segment
-        segment_ends = [x-1 for x in self.segment_starts[1:]]
-
-        segment_ends.append(max(self.hits.shape[0], segment_ends[-1]+1) if segment_ends else self.hits.shape[0])
-
-        return segment_ends
+        return segments, segments_info["segment_starts"]
 
     #   --------------------------------------------------------------
     #   Utilities to modify hvo sequence
     #   --------------------------------------------------------------
     def remove_hvo(self):
-        # removes hvo content and resets to None
+        """removes hvo content and resets to None"""
         self.__hvo = None
 
     def get_active_voices(self):
         """
-        Get the voices that are active (i.e. have any hits) for this HVO
-        @return: Array with the active voice indices
+        Returns the indices of the voices that are active (i.e. have any hits) for this HVO
         """
         return np.argwhere(np.sum(self.hits, axis=0) > 0).flatten()
 
     def reset_voices(self, voice_idx=None):
         """
-        @param voice_idx:                   voice index or indexes (can be single value or list of values) according
-                                            to the drum mapping
-        @return hvo_reset:                  returns new hvo_sequence object with the voices in voice_idx set to 0
-        @return hvo_reset_comp:             returns new hvo_sequence object with all voices set to 0 except the
-                                            voices in voice_idx
+        Returns two HVO_Sequence objects, one (or more if list) with the specified voice(s) removed,
+        and one with only the specified voice(s)
+
+        **NOTE: THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
         """
         if voice_idx is None:
-            warnings.warn("Pass a voice index or a list of voice indexes to be reset")
+            logger.warning("Pass a voice index or a list of voice indexes to be reset")
             return None
 
         # for consistency, turn voice_idx int into list
@@ -488,12 +398,12 @@ class HVO_Sequence(object):
 
         # copy original hvo_seq into hvo_reset and hvo_reset_complementary
         hvo_reset = self.copy()  # copies the full hvo, each voice will be later set to 0
-        hvo_reset_comp = self.copy_zero() # copies a zero hvo, each voice will be later set to its values in hvo_seq
+        hvo_reset_comp = self.copy_zero()  # copies a zero hvo, each voice will be later set to its values in hvo_seq
 
         n_voices = len(self.drum_mapping)  # number of instruments in the mapping
 
         if not np.all(np.isin(voice_idx, list(range(n_voices)))):
-            warnings.warn("Instrument index not in drum mapping")
+            logger.warning("Instrument index not in drum mapping")
             return None
 
         hvo_reset.hvo[:, voice_idx] = 0
@@ -502,16 +412,16 @@ class HVO_Sequence(object):
 
         return hvo_reset, hvo_reset_comp
 
-    def remove_random_events(self, thres_range=(0.4,0.6)):
+    def remove_random_events(self, threshold_range=(0.4, 0.6)):
         """
         Removes random hvo events sampling from a uniform probability distribution. A threshold is sampled from the
         threshold range. Hits with associated probability distribution value less or equal than this threshold are
-        removed.
-        @param thres_range:                 threshold range
-        @return hvo_reset:                  returns new hvo_sequence object without the removed events
-        @return hvo_reset_comp:             returns new hvo_sequence object with the removed events
+        removed. Returns two HVO_Sequence objects, one with the specified event(s) removed, and one with only
+        containing the removed event(s)
+
+        **NOTE: THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
         """
-        hvo_reset = self.copy() # non_empty copying so that offset and velocity info is kept
+        hvo_reset = self.copy()     # non_empty copying so that offset and velocity info is kept
         hvo_reset_comp = self.copy()
 
         # hvo_seq hvo hits 32x9 matrix
@@ -523,10 +433,10 @@ class HVO_Sequence(object):
         pd = np.random.uniform(size=len(nonzero_hits_idx[0]))
 
         # get threshold from range
-        thres = random.uniform(*thres_range)
+        threshold = random.uniform(*threshold_range)
         # sample hits from probability distribution
-        hits_to_keep_idx = (nonzero_hits_idx[0][pd>thres], nonzero_hits_idx[1][pd>thres])
-        hits_to_remove_idx = (nonzero_hits_idx[0][~(pd>thres)], nonzero_hits_idx[1][~(pd>thres)])
+        hits_to_keep_idx = (nonzero_hits_idx[0][pd > threshold], nonzero_hits_idx[1][pd > threshold])
+        hits_to_remove_idx = (nonzero_hits_idx[0][~(pd > threshold)], nonzero_hits_idx[1][~(pd > threshold)])
 
         # remove hits with associated probability distribution (pd) value lower than threshold
         hits_to_keep, hits_to_remove = np.zeros(hits.shape), np.zeros(hits.shape)
@@ -539,34 +449,35 @@ class HVO_Sequence(object):
 
         return hvo_reset, hvo_reset_comp
 
-    def random(self, length, num_voices):
-        '''
-        generates a random sequence with `length` number of steps
-
-        :param length: number of timesteps
-        :param num_voices: number of voices
-        :return: None
-        '''
-        h_ran = np.random.random_integers(0, 1, (length, num_voices))
-        v_ran = np.random.ranf((length, num_voices)) * h_ran
-        o_ran = (np.random.ranf((length, num_voices)) - 0.5) * h_ran
+    def random(self, length):
+        """Sets the .hvo attribute to a random sequence of the specified length"""
+        h_ran = np.random.random_integers(0, 1, (length, self.number_of_voices))
+        v_ran = np.random.ranf((length, self.number_of_voices)) * h_ran
+        o_ran = (np.random.ranf((length, self.number_of_voices)) - 0.5) * h_ran
         self.hvo = np.concatenate([h_ran, v_ran, o_ran], axis=-1)
 
-    def zeros(self, length, num_voices):
-        '''
-        generates a zero sequence with `length` number of steps
+    def zeros(self, length):
+        """Sets the .hvo attribute to a zero sequence of the specified length"""
+        self.hvo = np.zeros((length, self.number_of_voices * 3))
 
-        :param length: number of timesteps
-        :param num_voices: number of voices
-        :return: None
-        '''
-        self.hvo = np.zeros((length, num_voices * 3))
+    def adjust_length(self, max_size):
+        """Adjusts the length of the hvo sequence to the specified number of steps.
+        Adjustment by truncation or padding with zeros"""
+        self.grid_maker.n_steps = max_size  # make sure grid is long enough
+        if self.number_of_steps == 0:
+            self.zeros(max_size)
+        elif max_size < self.number_of_steps:
+            self.hvo = self.hvo[:max_size, :]
+        elif max_size > self.number_of_steps:
+            self.hvo = np.concatenate(
+                (self.hvo, np.zeros((max_size - self.number_of_steps, self.hvo.shape[1]))), axis=0)
 
-    def flatten_voices(self, offset_aggregator_modes=3, velocity_aggregator_modes=1, get_velocities=True, reduce_dim=False, voice_idx=2):
+    def flatten_voices(self, offset_aggregator_modes=3, velocity_aggregator_modes=1, 
+                       get_velocities=True, reduce_dim=False, voice_idx=2):
 
         """ Flatten all voices into a single tapped sequence. If there are several voices hitting at the same
         time step, the loudest one will be selected and its offset will be kept, however velocity is discarded
-        (set to the maximum).
+        (set to the maximum). The default settings flatten the sequence into voice 2, using a max pooled velocity
 
         Parameters
         ----------
@@ -610,8 +521,6 @@ class HVO_Sequence(object):
             # Overwrite voice index
             voice_idx = 0
 
-        time_steps = self.hvo.shape[0]
-
         new_hits = np.zeros_like(self.hits)
         new_velocities = np.zeros_like(self.velocities)
         new_offsets = np.zeros_like(self.offsets)
@@ -619,7 +528,7 @@ class HVO_Sequence(object):
         synced_velocities = self.hits * self.velocities
         synced_offsets = self.hits * self.offsets
 
-        all_idx = np.arange(time_steps)
+        all_idx = np.arange(self.number_of_steps)
         idx_max_vel = np.argmax(synced_velocities, axis=1)
         idx_multiple_hits = np.argwhere(np.sum(self.hits, axis=1) > 1)
         idx_smallest_offsets = np.argmin(np.abs(synced_offsets), axis=1)
@@ -658,8 +567,8 @@ class HVO_Sequence(object):
 
         if reduce_dim:
             # if we want to return only 1 voice (instead of e.g. 9 with all the others to 0)
-            # we remove the other dimensions and transform it into a 2-dim array so that the
-            # concatenate after will join the arrays in the right axis
+            # we remove the other dimensions and transform it into a 2-dim array so that it can be
+            # concatenated after will join the arrays in the right axis
             new_hits = np.array([new_hits[:, voice_idx]]).T
             new_velocities = np.array([new_velocities[:, voice_idx]]).T
             new_offsets = np.array([new_offsets[:, voice_idx]]).T
@@ -675,27 +584,27 @@ class HVO_Sequence(object):
             drum mapping (e.g. 9 for the reduced mapping). The values of the array are 1 or 0, indicating whether a
             hit occurs at that time step for that drum (1) or not (0).
         """
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_drum_mapping_available()])
-        return self.__hvo[:, :self.number_of_voices] if calculable else None
+        return self.__hvo[:, :self.number_of_voices] if self.is_hvo_score_available() else None
 
     def __is_hit_array_valid(self, hit_array):
-        """
-        checks to see if hit array is binary and second dimension matches number of voices
-        :param hit_array:
-        :return:
-        """
+        """checks to see if hit array is binary (0 / 1) and second dimension matches number of voices in drum mapping"""
         valid = True
         if len(self.__hvo[:, :self.number_of_voices]) != len(hit_array):
             valid = False
-            warnings.warn("hit array length mismatch")
+            logger.warning("hit array length mismatch")
         if not np.all(np.logical_or(np.asarray(hit_array) == 0, np.asarray(hit_array) == 1)):
             valid = False
-            warnings.warn("invalid hit values in array, they must be 0 or 1")
+            logger.warning("invalid hit values in array, they must be 0 or 1")
         return valid
 
     @hits.setter
     def hits(self, hit_array):
+        """setter for hits array
+
+        **hit_array: ndarray of dimensions m,n where m is the number of time steps and n the number of drums
+        in the current drum mapping (e.g. 9 for the reduced mapping). The values of the array are 1 or 0, indicating whether a
+        hit occurs at that time step for that drum (1) or not (0).**
+        """
         assert self.__is_hit_array_valid(hit_array), "Hit array is invalid! Must be binary and second dimension " \
                                                      "must match the number of voices in drum_mapping"
         if self.hvo is None:  # if no hvo score is available set velocities to one at hit and offsets to zero
@@ -709,35 +618,40 @@ class HVO_Sequence(object):
             drum mapping (e.g. 9 for the reduced mapping). The values of the array are continuous floating point
             numbers from 0 to 1 indicating the velocity.
         """
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_drum_mapping_available()])
-        if not calculable:
-            warnings.warn("can't get velocities as there is no hvo score previously provided")
+        if not self.is_hvo_score_available():
+            logger.warning("can't get velocities as there is no hvo score previously provided")
         else:
             # Note that the value returned is the internal one - even if a hit is 0 at an index,
             # velocity at that same index might not be 0
             return self.__hvo[:, self.number_of_voices: 2 * self.number_of_voices]
 
     def __is_vel_array_valid(self, vel_array):
-        valid = True
+        """checks to see if velocity array is continuous (0 to 1) and
+        second dimension matches number of voices in drum mapping"""
         if vel_array.shape[1] != self.number_of_voices:
-            warnings.warn('Second dimension of vel_array must match the number of keys in drum_mapping')
+            logger.warning('Second dimension of vel_array must match the number of keys in drum_mapping')
             return False
         if np.min(vel_array) < 0 or np.max(vel_array) > 1:
-            warnings.warn("Velocity values must be between 0 and 1")
+            logger.warning("Velocity values must be between 0 and 1")
             return False
         if self.is_hvo_score_available():
             if vel_array.shape[0] != len(self.hvo[:, self.number_of_voices: 2 * self.number_of_voices]):
-                warnings.warn("velocity array length mismatch")
+                logger.warning("velocity array length mismatch")
                 return False
         return True
 
     @velocities.setter
     def velocities(self, vel_array):
+        """setter for velocities array
+
+        **vel_array: ndarray of dimensions m,n where m is the number of time steps and n the number of drums
+        in the current drum mapping (e.g. 9 for the reduced mapping).
+        The values of the array are continuous floating point numbers from 0 to 1 indicating the velocity.**
+        """
         assert self.__is_vel_array_valid(vel_array), "velocity array is incorrect! either time step mismatch " \
                                                      "or second number of voices mismatch or values outside [0, 1]"
 
-        if self.hvo is None:  # if hvo empty, set correspong hits to one and offsets to zero
+        if self.hvo is None:  # if hvo empty, set corresponding hits to one and offsets to zero
             self.hvo = np.concatenate((np.where(vel_array > 0, 1, 0),
                                        vel_array,
                                        np.zeros_like(vel_array)), axis=1)
@@ -750,10 +664,8 @@ class HVO_Sequence(object):
             drum mapping (e.g. 9 for the reduced mapping). The values of the array are continuous floating point
             numbers from -0.5 to 0.5 indicating the offset respect to the beat grid line that each hit is on.
         """
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_drum_mapping_available()])
-        if not calculable:
-            warnings.warn("can't get offsets/utimings as there is no hvo score previously provided")
+        if not self.is_hvo_score_available():
+            logger.warning("can't get offsets/u_timings as there is no hvo score previously provided")
             return None
         else:
             # Note that the value returned is the internal one - even if a hit is 0 at an index,
@@ -761,26 +673,33 @@ class HVO_Sequence(object):
             return self.hvo[:, 2 * self.number_of_voices:]
 
     def __is_offset_array_valid(self, offset_array):
+        """checks to see if offset array is continuous (-0.5 to 0.5) and
+        second dimension matches number of voices in drum mapping"""
         if self.is_hvo_score_available() is False:
-            warnings.warn("hvo field is empty: Can't set offsets without hvo field")
+            logger.warning("hvo field is empty: Can't set offsets without hvo field")
             return False
 
         if offset_array.shape[1] != self.number_of_voices:
-            warnings.warn("offset array length mismatch")
+            logger.warning("offset array length mismatch")
             return False
 
         if offset_array.mean() < -0.5 or offset_array.mean() > 0.5:
-            warnings.warn("invalid offset values in array, they must be between -0.5 and 0.5")
+            logger.warning("invalid offset values in array, they must be between -0.5 and 0.5")
             return False
 
         return True
 
     @offsets.setter
     def offsets(self, offset_array):
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_drum_mapping_available()])
-        if not calculable:
-            warnings.warn("can't set offsets as there is no hvo score previously provided")
+        """setter for offsets array
+
+        **offset_array: ndarray of dimensions m,n where m is the number of time steps and n the number of drums
+        in the current drum mapping (e.g. 9 for the reduced mapping).
+        The values of the array are continuous floating point numbers from -0.5 to 0.5 indicating the offset
+        respect to the beat grid line that each hit is on.**
+        """
+        if not self.is_hvo_score_available():
+            logger.warning("can't set offsets as there is no hvo score previously provided")
         else:
             if self.__is_offset_array_valid(offset_array):
                 self.hvo[:, 2 * self.number_of_voices:] = offset_array
@@ -795,10 +714,10 @@ class HVO_Sequence(object):
     #   ----------------------------------------------------------------------
 
     def is_time_signatures_available(self):
-        # Checks whether time_signatures are already specified and necessary fields are filled
+        """Checks whether time_signatures are already specified and necessary fields are filled"""
 
         if len(self.time_signatures) == 0:
-            warnings.warn("Time Signature missing")
+            logger.warning("Time Signature missing")
             return False
 
         time_signatures_ready_to_use = list()
@@ -809,61 +728,51 @@ class HVO_Sequence(object):
         if not all(time_signatures_ready_to_use):
             for ix, ready_status in enumerate(time_signatures_ready_to_use):
                 if ready_status is not True:
-                    warnings.warn(
+                    logger.warning(
                         "There are missing fields in Time_Signature {}: {}".format(ix, self.time_signatures[ix]))
             return False
         else:
             return True
 
     def is_tempos_available(self):
-        # Checks whether tempos are already specified and necessary fields are filled
+        """Checks whether tempos are already specified and necessary fields are filled"""
         tempos_ready_to_use = list()
         if self.tempos is not None:
             for tempo in self.tempos:
                 tempos_ready_to_use.append(tempo.is_ready_to_use)
         else:
-            warnings.warn("No tempos specified")
+            logger.warning("No tempos specified")
             return False
 
         if not all(tempos_ready_to_use):
             for ix, ready_status in enumerate(tempos_ready_to_use):
                 if ready_status is not True:
-                    warnings.warn(
+                    logger.warning(
                         "There are missing fields in Tempo {}: {}".format(ix, self.tempos[ix]))
-            return False
-        else:
-            return True
-
-    def is_drum_mapping_available(self):
-        # Checks whether drum_mapping is already specified
-        if self.is_drum_mapping_available is None:
-            warnings.warn("Drum mapping is missing")
             return False
         else:
             return True
 
     def is_hvo_score_available(self):
         # Checks whether hvo score array is already specified
-        if self.is_drum_mapping_available is None or self.hvo is None:
-            warnings.warn(
-                "Either HVO score or drum_mapping are missing")
+        if self.hvo is None:
+            logger.warning(".hvo field is empty: Can't get hits/velocities/offsets without hvo field")
             return False
         else:
             return True
 
     def is_ready_for_use(self):
+        """checks if a .hvo score and time_signature info is available"""
         state = all([
             self.is_hvo_score_available(),
-            self.is_time_signatures_available(),
-            self.is_hvo_score_available(),
-            self.is_drum_mapping_available()
+            self.is_time_signatures_available()
         ])
         return state
 
     #   -------------------------------------------------------------
     #   Method to get hvo in a flexible way
     #   -------------------------------------------------------------
-    def get(self, hvo_str, offsets_in_ms=False, use_NaN_for_non_hits=False):
+    def get(self, hvo_str, offsets_in_ms=False, use_nan_for_non_hits=False):
         """
         Flexible method to get hits, velocities and offsets in the desired order, or zero arrays with the same
         dimensions as one of those vectors. The velocities and offsets are synced to the hits, so whenever a hit is 0,
@@ -872,13 +781,16 @@ class HVO_Sequence(object):
         Parameters
         ----------
         hvo_str: str
-            String formed with the characters 'h', 'v', 'o' and '0' in any order. It's not necessary to use all of the
-            characters and they can be repeated. E.g. 'ov', will return the offsets and velocities, 'h0h' will return
+            String formed with the characters 'h', 'v', 'o' and '0' in any order. It's not necessary to use all the
+            characters, they can be repeated. E.g. 'ov', will return the offsets and velocities, 'h0h' will return
             the hits, a 0-vector and the hits again, again and '000' will return a hvo-sized 0 matrix.
 
         offsets_in_ms: bool
             If true, the queried offsets will be provided in ms deviations from grid, otherwise, will be
             provided in terms of ratios
+
+        use_nan_for_non_hits: bool
+        If true, non-hit data will be returned as NaNs, otherwise, as 0s
         """
         assert self.is_hvo_score_available(), "No hvo score available, update this field"
 
@@ -893,8 +805,8 @@ class HVO_Sequence(object):
         o = copy.deepcopy(o)
         zero = np.zeros_like(h)
 
-        # replace vels and offsets with no associated hit to np.nan if use_NaN_for_non_hits set to True
-        if use_NaN_for_non_hits is not False:
+        # replace velocities and offsets with no associated hit to np.nan when use_nan_for_non_hits is set to True
+        if use_nan_for_non_hits is not False:
             v[h == 0] = -1000000
             v = np.where(v == -1000000, np.nan, v)
             o[h == 0] = -1000000
@@ -909,19 +821,19 @@ class HVO_Sequence(object):
         return hvo_arr
 
     def get_with_different_drum_mapping(self, hvo_str, tgt_drum_mapping,
-                                        offsets_in_ms=False, use_NaN_for_non_hits=False):
+                                        offsets_in_ms=False, use_nan_for_non_hits=False):
         """
         similar to self.get() except that it maps the extracted hvo sequence to a provided target mapping
 
         if multiple velocities/offsets are to be grouped together, only the position of the loudest velocity is used
 
         :param hvo_str: str
-            String formed with the characters 'h', 'v', 'o' and '0' in any order. It's not necessary to use all of the
-            characters and they can be repeated. E.g. 'ov', will return the offsets and velocities, 'h0h' will return
+            String formed with the characters 'h', 'v', 'o' and '0' in any order. It's not necessary to use all the
+            characters AND they can be repeated. E.g. 'ov', will return the offsets and velocities, 'h0h' will return
             the hits, a 0-vector and the hits again, again and '000' will return a hvo-sized 0 matrix.
         :param tgt_drum_mapping:        Alternative mapping to use
         :param offsets_in_ms:           True/False, specifies if offsets should be in ms
-        :param use_NaN_for_non_hits:    True/False, specifies if np.nan should be used instead of 0 wherever a hit is
+        :param use_nan_for_non_hits:    True/False, specifies if np.nan should be used instead of 0 wherever a hit is
                                         missing
         :return:
             the sequence associated with hvo_str mapped to a target drum map
@@ -933,7 +845,8 @@ class HVO_Sequence(object):
             Finds the corresponding voice group index for
             :param src_map:   a drum_mapping dictionary
             :param tgt_map:     a drum_mapping dictionary
-            :return: list of indices in src to be grouped together. Each element in returned list is the corresponding voice group to be used in
+            :return: list of indices in src to be grouped together. Each element in returned list is the corresponding 
+            voice group to be used in
                      tgt_map for each of the voice groups in the src_map
 
                     Example:
@@ -958,20 +871,21 @@ class HVO_Sequence(object):
 
             n_voices_tgt = len(tgt_map.keys())
 
-            grouped_voices = [np.argwhere(src_ix_to_tgt_ix_map==tgt_ix).reshape(-1)
+            grouped_voices_ = [np.argwhere(src_ix_to_tgt_ix_map == tgt_ix).reshape(-1)
                                for tgt_ix in range(n_voices_tgt)]
 
-            return grouped_voices
+            return grouped_voices_
 
         # Find src indices in src_map corresponding to tgt
         grouped_voices = get_tgt_map_index_for_src_map(self.drum_mapping, tgt_drum_mapping)
 
         # Get non-reduced score with the existing mapping
-        hvo = self.get("hvo", offsets_in_ms, use_NaN_for_non_hits=False)
+        hvo = self.get("hvo", offsets_in_ms, use_nan_for_non_hits=False)
         h_src, v_src, o_src = np.split(hvo, 3, axis=1)
 
         # Create empty placeholders for hvo and zero
         h_tgt = np.zeros((h_src.shape[0], len(tgt_drum_mapping.keys())))
+        v_tgt, o_tgt, zero_tgt = None, None, None
         if "v" in hvo_str or "o" in hvo_str:
             v_tgt = np.zeros((h_src.shape[0], len(tgt_drum_mapping.keys())))
             o_tgt = np.zeros((h_src.shape[0], len(tgt_drum_mapping.keys())))
@@ -983,13 +897,12 @@ class HVO_Sequence(object):
             if len(voice_group) > 0:
                 h_tgt[:, ix] = np.any(h_src[:, voice_group], axis=1)
                 if "v" in hvo_str or "o" in hvo_str:
-                    v_max_indices = np.nanargmax(v_src[:, voice_group], axis=1) # use loudest velocity
+                    v_max_indices = np.nanargmax(v_src[:, voice_group], axis=1)     # use loudest velocity
                     v_tgt[:, ix] = v_src[:, voice_group][range(len(v_max_indices)), v_max_indices]
                     o_tgt[:, ix] = o_src[:, voice_group][range(len(v_max_indices)), v_max_indices]
 
-
-        # replace vels and offsets with no associated hit to np.nan if use_NaN_for_non_hits set to True
-        if use_NaN_for_non_hits is not False and ("v" in hvo_str or "o" in hvo_str):
+        # replace vels and offsets with no associated hit to np.nan if use_nan_for_non_hits set to True
+        if use_nan_for_non_hits is not False and ("v" in hvo_str or "o" in hvo_str):
             v_tgt[h_tgt == 0] = -1000000
             v_tgt = np.where(v_tgt == -1000000, np.nan, v_tgt)
             o_tgt[h_tgt == 0] = -1000000
@@ -1014,14 +927,11 @@ class HVO_Sequence(object):
                            self.is_time_signatures_available()])
 
         if not convertible:
-            warnings.warn("Above fields need to be provided so as to get the offsets in ms")
+            logger.warning("Above fields need to be provided so as to get the offsets in ms")
             return None
 
         # get the number of allowed drum voices
         n_voices = len(self.__drum_mapping.keys())
-
-        # find nonzero hits tensor of [[position, drum_voice]]
-        pos_instrument_tensors = np.transpose(np.nonzero(self.__hvo[:, :n_voices]))
 
         # create an empty offsets array
         offsets_ratio = self.__hvo[:, 2*n_voices:]
@@ -1029,7 +939,7 @@ class HVO_Sequence(object):
         pos_offsets = np.where(offsets_ratio > 0, offsets_ratio, 0)
 
         # Find negative and positive scaling factors for offset ratios
-        grid = np.array(self.grid_lines)
+        grid = np.array(self.__grid_maker.get_grid_lines(self.number_of_steps))
         inter_grid_distances = (grid[1:] - grid[:-1]) * 1000    # 1000 for sec to ms
         neg_bar_durations = np.zeros_like(grid)
         pos_bar_durations = np.zeros_like(grid)
@@ -1045,44 +955,6 @@ class HVO_Sequence(object):
         pos_offsets = pos_offsets * pos_bar_durations[:pos_offsets.shape[0], None]
 
         return neg_offsets+pos_offsets
-
-    def get_bar_beat_hvo(self, hvo_str="hvo"):
-        """
-        returns the score organized as an array of shape (bar_idx, beat_idx, step_in_beat, len(hvo_str)*n_voices)
-
-        Note: If the number of bars is not an integer multiple, the sequence will be padded with -1's to denote the
-        padding
-
-        :param hvo_str:     String formed with the characters 'h', 'v' and 'o' in any order. It's not necessary
-                            to use all of the characters and they can be repeated. E.g. 'ov' or 'hvoh'
-
-        :return:            Score (possibly padded w/ -1s) shaped as
-                            (bar_idx, beat_idx, step_in_beat, len(hvo_str)*n_voices)
-        """
-
-        assert len(self.time_signatures) == 1, "This feature is not currently available for " \
-                                               "hvo scores with time signature change"
-
-        n_bars = int(np.ceil(sum(self.n_bars_per_segments)))
-        beats_per_bar = self.time_signatures[0].numerator
-        steps_per_beat_per_bar = self.steps_per_beat_per_segments[0]
-
-        total_steps = int(n_bars)*steps_per_beat_per_bar*beats_per_bar
-
-        hvo_arr = self.get(hvo_str)
-
-        dim_at_step = hvo_arr.shape[-1]
-
-        # Create an empty padded sequence
-        reshaped_hvo = np.zeros((total_steps, dim_at_step))-1
-
-        # fill sequence with existing score
-        reshaped_hvo[:hvo_arr.shape[0], :hvo_arr.shape[1]] = hvo_arr
-
-        # Reshape to (bar_index, beat_index, step_index, len(hvo_str)*n_voices)
-        reshaped_hvo = reshaped_hvo.reshape((n_bars, beats_per_bar, steps_per_beat_per_bar, dim_at_step))
-
-        return reshaped_hvo
 
     def get_notes(self, return_tuples=False):
         """
@@ -1108,7 +980,7 @@ class HVO_Sequence(object):
         v = self.get("v")
         o = self.get("o")
         o_sec = self.get_offsets_in_ms()/1000
-        grid_lines_sec = np.array(self.grid_lines)
+        grid_lines_sec = np.array(self.__grid_maker.get_grid_lines(self.number_of_steps))
 
         drum_voice_tags = [(k, v[0] if isinstance(v, list) else v) for k, v in self.drum_mapping.items()]
         note_duration = np.min(grid_lines_sec[1:] - grid_lines_sec[:-1]) / 2.0
@@ -1127,7 +999,7 @@ class HVO_Sequence(object):
                  "grid_line": []
                  }
 
-        for i in range(h.shape[0]):
+        for i in range(self.number_of_steps):
             indices = np.nonzero(h[i, :])[0]
             for j in indices:
                 notes["start"].append(grid_lines_sec[i]+o_sec[i, j])
@@ -1152,681 +1024,33 @@ class HVO_Sequence(object):
     #   Useful properties calculated from ESSENTIAL class variables
     #   EACH SEGMENT MEANS A PART THAT TEMPO AND TIME SIGNATURE IS CONSTANT
     #   ----------------------------------------------------------------------
+
     @property
     def number_of_voices(self):
-        if self.__hvo is not None:
-            return int(self.__hvo.shape[1] / 3)
-        if self.drum_mapping is not None:
-            return len(self.drum_mapping.keys())
-        return None
-
-    @property
-    def tempo_consistent_segment_boundaries(self):
-        #   Returns time boundaries within which the tempo is constant
-        #   upper bound (infinite) is always at 100000 seconds
-        #   Example: tempo change at 1.5 seconds
-        #            method returns --> [0, 1.5, 100000] --> meaning that tempo is
-        #                               constant between 0≤t<1.5, 1.5≤t,100000
-        #   If no tempo changes in the track (i.e. consistent tempo across all times
-        #            method returns --> [0, 1000000]
-        calculable = self.is_tempos_available()
-        if not calculable:
-            warnings.warn("Can't carry out request as Tempos are not specified")
-            return None
-        else:
-            time_regions = [0, 100000]  # 100000 to denote infinite
-            for ix, tempo in enumerate(self.tempos):
-                if ix > 0:  # Force 1st tempo to be at 0 even if doesn't start at the very beginning
-                    time_regions.append(tempo.time_step)
-            return list(np.unique(time_regions))
-
-    @property
-    def tempo_consistent_segment_lower_bounds(self):
-        boundaries = self.tempo_consistent_segment_boundaries
-        if boundaries is not None:
-            return boundaries[:-1]
-        else:
-            return None
-
-    @property
-    def tempo_consistent_segment_upper_bounds(self):
-        boundaries = self.tempo_consistent_segment_boundaries
-        if boundaries is not None and self.hvo is not None:
-            boundaries = boundaries[1:]
-            boundaries[-1] = len(self.hvo)
-            return boundaries
-        else:
-            return None
-
-    @property
-    def time_signature_consistent_segment_boundaries(self):
-        #   Returns time boundaries within which the time signature is constant
-        #   upper bound (infinite) is always at 100000 seconds
-        #   Example: time signature change at 1.5 seconds
-        #            method returns --> [0, 1.5, 100000] --> meaning that tempo is
-        #                               constant between 0≤t<1.5, 1.5≤t,100000
-        #   If no time signature changes in the track (i.e. consistent time signature across all times
-        #            method returns --> [0, 1000000]
-        calculable = self.is_time_signatures_available()
-        if not calculable:
-            warnings.warn("Can't carry out request as Time Signatures are not specified")
-            return None
-        else:
-            time_regions = [0, 100000]  # 100000 to denote infinite
-            for ix, time_signature in enumerate(self.time_signatures):
-                if ix > 0:  # Force 1st tempo to be at 0 even if doesn't start at the very beginning
-                    time_regions.append(time_signature.time_step)
-            return list(np.unique(time_regions))
-
-    @property
-    def time_signature_consistent_segment_lower_bounds(self):
-        boundaries = self.time_signature_consistent_segment_boundaries
-        if boundaries is not None:
-            return boundaries[:-1]
-        else:
-            return None
-
-    @property
-    def time_signature_consistent_segment_upper_bounds(self):
-        boundaries = self.time_signature_consistent_segment_boundaries
-        if boundaries is not None and self.hvo is not None:
-            boundaries = boundaries[1:]
-            boundaries[-1] = len(self.hvo)
-            return boundaries
-        else:
-            return None
-
-    @property
-    def segment_boundaries(self):
-        #   Returns time boundaries within which the time signature and tempo are constant
-        #   upper bound (infinite) is always at 100000 seconds
-        #   Example: time signature change at 1.5 seconds and tempo change at 2 seconds
-        #            method returns --> [0, 1.5, 2, 100000] --> meaning that tempo is
-        #                               constant between 0≤t<1.5, 1.5≤t,100000
-        #   If no time signature or tempo changes in the track:
-        #            method returns --> [0, 1000000]
-        calculable = all([self.is_time_signatures_available(),
-                          self.is_tempos_available()])
-        if not calculable:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            _time_regions = list()
-            _time_regions.extend(self.tempo_consistent_segment_boundaries)
-            _time_regions.extend(self.time_signature_consistent_segment_boundaries)
-            return list(np.unique(_time_regions))
-
-    @property
-    def segment_lower_bounds(self):
-        boundaries = self.segment_boundaries
-        if boundaries is not None:
-            return boundaries[:-1]
-        else:
-            return None
-
-    @property
-    def segment_upper_bounds(self):
-        # Returns exclusive upper bounds of each segment
-        boundaries = self.segment_boundaries
-
-        if boundaries is not None and self.hvo is not None:
-            upper_bounds = boundaries[1:]
-            upper_bounds[-1] = len(self.hvo)
-            return upper_bounds
-        else:
-            return None
-
-    @property
-    def tempos_and_time_signatures_per_segments(self):
-        # Returns two lists: 1. lists of tempos per segment
-        #                     2. lists of time signature for each segment
-        # Segments are defined as parts of the score where the tempo and time signature don't change
-        calculable = all([self.is_time_signatures_available(),
-                          self.is_tempos_available()])
-        if not calculable:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None, None
-        else:
-            tempos = list()
-            time_signatures = list()
-
-            """segment_bounds = self.segment_boundaries
-            lower_bounds = segment_bounds[:-1]"""
-
-            for segment_lower_bound in self.segment_lower_bounds:
-                # Recursively find what the tempo and time signature is at the lower bound
-                distance_from_tempo_boundaries = np.array(self.tempo_consistent_segment_boundaries) - \
-                                                 segment_lower_bound
-                tempo_index = np.where(distance_from_tempo_boundaries <= 0,
-                                       distance_from_tempo_boundaries, -np.inf).argmax()
-                distance_from_time_sig_boundaries = np.array(self.time_signature_consistent_segment_boundaries) - \
-                                                    segment_lower_bound
-
-                time_signature_index = np.where(distance_from_time_sig_boundaries <= 0,
-                                                distance_from_time_sig_boundaries, -np.inf).argmax()
-
-                tempos.append(self.tempos[tempo_index])
-                time_signatures.append(self.time_signatures[time_signature_index])
-
-            return tempos, time_signatures
-
-    @property
-    def number_of_segments(self):
-        # Returns the number of segments in each of which the tempo and time signature is consistent
-        calculable = all([self.is_time_signatures_available(),
-                          self.is_tempos_available()])
-        if not calculable:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            segment_bounds = self.segment_boundaries
-            return len(segment_bounds) - 1
-
-    @property
-    def beat_durations_per_segments(self):
-
-        # Calculates the duration of each beat in seconds if time signature and qpm are available
-        calculable = all([self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-        if not calculable:
-            warnings.warn("Beat durations per segments can be calculated as the above fields are missing")
-            return None
-        else:
-            beat_durs_per_segment = list()
-            segment_lower_boundaries = np.array(self.segment_lower_bounds)
-            for ix, segment_lower_bound in enumerate(segment_lower_boundaries):
-                tempo, time_signature = self.tempo_and_time_signature_at_step(segment_lower_bound)
-                beat_durs_per_segment.append((60.0 / tempo.qpm) * 4.0 / time_signature.denominator)
-            return beat_durs_per_segment
-
-    @property
-    def steps_per_beat_per_segments(self):
-        # Calculates the total number of steps in each beat belonging
-        # to each tempo & time signature consistent segment
-        tempos_per_seg, time_signatures_per_seg = self.tempos_and_time_signatures_per_segments
-
-        if tempos_per_seg is not None and time_signatures_per_seg is not None:
-            steps_per_beat_per_segment = []
-            for ix, time_signature_in_segment_ix in enumerate(time_signatures_per_seg):
-                # calculate the number of steps per beat for corresponding beat_division_factors
-                beat_divs = time_signature_in_segment_ix.beat_division_factors
-                mock_beat_grid_lines = np.concatenate([np.arange(beat_div) / beat_div for beat_div in beat_divs])
-                steps_per_beat_per_segment.append(len(np.unique(mock_beat_grid_lines)))
-
-            return steps_per_beat_per_segment
-        else:
-            warnings.warn("Tempo or Time Signature missing")
-            return None
-
-    @property
-    def steps_per_segments(self):
-        # number of steps in each segment (tempo & time signature consistent segment)
-
-        segment_lower_bounds = self.segment_lower_bounds
-        segment_upper_bounds = self.segment_upper_bounds
-
-        if segment_lower_bounds is not None and self.is_hvo_score_available() is not None:
-            return list(np.array(segment_upper_bounds) - np.array(segment_lower_bounds))
-        else:
-            warnings.warn("Tempo or Time Signature missing")
-            return None
-
-    @property
-    def n_beats_per_segments(self):
-        # Calculate the number of beats in each tempo and time signature consistent segment of score/sequence
-
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if calculable:
-            n_beats_per_seg = list()
-
-            steps_per_beat_per_segments = self.steps_per_beat_per_segments
-            segment_boundaries = self.segment_boundaries
-            # replace 100000 (upper bound for last segment) in segment_boundaries with actual length of hvo score
-            segment_boundaries[-1] = self.total_number_of_steps
-
-            for ix, steps_per_beat_per_segment_ix in enumerate(steps_per_beat_per_segments):
-                total_steps_in_segment_ix = segment_boundaries[ix + 1] - segment_boundaries[ix]
-                beats_in_segment_ix = total_steps_in_segment_ix / steps_per_beat_per_segment_ix
-                n_beats_per_seg.append(beats_in_segment_ix)
-
-            return n_beats_per_seg
-
-        else:
-            return None
-
-    @property
-    def n_bars_per_segments(self):
-        # Returns the number of bars in each of the tempo and time signature consistent segments
-        n_beats_per_segments = self.n_beats_per_segments
-        _, time_signatures = self.tempos_and_time_signatures_per_segments
-
-        if n_beats_per_segments is not None and time_signatures is not None:
-            n_bars_per_segments = list()
-            for segment_ix, n_beats_per_segment_ix in enumerate(n_beats_per_segments):
-                n_bars_in_segment_ix = n_beats_per_segment_ix / time_signatures[segment_ix].numerator
-                n_bars_per_segments.append(n_bars_in_segment_ix)
-            return n_bars_per_segments
-        else:
-            warnings.warn("Can't execute request as above fields are missing")
-            return None
-
-    @property
-    def segment_durations(self):
-        beat_durations_per_segments = self.beat_durations_per_segments
-
-        if beat_durations_per_segments is not None:
-
-            n_beats_per_segments = self.n_beats_per_segments
-
-            segment_durations = list()
-
-            for segment_ix, beat_durations_in_segment_ix in enumerate(beat_durations_per_segments):
-                segment_durations.append(beat_durations_in_segment_ix * self.n_beats_per_segments[segment_ix])
-
-            return segment_durations
-        else:
-            return None
-
-    @property
-    def total_len(self):
-        # Calculates the total length of score in seconds if hvo score, time signature and qpm are available
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-        if calculable:
-            grid_lines_sec = np.array(self.grid_lines)
-            return grid_lines_sec[-1] + 0.5 * (grid_lines_sec[-1] - grid_lines_sec[-2])
-        else:
-            return None
-
-    @property
-    def total_number_of_steps(self):
-        # Calculates the total number of steps in the score/sequence
-        calculable = self.is_hvo_score_available()
-        if calculable:
-            return self.hvo.shape[0]
-        else:
-            return 0
-
-    @property
-    def grid_type_per_segments(self):
-        # Returns a list of the type of grid per tempo and time signature consistent segment
-        # Type at each segment can be:
-        #   1. binary:  if the grid lines lie on 2^n divisions of each beat
-        #   2. triplet: if the grid lines lie on divisions of each beat that are multiples of 3
-        #   3. mix:     if the grid is a combination of binary and triplet
-
-        calculable = all([self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if calculable:
-            grid_types_per_segments = list()
-            _, time_signatures_per_seg = self.tempos_and_time_signatures_per_segments
-            for ix, time_sig_in_seg_ix in enumerate(time_signatures_per_seg):
-                po2_grid_flag, triplet_grid_flag = None, None
-                for factor in time_sig_in_seg_ix.beat_division_factors:
-                    if is_power_of_two(factor):
-                        po2_grid_flag = True
-                    if factor % 3 == 0:
-                        triplet_grid_flag = True
-
-                if po2_grid_flag and triplet_grid_flag:
-                    grid_types_per_segments.append("mix")
-                elif po2_grid_flag:
-                    grid_types_per_segments.append("binary")
-                else:
-                    grid_types_per_segments.append("triplet")
-            return grid_types_per_segments
-
-        else:
-            return None
-
-    @property
-    def is_grid_equally_distanced_per_segments(self):
-        # for each tempo and time signature consistent segment
-        #  Checks if the grid is uniformly placed (in case of binary or triplet grids)
-        #       or if the grid is non-uniformly oriented (in case of mix grid)
-        grid_type_per_segments = self.grid_type_per_segments
-        if grid_type_per_segments is not None:
-            is_grid_equally_distanced_per_segments = list()
-            for grid_type_per_segment in grid_type_per_segments:
-                is_grid_equally_distanced_per_segments.append(True if grid_type_per_segments == "mix" else False)
-            return is_grid_equally_distanced_per_segments
-        else:
-            return None
-
-    @property
-    def major_and_minor_grid_line_indices(self):
-        # Returns major and minor grid line indices (corresponding to 1st dimension of self.hvo and self.grid_lines)
-        # Major lines lie on the beginning of each beat --> multiples of number of steps in each beat
-        # Minor lines lie in between major gridlines    --> not multiples of number of steps in each beat
-
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if not calculable:
-            warnings.warn("Above fields are required for calculating major/minor grid line positions")
-            return None, None
-
-        grids_with_types = self.grid_lines_with_types
-        return grids_with_types["major_grid_line_indices"], grids_with_types["minor_grid_line_indices"]
-
-    @property
-    def major_and_minor_grid_lines(self):
-        # Returns major and minor grid lines
-        # Major lines lie on the beginning of each beat --> multiples of number of steps in each beat
-        # Minor lines lie in between major gridlines    --> not multiples of number of steps in each beat
-
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if not calculable:
-            warnings.warn("Above fields are required for calculating major/minor grid line positions")
-            return None, None
-
-        grids_with_types = self.grid_lines_with_types
-        return grids_with_types["major_grid_lines"], grids_with_types["minor_grid_lines"]
-
-    @property
-    def downbeat_indices(self):
-        # Returns the indices of the grid_lines where a downbeat occurs.
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if not calculable:
-            warnings.warn("Above fields are required for calculating downbeat grid line positions")
-            return None, None
-
-        grids_with_types = self.grid_lines_with_types
-        return grids_with_types["downbeat_grid_line_indices"]
-
-    @property
-    def downbeat_positions(self):
-        # Returns the indices of the grid_lines where a downbeat occurs.
-        calculable = all([self.is_hvo_score_available(),
-                          self.is_tempos_available(),
-                          self.is_time_signatures_available()])
-
-        if not calculable:
-            warnings.warn("Above fields are required for calculating downbeat grid line positions")
-            return None, None
-
-        grids_with_types = self.grid_lines_with_types
-        return grids_with_types["downbeat_grid_lines"]
-
-    @property
-    def starting_measure_indices(self):
-        # A wrapper for downbeat_positions (for the sake of code readability)
-        return self.downbeat_indices
-
-    @property
-    def starting_measure_positions(self):
-        # A wrapper for downbeat_positions (for the sake of code readability)
-        return self.downbeat_positions
-
-    @property
-    def grid_lines_with_types(self):
-        """
-        Returns a dictionary with the following keys:
-            1. major_grid_line_indices: indices of the major grid lines
-            2. minor_grid_line_indices: indices of the minor grid lines
-            3. downbeat_grid_line_indices: indices of the downbeat grid lines
-            4. major_grid_lines: major grid lines
-            5. minor_grid_lines: minor grid lines
-            6. downbeat_grid_lines: downbeat grid lines
-        """
-
-        assert all([self.is_tempos_available(), self.is_time_signatures_available(), self.is_hvo_score_available()]), \
-            "Can't calculate grid lines as either no tempos, no time signature or no hvo score is specified"
-
-        output = {
-            "grid_lines": [],
-            "major_grid_lines": [],
-            "minor_grid_lines": [],
-            "downbeat_grid_lines": [],
-            "major_grid_line_indices": [],
-            "minor_grid_line_indices": [],
-            "downbeat_grid_line_indices": []
-        }
-        next_segment_start_time = 0
-        segment_starts = self.segment_starts
-        segment_ends = self.segment_ends
-        tmps, tss = self.tempos_and_time_signatures_per_segments
-
-        if self.__last_grid_state is not None:
-            if self.__last_grid_state["segment_starts"] == segment_starts and \
-                    self.__last_grid_state["segment_ends"] == segment_ends and \
-                    self.__last_grid_state["tempos"] == tmps and \
-                    self.__last_grid_state["time_signatures"] == tss:
-                return self.__last_grid_state["grid_lines_with_types"]
-
-        for segment_ix, (tempo, time_signature) in enumerate(zip(tmps, tss)):
-            beat_duration = (60.0 / tempo.qpm) * 4.0 / time_signature.denominator
-            seg_start = segment_starts[segment_ix]
-            seg_end = segment_ends[segment_ix]
-            n_steps = int(seg_end - seg_start + 1)
-            beat_div_factor = time_signature.beat_division_factors
-            t_stamps_per_beat = np.array([])
-            for beat_div in beat_div_factor:
-                step_res = beat_duration / beat_div
-                t_stamps_per_beat = np.append(t_stamps_per_beat, np.linspace(0, beat_div, beat_div, endpoint=False, dtype=int) * step_res)
-            t_stamps_per_beat = np.unique(t_stamps_per_beat)
-            t_stamps_per_beat.sort()
-            grid_lines = np.array([])
-            count = 0
-            while grid_lines.size <= (n_steps + 1):
-                grid_lines = np.append(grid_lines, t_stamps_per_beat + count * beat_duration)
-                count += 1
-            grid_lines += next_segment_start_time
-            tmp_nxt_strt = grid_lines[n_steps]
-            grid_lines.resize(n_steps)
-            grid_line_indices = np.arange(seg_start, seg_end + 1)
-            # np.linspace(int(seg_start), int(seg_end), int(seg_end - seg_start), endpoint=True, dtype=int)
-            major_grid_line_indices = grid_line_indices[(grid_line_indices-time_signature.time_step) % t_stamps_per_beat.size == 0].tolist()
-            minor_grid_line_indices = grid_line_indices[(grid_line_indices-time_signature.time_step) % t_stamps_per_beat.size != 0].tolist()
-            downbeat_grid_line_indices = grid_line_indices[
-                (grid_line_indices-time_signature.time_step) % (t_stamps_per_beat.size * time_signature.numerator) == 0].tolist()
-            output["grid_lines"].extend(grid_lines.tolist())
-            output["major_grid_lines"].extend(grid_lines[(grid_line_indices-time_signature.time_step) % t_stamps_per_beat.size == 0].tolist())
-            output["minor_grid_lines"].extend(grid_lines[(grid_line_indices-time_signature.time_step) % t_stamps_per_beat.size != 0].tolist())
-            output["downbeat_grid_lines"].extend(grid_lines[(grid_line_indices-time_signature.time_step) % (t_stamps_per_beat.size * time_signature.numerator) == 0].tolist())
-            output["major_grid_line_indices"].extend(major_grid_line_indices)
-            output["minor_grid_line_indices"].extend(minor_grid_line_indices)
-            output["downbeat_grid_line_indices"].extend(downbeat_grid_line_indices)
-            next_segment_start_time = tmp_nxt_strt
-
-
-        self.__last_grid_state = {
-            "segment_starts": segment_starts,
-            "segment_ends": segment_ends,
-            "tempos": tmps,
-            "time_signatures": tss,
-            "grid_lines_with_types": output,
-        }
-
-        return output
-        #
-        # ts_consistent_lbs = self.time_signature_consistent_segment_lower_bounds
-        # ts_consistent_ubs = self.time_signature_consistent_segment_upper_bounds
-        #
-        # current_step = 0
-        # for ts_consistent_seg_ix, (ts_lb, ts_up) in enumerate(zip(ts_consistent_lbs, ts_consistent_ubs)):
-        #     major_grid_lines.append(grid_lines[-1])
-        #     major_grid_line_indices.append(len(grid_lines))
-        #     downbeat_grid_lines.append(grid_lines[-1])
-        #     downbeat_grid_line_indices.append(len(grid_lines))
-        #
-        #     # Figure out num_steps in each beat as well as the ratios of beat_dur for each time increase
-        #     time_sig = self.time_signatures[self.time_signature_segment_index_at_step(ts_lb)]
-        #
-        #     delta_t_ratios = np.array([])
-        #     for beat_div_factor in time_sig.beat_division_factors:
-        #         delta_t_ratios = np.append(delta_t_ratios, np.arange(0, 1, 1.0 / beat_div_factor))
-        #     delta_t_ratios = np.unique(np.append(delta_t_ratios, 1))
-        #     delta_t_ratios = delta_t_ratios[1:] - delta_t_ratios[:-1]
-        #     steps_per_beat_in_seg = len(delta_t_ratios)
-        #
-        #     for step_ix in range(ts_lb - ts_lb, ts_up - ts_lb):  # For each ts, re-start counting from 0
-        #         actual_step_ix = step_ix if ts_consistent_seg_ix == 0 else step_ix + len(grid_lines) - 1
-        #         tempo = self.tempos[self.tempo_segment_index_at_step(actual_step_ix)]
-        #         beat_duration_at_step = (60.0 / tempo.qpm) * 4.0 / time_sig.denominator
-        #         grid_lines.append(grid_lines[-1] + delta_t_ratios[step_ix % steps_per_beat_in_seg] * \
-        #                           beat_duration_at_step)
-        #         current_step = current_step + 1
-        #         if (step_ix + 1) % (steps_per_beat_in_seg) == 0:
-        #             major_grid_lines.append(grid_lines[-1])
-        #             major_grid_line_indices.append(current_step)
-        #             if (step_ix + 1) % (time_sig.numerator * steps_per_beat_in_seg) == 0:
-        #                 downbeat_grid_lines.append(grid_lines[-1])
-        #                 downbeat_grid_line_indices.append(current_step)
-        #         else:
-        #             minor_grid_lines.append(grid_lines[-1])
-        #             minor_grid_line_indices.append(current_step)
-
-        # output = {
-        #     "grid_lines": grid_lines,
-        #     "major_grid_lines": major_grid_lines,
-        #     "minor_grid_lines": minor_grid_lines,
-        #     "downbeat_grid_lines": downbeat_grid_lines,
-        #     "major_grid_line_indices": major_grid_line_indices,
-        #     "minor_grid_line_indices": minor_grid_line_indices,
-        #     "downbeat_grid_line_indices": downbeat_grid_line_indices
-        # }
-
-        return output
-
-
-    @property
-    def grid_lines(self):
-
-        """
-
-        """
-        return self.grid_lines_with_types["grid_lines"]
-
-    #   ----------------------------------------------------------------------
-    #   Utility methods to get STEP specific information
-    #   ----------------------------------------------------------------------
-
-    def tempo_segment_index_at_step(self, step_ix):
-        # gets the index of the tempo segment in which the step is located
-        if self.is_tempos_available() is None:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            # Get the boundaries where tempo or time signature changes
-            tempo_boundaries = np.array(self.tempo_consistent_segment_boundaries)
-            # find the distance between time stamp and the boundaries of the tempo segments
-            tempo_boundaries_distance = np.array(tempo_boundaries) - step_ix
-            # Figure out to which tempo segment the step belongs
-            #  corresponding region will be identified with the index of the last negative value
-            tempo_ix = np.where(tempo_boundaries_distance <= 0, tempo_boundaries_distance, -np.inf).argmax()
-            return tempo_ix
-
-    def time_signature_segment_index_at_step(self, step_ix):
-        # gets the index of the time_signature segment in which the step is located
-        if self.is_time_signatures_available() is None:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            # Get the boundaries where tempo or time signature changes
-            time_signature_boundaries = np.array(self.time_signature_consistent_segment_boundaries)
-            # find the distance between time stamp and the boundaries of the tempo segments
-            time_signature_boundaries_distance = np.array(time_signature_boundaries) - step_ix
-            # Figure out to which tempo segment the step belongs
-            #  corresponding region will be identified with the index of the last negative value
-            time_signature_ix = np.where(time_signature_boundaries_distance <= 0,
-                                         time_signature_boundaries_distance, -np.inf).argmax()
-            return time_signature_ix
-
-    def segment_index_at_step(self, step_ix):
-        # gets the index of the tempo and time_signature consistent segments in which the step is located
-        calculable = all([self.is_time_signatures_available(),
-                          self.is_tempos_available()])
-        if calculable is None:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            """# Get the boundaries where tempo or time signature changes
-            segment_boundaries = np.array(self.segment_boundaries)
-            # find the distance between time stamp and the boundaries of the tempo segments
-            segment_boundaries_distance = np.array(segment_boundaries) - step_ix
-            # Figure out to which tempo segment the step belongs
-            #  corresponding region will be identified with the index of the last negative value
-            segment_ix = np.where(segment_boundaries_distance <= 0,
-                                                   segment_boundaries_distance, -np.inf).argmax()"""
-
-            # find the correct segment --> correct segment is where the step is larger/eq to the lower bound
-            #       and smaller than upper bound
-            lower_boundaries = np.array(self.segment_lower_bounds)
-            upper_boundaries = np.array(self.segment_upper_bounds)
-            check_sides = np.where(lower_boundaries <= step_ix, True, False
-                                   ) * np.where(upper_boundaries > step_ix, True, False)
-            segment_ix = np.argwhere(check_sides == True)[0, 0]
-
-            return segment_ix
-
-    def tempo_and_time_signature_at_step(self, step_ix):
-        # Figures out which tempo and time signature consistent segment the step belongs to
-        # and then returns the corresponding tempo and time signature
-        distance_from_tempo_boundaries = np.array(self.tempo_consistent_segment_boundaries) - step_ix
-        tempo_index = np.where(distance_from_tempo_boundaries <= 0,
-                               distance_from_tempo_boundaries, -np.inf).argmax()
-        distance_from_time_sig_boundaries = np.array(self.time_signature_consistent_segment_boundaries) - step_ix
-        time_signature_index = np.where(distance_from_time_sig_boundaries <= 0,
-                                        distance_from_time_sig_boundaries, -np.inf).argmax()
-        return self.tempos[tempo_index], self.time_signatures[time_signature_index]
-
-    def step_position_from_segment_beginning(self, step_ix):
-        # Returns the position of an step with respect to the beginning of the corresponding
-        # tempo and time signature consistent segment
-
-        # Find corresponding segment index for step_ix
-        segment_ix = self.segment_index_at_step(step_ix)
-
-        if segment_ix is None:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            # Return the distance of the index from the lower bound of segment
-            return step_ix - self.segment_lower_bounds[segment_ix]
-
-    def step_position_from_time_signature_segment_beginning(self, step_ix):
-        # Returns the position of an step with respect to the beginning of the corresponding
-        # segment in which the time_signature is constant
-
-        # Find corresponding segment index for step_ix
-        time_signature_segment_ix = self.time_signature_segment_index_at_step(step_ix)
-
-        if time_signature_segment_ix is None:
-            warnings.warn("Can't carry out request as above fields are missing")
-            return None
-        else:
-            # Return the distance of the index from the lower bound of segment
-            return step_ix - self.time_signature_consistent_segment_lower_bounds[time_signature_segment_ix]
+        """Returns the number of voices in the score"""
+        return len(self.drum_mapping)
 
     #   --------------------------------------------------------------
-    #   Utilities to Copy the object
+    #   Utilities to Copy the object, Reset
     #   --------------------------------------------------------------
     def copy(self):
-        new = HVO_Sequence()
+        """ Returns a copy of the object"""
+        new = HVO_Sequence(beat_division_factors=self.__grid_maker.beat_division_factors,
+                           drum_mapping=self.drum_mapping)
         new.__dict__ = copy.deepcopy(self.__dict__)
         return new
 
     def copy_empty(self):
-        new = HVO_Sequence()
+        """returns a copy of the object with .hvo set to None"""
+        new = HVO_Sequence(drum_mapping=self.drum_mapping,
+                           beat_division_factors=self.__grid_maker.beat_division_factors)
         new.__dict__ = copy.deepcopy(self.__dict__)
         new.__hvo = None
         return new
 
     def copy_zero(self):
-        new = HVO_Sequence()
+        """returns a copy of the object with .hvo set to zeros"""
+        new = HVO_Sequence(drum_mapping=self.drum_mapping, beat_division_factors=self.__grid_maker.beat_division_factors)
         new.__dict__ = copy.deepcopy(self.__dict__)
         if new.hvo is not None:
             new.hvo = np.zeros_like(new.__hvo)
@@ -1835,94 +1059,36 @@ class HVO_Sequence(object):
     #   --------------------------------------------------------------
     #   Utilities to Change Length and Add Notes
     #   --------------------------------------------------------------
-    def expand_length(self, new_length, length_unit):
-        '''
-        Expands the length of the sequence to the new length. If the new length is smaller than the current length,
-
-        :param new_length: new length of the sequence
-        :param length_unit: unit of the new length (e.g. 'steps', 'sec')
-        '''
-        assert length_unit in ['sec', 'step'], "length_unit should be either 'sec' or 'step'"
-
-        if self.__hvo is None:
-            if self.number_of_voices is None:
-                warnings.warn(
-                    "Can't expand_length as need to either initiate hvo with a score or provide drum mapping")
-                return None
-            else:
-                self.zeros(1, self.number_of_voices)
-
-        if length_unit == 'step':
-            if new_length >= self.total_number_of_steps:
-                new_length = int(new_length)
-                self.hvo = np.concatenate(
-                    [self.hvo,
-                     np.zeros((new_length - self.total_number_of_steps, self.number_of_voices * 3))],
-                    axis=0)
-
-        elif length_unit == 'sec':
-            length_correct = False
-            while not length_correct:
-                self.hvo = np.zeros((1, self.number_of_voices*3)) if self.hvo is None else self.hvo
-                self.hvo = np.concatenate(
-                    [self.hvo, np.zeros((4, self.number_of_voices*3))], axis=0)
-                if self.grid_lines[self.hits.shape[0]] >= new_length:
-                    length_correct = True
-
-    def trim_length(self, length, length_unit):
-        assert length_unit in ['sec', 'step'], "length_unit should be either 'sec' or 'step'"
-        pass
-
-    def find_index_and_offset_for_absolute_time(self, absolute_time):
-        grid_lines = np.array(self.grid_lines)
-        # find nearest grid line
-        assert grid_lines is not None, "Grid lines are not available"
-        if grid_lines.size == 1:
-            assert absolute_time <= grid_lines[-1]+0.01, \
-                "Absolute time is larger than the length of the sequence. " \
-                "Adjust length first using expand_length() method"
-        else:
-            assert absolute_time <= grid_lines[-1]+0.5*(grid_lines[-1]-grid_lines[-2]), \
-                "Absolute time is larger than the length of the sequence. " \
-                "Adjust length first using expand_length() method"
-        # check how many segments are available
-        #self.consistent_segment_HVO_Sequences
-
-        ix = np.argmin(np.abs(grid_lines - absolute_time))
-        dis = absolute_time - grid_lines[ix]
-        if ix == 0 and dis < 0:
-            offset = dis / (grid_lines[-1] - grid_lines[-2])
-        elif ix == len(grid_lines) - 1 and dis > 0:
-            offset = dis / (grid_lines[1] - grid_lines[0])
-        elif dis < 0:
-            offset = dis / (grid_lines[ix] - grid_lines[ix - 1])
-        else:
-            offset = dis / (grid_lines[ix + 1] - grid_lines[ix])
-        return int(ix), offset
-
     def find_index_for_pitch(self, pitch):
-        if self.drum_mapping is None:
-            warnings.warn("Can't find_index_for_pitch as drum_mapping is not provided")
-            return None
-
+        """Finds the index of the voice that corresponds to the given pitch (using the drun mapping)"""
         for i, (k, v) in enumerate(self.drum_mapping.items()):
             if pitch in v:
                 return i
-
         raise ValueError(f"Can't find pitch {pitch} in drum_mapping")
 
-    def add_note(self, pitch, velocity, start_sec):
+    def add_note(self, start_sec, pitch, velocity, overdub_with_louder_only=False):
+        """Adds a note to the score using the given start time, pitch and velocity.
+
+        :param start_sec:   onset time in seconds from the beginning of the score.
+        :param pitch:       midi pitch of the note (must be available in the drum mapping)
+        :param velocity:    0-1 velocity of the note
+        :param overdub_with_louder_only:  If True, overdubs the note only if the velocity is higher than the existing
+                                            velocity at the same time and pitch. otherwise, overrides the existing note.
+        """
         assert velocity <= 1, "velocity should be between 0 and 1"
-        assert self.drum_mapping is not None, "To add a note, drum_mapping should be provided"
-        if self.total_len is None:
-            self.expand_length(start_sec + 1, 'sec')  # ensure length is long enough
-        elif start_sec <= self.total_len:
-            self.expand_length(start_sec + 1, 'sec') # ensure length is long enough
-        time_ix, offset = self.find_index_and_offset_for_absolute_time(start_sec)
+
         voice_ix = self.find_index_for_pitch(pitch)
-        self.hits[time_ix, voice_ix] = 1
-        self.velocities[time_ix, voice_ix] = velocity
-        self.offsets[time_ix, voice_ix] = offset
+
+        # expand the score if necessary
+        time_ix, offset = self.__grid_maker.get_index_and_offset_at_sec(start_sec)
+
+        if time_ix >= self.number_of_steps:
+            self.adjust_length(time_ix+1)
+
+        if velocity > self.velocities[time_ix, voice_ix] or not overdub_with_louder_only:
+            self.hits[time_ix, voice_ix] = 1
+            self.velocities[time_ix, voice_ix] = velocity
+            self.offsets[time_ix, voice_ix] = offset
 
     #   --------------------------------------------------------------
     #   Utilities to import/export/Convert different score formats such as
@@ -1930,17 +1096,14 @@ class HVO_Sequence(object):
     #   --------------------------------------------------------------
 
     def to_note_sequence(self, midi_track_n=9):
-        """
-        Exports the hvo_sequence to a note_sequence object
+        """Exports the hvo_sequence to a note_sequence object
 
-        @param midi_track_n:    the midi track channel used for the drum scores
-        @return:
-        """
+        :param midi_track_n:    the midi track channel used for the drum scores"""
         if self.is_ready_for_use() is False:
             return None
 
         # get grid
-        grid_lines = np.array(self.grid_lines)
+        grid_lines = np.array(self.__grid_maker.get_grid_lines(self.number_of_steps))
 
         # Create a note sequence instance
         ns = music_pb2.NoteSequence()
@@ -1974,7 +1137,7 @@ class HVO_Sequence(object):
                 else:
                     utiming = 0  # if utiming comes left of beginning,  snap it to the very first grid (loc[0]=0)
             elif utiming_ratio > 0:
-                if grid_pos < (self.total_number_of_steps - 2):
+                if grid_pos < (self.number_of_steps - 2):
                     utiming = (grid_lines[grid_pos + 1] -
                                grid_lines[grid_pos]) * utiming_ratio
                 else:
@@ -1990,17 +1153,19 @@ class HVO_Sequence(object):
             ns.notes.add(pitch=pitch, start_time=start_time.item(), end_time=end_time.item(),
                          is_drum=True, instrument=midi_track_n, velocity=int(velocity.item() * 127))
 
-        ns.total_time = self.total_len
+        # ns.total_time = self.total_len
 
         for tempo in self.tempos:
+            loc_ = self.__grid_maker.get_grid_lines(tempo.time_step+1)[tempo.time_step]
             ns.tempos.add(
-                time=grid_lines[tempo.time_step],
+                time=loc_,
                 qpm=tempo.qpm
             )
 
         for time_sig in self.time_signatures:
+            loc_ = self.__grid_maker.get_grid_lines(time_sig.time_step+1)[time_sig.time_step]
             ns.time_signatures.add(
-                time=grid_lines[time_sig.time_step],
+                time=loc_,
                 numerator=time_sig.numerator,
                 denominator=time_sig.denominator
             )
@@ -2008,16 +1173,15 @@ class HVO_Sequence(object):
         return ns
 
     def save_hvo_to_midi(self, filename="misc/temp.mid", midi_track_n=9):
-        """
-            Exports to a  midi file
+        """Exports to a  midi file
 
-            @param filename:            filename/path for saving the midi
-            @param midi_track_n:        midi track for
-
-            @return pm:                 the pretty_midi object
+        :param filename:        the filename to save the midi file
+        :param midi_track_n:    the midi track channel used for the drum scores
         """
 
         if self.is_ready_for_use() is False:
+            logger.warning("The hvo_sequence is not exportable to MIDI. "
+                           "Check that a Time_Signature, and a .hvo score is added.")
             return None
 
         if os.path.dirname(filename) != '':
@@ -2029,17 +1193,18 @@ class HVO_Sequence(object):
         return pm
 
     def convert_to_alternate_mapping(self, tgt_drum_mapping):
-
+        """Returns a new hvo_sequence with the same content, but with a different drum mapping"""
         if self.is_ready_for_use() is False:
             return None
 
-        hvo_seq_tgt = HVO_Sequence(tgt_drum_mapping)
+        hvo_seq_tgt = HVO_Sequence(
+            beat_division_factors=self.__grid_maker.beat_division_factors, drum_mapping=tgt_drum_mapping)
 
         # Copy the tempo and time signature fields to new hvo
         for tempo in self.tempos:
             hvo_seq_tgt.add_tempo(tempo.time_step, tempo.qpm)
         for ts in self.time_signatures:
-            hvo_seq_tgt.add_time_signature(ts.time_step, ts.numerator, ts.denominator, ts.beat_division_factors)
+            hvo_seq_tgt.add_time_signature(ts.time_step, ts.numerator, ts.denominator)
 
         hvo_tgt = self.get_with_different_drum_mapping("hvo", tgt_drum_mapping=tgt_drum_mapping)
         hvo_seq_tgt.hvo = hvo_tgt
@@ -2094,19 +1259,20 @@ class HVO_Sequence(object):
     #   --------------------------------------------------------------
     def to_html_plot(self, filename="misc/temp.html", show_figure=False,
                      save_figure=False,
-                     show_tempo=True, tempo_font_size="8pt",
-                     show_time_signature=True, time_signature_font_size="8pt",
+                     show_tempo=True, 
+                     show_time_signature=True, 
                      show_metadata=True,
                      minor_grid_color="black", minor_line_width=0.1,
                      major_grid_color="black", major_line_width=0.5,
                      downbeat_color="black", downbeat_line_width=2,
                      note_color="grey",
                      width=800, height=400):
+        """**DEPRECIATED** Use piano_roll to plot the hvo_sequence instead """
 
         return self.piano_roll(
             filename=filename, show_figure=show_figure, save_figure=save_figure,
-            show_tempo=show_tempo, tempo_font_size=tempo_font_size,
-            show_time_signature=show_time_signature, time_signature_font_size=time_signature_font_size,
+            show_tempo=show_tempo, 
+            show_time_signature=show_time_signature, 
             show_metadata=show_metadata, minor_grid_color=minor_grid_color, minor_line_width=minor_line_width,
             major_grid_color=major_grid_color, major_line_width=major_line_width,
             downbeat_color=downbeat_color, downbeat_line_width=downbeat_line_width,
@@ -2114,45 +1280,47 @@ class HVO_Sequence(object):
             width=width, height=height)
 
     def piano_roll(self, filename="misc/temp.html", show_figure=False,
-                     save_figure=False,
-                     show_tempo=True, tempo_font_size="8pt",
-                     show_time_signature=True, time_signature_font_size="8pt",
-                     show_metadata=True,
-                     minor_grid_color="black", minor_line_width=0.1,
-                     major_grid_color="black", major_line_width=0.5,
-                     downbeat_color="black", downbeat_line_width=2,
-                     note_color="grey",
-                     width=800, height=400):
-
-        """
-        Creates a bokeh plot of the hvo sequence
-        @param filename:                    path to save the html plot
-        @param show_figure:                 If True, opens the plot as soon as it's generated
-        @return:                            html_figure object generated by bokeh
-        """
+                   save_figure=False,
+                   show_tempo=True,
+                   show_time_signature=True,
+                   show_metadata=True,
+                   minor_grid_color="black", minor_line_width=0.1,
+                   major_grid_color="black", major_line_width=0.5,
+                   downbeat_color="black", downbeat_line_width=2,
+                   note_color="grey",
+                   width=1000, height=400):
         assert self.drum_mapping is not None, "Drum mapping not set"
 
         if self.is_ready_for_use() is False:
-            return None
+            logger.warning(".hvo is initialized to 1 bar after the beginning of the last tempo or time sig change.")
+            last_time_sig = sorted(self.grid_maker.time_signatures, key=lambda x: x.time_step)[-1]
+            last_tempo = sorted(self.grid_maker.tempos, key=lambda x: x.time_step)[-1]
+            time = max(last_time_sig.time_step, last_tempo.time_step)
+            n_steps = time + last_time_sig.numerator * self.grid_maker.n_steps_per_beat
+            self.zeros(n_steps)
 
         notes = self.get_notes(return_tuples=False)
         colors = viridis(15)
 
-        _html_fig = figure(plot_width=width, plot_height=height)
+        _html_fig = figure(plot_width=width, plot_height=height, y_range=(-0.5, len(self.drum_mapping)+1.75))
         _html_fig.xaxis.axis_label = 'Time (sec)'
         _html_fig.yaxis.axis_label = 'Instrument'
 
+        legend_it = list()
+
         if len(notes['start']) > 0:
             notes['top'] = np.array(notes["voice_index"]) + 0.2
-            notes['bottom'] =  np.array(notes["voice_index"]) - 0.2
-            proll = _html_fig.quad(top='top', bottom='bottom', left='start', right='end',
-                                   line_color=note_color, fill_color=note_color,
-                                   fill_alpha='velocity', source=notes, legend_label="Piano Roll")
+            notes['bottom'] = np.array(notes["voice_index"]) - 0.2
+            p_roll = _html_fig.quad(top='top', bottom='bottom', left='start', right='end',
+                                    line_color=note_color, fill_color=note_color,
+                                    fill_alpha='velocity', source=notes, legend_label="Piano Roll")
+            legend_it.append(("Notes", [p_roll]))
             notes.pop('top')
             notes.pop('bottom')
             _html_fig.add_tools(
-                HoverTool(tooltips=[(f"{k}", f"@{k}") for k in notes.keys()], renderers=[proll]))
-
+                HoverTool(tooltips=[(f"{k}", f"@{k}") for k in notes.keys()], renderers=[p_roll]))
+        else:
+            legend_it.append(("Notes", []))
         _html_fig.title.text = filename.split("/")[-1]  # add title
 
         # Add y-labels corresponding to instrument names rather than midi note ("kick", "snare", ...)
@@ -2172,9 +1340,8 @@ class HVO_Sequence(object):
         _html_fig.yaxis.major_label_overrides = dict(zip(unique_pitches, drum_tags))
 
         # Add beat and beat_division grid lines
-        major_grid_lines, minor_grid_lines = self.major_and_minor_grid_lines
-
-        grid_lines = np.array(self.grid_lines)
+        major_grid_lines = self.__grid_maker.get_major_grid_lines(self.number_of_steps)
+        minor_grid_lines = self.__grid_maker.get_minor_grid_lines(self.number_of_steps)
 
         minor_grid_ = []
         for t in minor_grid_lines:
@@ -2182,7 +1349,7 @@ class HVO_Sequence(object):
                                     line_color=minor_grid_color, line_width=minor_line_width))
             _html_fig.add_layout(minor_grid_[-1])
 
-        _html_fig.xaxis.ticker = [np.round(x, 2) for x in self.grid_lines_with_types["major_grid_lines"]]
+        _html_fig.xaxis.ticker = [np.round(x, 2) for x in major_grid_lines]
         _html_fig.xaxis.major_label_orientation = 1.57
 
         major_grid_ = []
@@ -2192,37 +1359,45 @@ class HVO_Sequence(object):
             _html_fig.add_layout(major_grid_[-1])
 
         downbeat_grid_ = []
-        for t in self.starting_measure_positions:
+        for t in self.__grid_maker.get_downbeat_grid_lines(self.number_of_steps):
             downbeat_grid_.append(Span(location=t, dimension='height',
                                        line_color=downbeat_color, line_width=downbeat_line_width))
             _html_fig.add_layout(downbeat_grid_[-1])
 
+        if self.number_of_steps > 0:
+            grid = self.__grid_maker.get_grid_lines(self.number_of_steps)
+        else:
+            grid = self.__grid_maker.get_grid_lines_for_n_beats(2)
+
         if show_tempo:
-            tempo_lower_b = self.tempo_consistent_segment_lower_bounds
-            tempo_dict = {"x": [], "y": [], "tempo": []}
+            tempo_dict = {"x": [], "y": [], "tempo": [], "grid_index": []}
             for ix, tempo in enumerate(self.tempos):
-                tempo_dict["x"].append(grid_lines[tempo_lower_b[ix]])
-                tempo_dict["y"].append(unique_pitches[-1] + 1.5)
-                tempo_dict["tempo"].append(tempo.qpm)
+                if tempo.time_step <= len(grid):
+                    tempo_dict["x"].append(grid[tempo.time_step])
+                    tempo_dict["y"].append(unique_pitches[-1] + 1.5)
+                    tempo_dict["tempo"].append(tempo.qpm)
+                    tempo_dict["grid_index"].append(tempo.time_step)
             temp = _html_fig.circle(x="x", y="y", source=tempo_dict, size=10,
                                     line_color=colors[0], fill_color=colors[0], legend_label="Tempo")
+
             tempo_dict.pop("x")
             tempo_dict.pop("y")
             _html_fig.add_tools(
                 HoverTool(tooltips=[(f"{k}", f"@{k}") for k in tempo_dict.keys()], renderers=[temp]))
 
         if show_time_signature:
-            time_signature_lower_b = self.time_signature_consistent_segment_lower_bounds
-
-            time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": []}
+            time_signature_dict = {"x": [], "y": [], "Numerator": [], "Denominator": [], "grid_index": []}
             for ix, ts in enumerate(self.time_signatures):
-                time_signature_dict["x"].append(grid_lines[time_signature_lower_b[ix]])
-                time_signature_dict["y"].append(unique_pitches[-1] + 1)
-                time_signature_dict["Numerator"].append(ts.numerator)
-                time_signature_dict["Denominator"].append(ts.denominator)
+                if ts.time_step <= len(grid):
+                    time_signature_dict["x"].append(grid[ts.time_step])
+                    time_signature_dict["y"].append(unique_pitches[-1] + 1)
+                    time_signature_dict["Numerator"].append(ts.numerator)
+                    time_signature_dict["Denominator"].append(ts.denominator)
+                    time_signature_dict["grid_index"].append(ts.time_step)
 
             temp = _html_fig.circle(x="x", y="y", source=time_signature_dict, size=10,
                                     line_color=colors[-4], fill_color=colors[-4], legend_label="Time Signature")
+
             time_signature_dict.pop("x")
             time_signature_dict.pop("y")
             _html_fig.add_tools(
@@ -2231,21 +1406,27 @@ class HVO_Sequence(object):
         if show_metadata:
             if self.metadata.keys() is not None:
                 metadata = {
-                    'x': [self.grid_lines[ix] for ix in self.metadata.time_steps ],
+                    'x': [grid[ix] for ix in self.metadata.time_steps],
                     'y': [list(unique_pitches)[-1] + 0.5] * len(self.metadata.time_steps)
                 }
                 metadata.update({k: [] for k, v in self.metadata.items()})
                 for k, v in self.metadata.items():
                     metadata[k].extend(v if isinstance(v, list) else [v])
-                temp = _html_fig.circle(x="x", y="y", source=metadata, size=10, legend_label="Metadata",
-                                        line_color=colors[8], fill_color=colors[8])
+                temp = _html_fig.circle(x="x", y="y", source=metadata, size=10,
+                                        line_color=colors[8], fill_color=colors[8], legend_label="Metadata")
                 _html_fig.add_tools(
                     HoverTool(tooltips=[(f"{k}", f"@{k}") for k in self.metadata.keys()], renderers=[temp]))
+
+        h = self.__grid_maker.get_grid_lines(self.number_of_steps)[-1]
+
+        _html_fig.x_range.start = h * -0.1
+        _html_fig.x_range.end = h * 1.1
 
         _html_fig.legend.click_policy = "hide"
         leg = _html_fig.legend[0]
         _html_fig.add_layout(leg, 'right')
 
+        # create a row
         # Plot the figure if requested
         if show_figure:
             show(_html_fig)
@@ -2259,17 +1440,16 @@ class HVO_Sequence(object):
 
             output_file(filename)  # Set name used for saving the figure
             save(_html_fig)  # Save to file
-            print("Saved to {}".format(filename))
+            logger.info(f"Saved HTML piano roll to {filename}")
 
         return _html_fig
 
     #   --------------------------------------------------------------
-    #   Utilities to compute, plot and save Spectrograms
+    #   Utilities to compute, plot and save Spectrogram
     #   --------------------------------------------------------------
-
     def stft(self, sr=44100, sf_path="../hvo_sequence/soundfonts/Standard_Drum_Kit.sf2", n_fft=2048, hop_length=128,
              win_length=1024, window='hamming', plot=False, plot_filename="misc/temp_spec.png", plot_title="STFT",
-             width=800, height=400, font_size=12, colorbar=False ):
+             width=800, height=400, font_size=12, colorbar=False):
 
         """
         Computes the Short-time Fourier transform.
@@ -2294,11 +1474,11 @@ class HVO_Sequence(object):
 
         # Check inputs
         if not win_length <= n_fft:
-            warnings.warn("Window size must be equal or smaller than FFT size.")
+            logger.warning("Window size must be equal or smaller than FFT size.")
             return None
 
         if not hop_length > 0:
-            warnings.warn("Hop size must be greater than 0.")
+            logger.warning("Hop size must be greater than 0.")
             return None
 
         # Get audio signal
@@ -2323,7 +1503,8 @@ class HVO_Sequence(object):
             fig, ax = plt.subplots(figsize=(width_i, height_i))
             ax.set_title(plot_title)
 
-            spec = librosa.display.specshow(librosa.amplitude_to_db(stft, ref=np.max), y_axis='log', x_axis='time', ax=ax)
+            spec = librosa.display.specshow(librosa.amplitude_to_db(stft, ref=np.max), 
+                                            y_axis='log', x_axis='time', ax=ax)
 
             if colorbar:
                 fig.colorbar(spec, ax=ax, format="%+2.0f dB")
@@ -2338,7 +1519,7 @@ class HVO_Sequence(object):
                         height=400, font_size=12, colorbar=False):
 
         """
-        Computes mel spectrogram.
+        Computes mel spectrogram of the synthesized version of the .hvo score
         @param sr:                          sample rate of the audio file from which the STFT is computed
         @param sf_path:                     path to the soundfont samples
         @param n_fft:                       length of the windowed signal after padding to closest power of 2
@@ -2348,6 +1529,7 @@ class HVO_Sequence(object):
         @param n_mels:                      number of mel bands
         @param fmin:                        lowest frequency in Hz
         @param fmax:                        highest frequency in Hz
+        @param plot                         if True, plots and saves plot
         @param plot_filename:               filename for saved figure
         @param plot_title:                  plot title
         @param width:                       figure width in pixels
@@ -2362,19 +1544,19 @@ class HVO_Sequence(object):
 
         # Check inputs
         if not win_length <= n_fft:
-            warnings.warn("Window size must be equal or smaller than FFT size.")
+            logger.warning("Window size must be equal or smaller than FFT size.")
             return None
 
         if not hop_length > 0:
-            warnings.warn("Hop size must be greater than 0.")
+            logger.warning("Hop size must be greater than 0.")
             return None
 
         if not n_mels > 0:
-            warnings.warn("Number of mel bands must be greater than 0.")
+            logger.warning("Number of mel bands must be greater than 0.")
             return None
 
         if not fmin >= 0 or not fmax > 0:
-            warnings.warn("Frequency must be greater than 0.")
+            logger.warning("Frequency must be greater than 0.")
             return None
 
         # Get audio signal
@@ -2399,7 +1581,8 @@ class HVO_Sequence(object):
             fig, ax = plt.subplots(figsize=(width_i, height_i))
             ax.set_title(plot_title)
 
-            spec = librosa.display.specshow(librosa.power_to_db(mel_spec, ref=np.max), y_axis='mel', x_axis='time', ax=ax)
+            spec = librosa.display.specshow(librosa.power_to_db(mel_spec, ref=np.max), 
+                                            y_axis='mel', x_axis='time', ax=ax)
 
             if colorbar:
                 fig.colorbar(spec, ax=ax, format="%+2.0f dB")
@@ -2411,8 +1594,8 @@ class HVO_Sequence(object):
     #   -------------------------------------------------------------
     #   MSO::Multiband Synthesized Onsets
     #   -------------------------------------------------------------
-
-    def get_logf_stft(self,**kwargs):
+    def get_logf_stft(self, **kwargs):
+        """calculates the log-frequency STFT of the synthesized version of the .hvo score"""
         sf_path = kwargs.get('sf_path', "soundfonts/Standard_Drum_Kit.sf2")
         sr = kwargs.get('sr', 44100)
         n_fft = kwargs.get('n_fft', 1024)
@@ -2421,7 +1604,7 @@ class HVO_Sequence(object):
         n_bins_per_octave = kwargs.get('n_bins_per_octave', 16)
         n_octaves = kwargs.get('n_octaves', 9)
         f_min = kwargs.get('f_min', 40)
-        mean_filter_size = kwargs.get('mean_filter_size', 22)
+        # mean_filter_size = kwargs.get('mean_filter_size', 22)
 
         # audio
         y = self.synthesize(sr=sr, sf_path=sf_path)
@@ -2431,7 +1614,8 @@ class HVO_Sequence(object):
 
         return mX, f_bins
 
-    def get_onset_strength_spec(self,**kwargs):
+    def get_onset_strength_spec(self, **kwargs):
+        """calculates the onset strength spectrogram of the synthesized version of the .hvo score"""
         sf_path = kwargs.get('sf_path', "soundfonts/Standard_Drum_Kit.sf2")
         sr = kwargs.get('sr', 44100)
         n_fft = kwargs.get('n_fft', 1024)
@@ -2453,10 +1637,8 @@ class HVO_Sequence(object):
         return spec, f_cq
 
     def mso(self, **kwargs):
-        """
-        Multiband synthesized onsets.
-        """
-        sf_path= kwargs.get('sf_path', "soundfonts/Standard_Drum_Kit.sf2")
+        """calculates the Multi-band synthesized onsets."""
+        sf_path = kwargs.get('sf_path', "soundfonts/Standard_Drum_Kit.sf2")
         sr = kwargs.get('sr', 44100)
         n_fft = kwargs.get('n_fft', 1024)
         win_length = kwargs.get('win_length', 1024)
@@ -2473,12 +1655,12 @@ class HVO_Sequence(object):
                                                   n_octaves=n_octaves, f_min=f_min, sr=sr,
                                                   mean_filter_size=mean_filter_size)
 
-        # multiband onset detection and strength
+        # multi-band onset detection and strength
         mb_onset_strength = reduce_f_bands_in_spec(c_freq, f_cq, spec)
         mb_onset_detect = detect_onset(mb_onset_strength)
 
         # map to grid
-        grid = np.array(self.grid_lines)
+        grid = np.array(self.__grid_maker.get_grid_lines(self.number_of_steps))
         strength_grid, onsets_grid = map_onsets_to_grid(grid, mb_onset_strength, mb_onset_detect, n_fft=n_fft,
                                                         hop_length=hop_length, sr=sr)
 
@@ -2486,10 +1668,6 @@ class HVO_Sequence(object):
         mso = np.concatenate((strength_grid, onsets_grid), axis=1)
 
         return mso
-
-    #   -------------------------------------------------------------
-    #   Extract Rhythmical and Microtiming Features for Evaluation
-    #   -------------------------------------------------------------
 
     # ######################################################################
     #
@@ -2502,7 +1680,7 @@ class HVO_Sequence(object):
         h = self.hits
         h = np.where(h == 0.0, np.nan, h)
         noi = 0
-        for voice_ix in range(h.shape[1]):
+        for voice_ix in range(self.number_of_voices):
             # check if voice part is empty
             if all(np.isnan(h[:, voice_ix])) is not True:
                 noi += 1
@@ -2511,7 +1689,7 @@ class HVO_Sequence(object):
     def get_total_step_density(self):
         """ calculates the ratio of total steps in which there is at least one hit """
         hits = self.hits
-        return np.clip(np.count_nonzero(hits, axis=1), 0, 1).sum()/hits.shape[0]
+        return np.clip(np.count_nonzero(hits, axis=1), 0, 1).sum()/self.number_of_steps
 
     def get_average_voice_density(self):
         """ average of number of instruments divided by total number of voices over all steps """
@@ -2519,25 +1697,26 @@ class HVO_Sequence(object):
         return np.count_nonzero(hits, axis=1).sum()/hits.size
 
     def get_hit_density_for_voice(self, voice_ix):
-        return np.count_nonzero(self.hits[:, voice_ix])/ self.hvo.shape[0]
+        """ calculates the ratio of steps in which there is at least one hit for a given voice """
+        return np.count_nonzero(self.hits[:, voice_ix]) / self.number_of_steps
 
     def get_velocity_intensity_mean_stdev_for_voice(self, voice_ix):
-        # Calculates mean and std of velocities for a single voice
-        # first get all non-zero hits. then divide by number of hits
+        """Calculates mean and std of velocities for a single voice.
+        first gets all non-zero hits. then divide by number of hits"""
         if self.is_ready_for_use() is False:
             return None
-        v = self.get("v", use_NaN_for_non_hits=True)[:, voice_ix]
+        v = self.get("v", use_nan_for_non_hits=True)[:, voice_ix]
         if all(np.isnan(v)) is True:
             return 0, 0
         else:
             return np.nanmean(v), np.nanstd(v)
 
     def get_offset_mean_stdev_for_voice(self, voice_ix, offsets_in_ms=False):
-        # Calculates mean and std of offsets for a single voice
-        # first get all non-zero hits. then divide by number of hits
+        """Calculates mean and std of offsets for a single voice.
+        first gets all non-zero hits. then divide by number of hits"""
         if self.is_ready_for_use() is False:
             return None
-        o = self.get("o", offsets_in_ms=offsets_in_ms, use_NaN_for_non_hits=True)[:, voice_ix]
+        o = self.get("o", offsets_in_ms=offsets_in_ms, use_nan_for_non_hits=True)[:, voice_ix]
         if all(np.isnan(o)) is True:
             return 0, 0
         else:
@@ -2560,15 +1739,16 @@ class HVO_Sequence(object):
         return lowness, midness, hiness
 
     def get_velocity_score_symmetry(self):
+        """Get total symmetry of pattern. Defined as the number of onsets that appear in the same positions in the first
+        and second halves of the pattern, divided by total number of onsets in the pattern.
+        symmetry is calculated using velocity section of hvo"""
+
         # fixme the implementation doesnt match the description
-        # Get total symmetry of pattern. Defined as the number of onsets that appear in the same positions in the first
-        # and second halves of the pattern, divided by total number of onsets in the pattern.
-        # symmetry is calculated using velocity section of hvo
 
         if self.is_ready_for_use() is False:
             return None
 
-        v = self.get("v", use_NaN_for_non_hits=True)
+        v = self.get("v", use_nan_for_non_hits=True)
         assert v.shape[0] % 2 == 0, "symmetry can't be calculated as the length of score needs to be a multiple of 2"
 
         # Find difference between splits
@@ -2582,35 +1762,35 @@ class HVO_Sequence(object):
         res = 0 if np.isnan(res) else res
         return res
 
-    #todo easily adaptable to alternative grids if implementation is changed
     def get_total_weak_to_strong_ratio(self):
+        """ returns the ratio of total weak onsets divided by all strong onsets.
+        Strong onsets are onsets that occur on beat positions and weak onsets are the other ones
         """
-        returns the ratio of total weak onsets divided by all strong onsets
-        strong onsets are onsets that occur on beat positions and weak onsets are the other ones
-        """
+        # todo easily adaptable to alternative grids if implementation is changed
+
         return get_weak_to_strong_ratio(self.get("v"))
 
     def get_polyphonic_velocity_mean_stdev(self):
-        # Get average loudness for any single part or group of parts. Will return 1 for binary loop, otherwise calculate
-        # based on velocity mode chosen (transform or regular)
+        """Get average loudness for any single part or group of parts. Will return 1 for binary loop,
+        otherwise calculate based on velocity mode chosen (transform or regular)"""
 
         # first get all non-zero hits. then divide by number of hits
         if self.is_ready_for_use() is False:
             return None
-        v = self.get("v", use_NaN_for_non_hits=True)
+        v = self.get("v", use_nan_for_non_hits=True)
         if all(np.isnan(v.flatten())) is True:
             return 0, 0
         else:
             return np.nanmean(v), np.nanstd(v)
 
     def get_polyphonic_offset_mean_stdev(self, offsets_in_ms=False):
-        # Get average loudness for any single part or group of parts. Will return 1 for binary loop, otherwise calculate
-        # based on velocity mode chosen (transform or regular)
+        """Get average loudness for any single part or group of parts. Will return 1 for binary loop, otherwise calculate
+        based on velocity mode chosen (transform or regular)"""
 
         # first get all non-zero hits. then divide by number of hits
         if self.is_ready_for_use() is False:
             return None
-        o = self.get("o", offsets_in_ms=offsets_in_ms, use_NaN_for_non_hits=True)
+        o = self.get("o", offsets_in_ms=offsets_in_ms, use_nan_for_non_hits=True)
         if all(np.isnan(o.flatten())) is True:
             return 0, 0
         else:
@@ -2630,20 +1810,20 @@ class HVO_Sequence(object):
     #               and Applications 32.9 (2020): 4773-4784.
     # ######################################################################
 
-    # todo : use get_monophonic_syncopation_for_voice() to get syncopation of tapped pattern
-
     def get_monophonic_syncopation_for_voice(self, voice_index):
-        # Using Longuet-Higgins  and  Lee 1984 metric profile, get syncopation of 1 monophonic line.
-        # Assumes it's a drum loop - loops round.
-        # Normalized against maximum syncopation: syncopation score of pattern with all pulses of lowest metrical level
-        # at maximum amplitude (=30 for 2 bar 4/4 loop)
+        """Using Longuet-Higgins  and  Lee 1984 metric profile, get syncopation of 1 monophonic line.
+        Assumes it's a drum loop - loops round.
+        Normalized against maximum syncopation: syncopation score of pattern with all pulses of lowest metrical level
+        at maximum amplitude (=30 for 2 bar 4/4 loop)"""
+
+        # todo : use get_monophonic_syncopation_for_voice() to get syncopation of tapped pattern
 
         if self.is_ready_for_use() is True:
             assert self.time_signatures[0].denominator == 4, \
                 "currently Can't calculate syncopation for patterns with multiple time signatures and " \
                 "time signature denominators other than 4"
             if len(self.time_signatures) > 1:
-                warnings.warn("More than one time signatures: {}".format(self.time_signatures))
+                logger.warning("More than one time signatures: {}".format(self.time_signatures))
         else:
             return None
 
@@ -2653,10 +1833,10 @@ class HVO_Sequence(object):
 
         return get_monophonic_syncopation(part, metrical_profile)
 
-    # todo: error of size mismatch here
     def get_combined_syncopation(self):
-        # Calculate syncopation as summed across all kit parts.
+        """Calculate syncopation as summed across all kit parts."""
         # Tested - working correctly (12/3/20)
+        # todo: error of size mismatch here
 
         combined_syncopation = 0.0
 
@@ -2665,10 +1845,10 @@ class HVO_Sequence(object):
 
         return combined_syncopation
 
-    def get_witek_polyphonic_syncopation(self, low_mid_hi_drum_map = Groove_Toolbox_3Part_keymap):
-        # Calculate syncopation using Witek syncopation distance - modelling syncopation between instruments
-        # Works on semiquaver and quaver levels of syncopation
-        # at maximum amplitude (=30 for 2 bar 4/4 loop)
+    def get_witek_polyphonic_syncopation(self, low_mid_hi_drum_map=Groove_Toolbox_3Part_keymap):
+        """Calculate syncopation using Witek syncopation distance - modelling syncopation between instruments
+        Works on semiquaver and quaver levels of syncopation
+        at maximum amplitude (=30 for 2 bar 4/4 loop)"""
         # todo: Normalize...?
 
         metrical_profile = WITEK_SYNCOPATION_METRICAL_PROFILE_4_4_16th_NOTE
@@ -2690,18 +1870,16 @@ class HVO_Sequence(object):
 
         return total_syncopation / max_syncopation
 
-    # todo: error of size mismatch here
     def get_low_mid_hi_syncopation_info(self, low_mid_hi_drum_map=Groove_Toolbox_3Part_keymap):
-        """
-            calculates monophonic syncopation of low/mid/high voice groups
-            also weighted by their number of corresponding onsets
+        """calculates monophonic syncopation of low/mid/high voice groups
+        also weighted by their number of corresponding onsets
 
-            Details of definitions here:
-            [2] Drum rhythm spaces: From polyphonic similarity to generative maps by Daniel Gomez Marin, 2020
-        :return:
-            dictionary of all values calculated
-        """
+        Details of definitions here:
+        [2] Drum rhythm spaces: From polyphonic similarity to generative maps by Daniel Gomez Marin, 2020
+        :return: dictionary of all values calculated
+                """
 
+        # todo: error of size mismatch here
         metrical_profile = WITEK_SYNCOPATION_METRICAL_PROFILE_4_4_16th_NOTE
 
         # Get hits score reduced to low mid high groups
@@ -2725,8 +1903,9 @@ class HVO_Sequence(object):
         sync = self.get_monophonic_syncopation_for_voice(voice_index)
         return math.sqrt(pow(sync, 2) + pow(hit_density, 2))
 
-    # todo: error of size mismatch here
     def get_total_complexity(self):
+        """Find Source!!!???"""
+        # todo: error of size mismatch here
         hit_density = self.get_total_step_density()
         sync = self.get_combined_syncopation()
         return math.sqrt(pow(sync, 2) + pow(hit_density, 2))
@@ -2746,14 +1925,15 @@ class HVO_Sequence(object):
     # ######################################################################
 
     def get_total_autocorrelation_curve(self, hvo_str="v", offsets_in_ms=False):
-        """
-        Returns the autocorrelation of hvo score (according to hvo_str)
+        """ Returns the autocorrelation of hvo score (according to hvo_str)
         the autocorrelation is calculated per voice and then added up per step
 
         :param hvo_str: str
             String formed with the characters 'h', 'v', 'o' and '0' in any order. It's not necessary to use all of the
             characters and they can be repeated. E.g. 'ov', will return the offsets and velocities, 'h0h'
             set offsets_in_ms to True if 'o' should be in milliseconds
+        :param offsets_in_ms: bool
+            If True, the offsets will be returned in milliseconds instead of steps
         :return:
             autocorrelation curve for all parts summed.
         """
@@ -2774,7 +1954,7 @@ class HVO_Sequence(object):
         return total_autocorrelation_curve
 
     def get_velocity_autocorrelation_features(self):
-        # Calculate autocorrelation curve
+        """Calculate autocorrelation curve"""
 
         if self.is_ready_for_use() is False:
             return None
@@ -2830,7 +2010,7 @@ class HVO_Sequence(object):
         inharmonic_peaks = []
         for i in range(len(peaks)):
             remainder1 = 16 % peaks[i]
-            if remainder1 > 16 * alpha and remainder1 < 16 * (1 - alpha):
+            if (16 * alpha) < remainder1 < (16 * (1 - alpha)):
                 inharmonic_sum += rectified_autocorrelation[peaks[i] - 1]  # add magnitude of inharmonic peaks
                 inharmonic_peaks.append(rectified_autocorrelation[i])
 
@@ -2855,9 +2035,8 @@ class HVO_Sequence(object):
     #               and Applications 32.9 (2020): 4773-4784.
     # ######################################################################
 
-    def swingness(self, use_tapped_pattern=False, mode=1):
-        """
-        Two modes here for calculating Swing implemented
+    def swingness(self, mode=1):
+        """ Two modes here for calculating Swing implemented
 
         algorithm 1: same as groovetoolbox
             "Swung onsets are detected as significantly delayed second eighth-notes, approximating the typically
@@ -2882,7 +2061,6 @@ class HVO_Sequence(object):
 
             maximum swing in this method is
 
-        :param use_tapped_pattern:
         :param mode: int
                          0 --> groovetoolbox method
                          1 --> similar to DAW Swing
@@ -2895,15 +2073,15 @@ class HVO_Sequence(object):
             return None
 
         if len(self.time_signatures) > 1:
-            warnings.warn("Currently doesn't support multiple time signatures. Received: {}".format(
+            logger.warning("Currently doesn't support multiple time signatures. Received: {}".format(
                 self.time_signatures))
 
-        assert self.grid_type_per_segments[0] == "binary" and self.time_signatures[0].denominator == 4, \
+        assert self.grid_maker.beat_division_factors == [4] and self.time_signatures[0].denominator == 4, \
             "Currently Swing calculation can only be done for binary grids with time signature denominator of 4"
 
         if mode == 0:
             # get micro-timings in ms and use np.nan whenever no note is played
-            microtiming_matrix = self.get("o", offsets_in_ms=True, use_NaN_for_non_hits=True)
+            microtiming_matrix = self.get("o", offsets_in_ms=True, use_nan_for_non_hits=True)
             n_steps = microtiming_matrix.shape[0]
 
             # Calculate average_timing_matrix
@@ -2937,7 +2115,7 @@ class HVO_Sequence(object):
 
         elif mode == 1:
             # Get offsets at required swing steps
-            microtiming_matrix = self.get("o", offsets_in_ms=False, use_NaN_for_non_hits=False)
+            microtiming_matrix = self.get("o", offsets_in_ms=False, use_nan_for_non_hits=False)
 
             # look at offsets at 2nd, 4th steps in each beat (corresponding to  grid line indices 1, 3, 5, 7, ... )
             offset_at_swing_steps = microtiming_matrix[1::2, :]
@@ -2953,11 +2131,9 @@ class HVO_Sequence(object):
                      kick_key_in_drum_mapping="KICK",
                      snare_key_in_drum_mapping="SNARE",
                      hihat_key_in_drum_mapping="HH_CLOSED",
-                     threshold=12.0
-                    ):
+                     threshold=12.0):
 
-        """
-        Calculates how 'pushed' (or laidback) the loop is, based on number of pushed events /
+        """ Calculates how 'pushed' (or laidback) the loop is, based on number of pushed events /
         number of possible pushed events
 
         pushedness or laidbackness are calculated by looking at the timing of kick/snare/hat combinations with respect
@@ -2974,10 +2150,10 @@ class HVO_Sequence(object):
             return None
 
         if len(self.time_signatures) > 1:
-            warnings.warn("Currently doesn't support multiple time signatures. Received: {}".format(
+            logger.warning("Currently doesn't support multiple time signatures. Received: {}".format(
                 self.time_signatures))
 
-        assert self.grid_type_per_segments[0] == "binary" and self.time_signatures[0].denominator == 4, \
+        assert self.grid_maker.beat_division_factors == [4] and self.time_signatures[0].denominator == 4, \
             "Currently  calculation can only be done for binary grids with time signature denominator of 4"
 
         # Get micro-timings in ms
@@ -2985,6 +2161,7 @@ class HVO_Sequence(object):
 
         n_bars = int(np.ceil(microtiming_matrix.shape[0] / 16))
 
+        microtiming_event_profile, microtiming_event_profile_in_bar = None, None
         for bar_n in range(n_bars):
             microtiming_event_profile_in_bar = self._getmicrotiming_event_profile_1bar(
                 microtiming_matrix[bar_n:(bar_n + 1) * 16, :],
@@ -3019,8 +2196,7 @@ class HVO_Sequence(object):
                                            snare_key_in_drum_mapping="SNARE",
                                            hihat_key_in_drum_mapping="HH_CLOSED",
                                            threshold=12.0):
-        """
-        Same implementation as groovetoolbox
+        """ Same implementation as groovetoolbox
         :param microtiming_matrix:                  offsets matrix for maximum of 1 bar in 4/4
         :param kick_key_in_drum_mapping:
         :param snare_key_in_drum_mapping:
@@ -3033,10 +2209,10 @@ class HVO_Sequence(object):
             return None
 
         if len(self.time_signatures) > 1:
-            warnings.warn("Currently doesn't support multiple time signatures. Received: {}".format(
+            logger.warning("Currently doesn't support multiple time signatures. Received: {}".format(
                 self.time_signatures))
 
-        assert self.grid_type_per_segments[0] == "binary" and self.time_signatures[0].denominator == 4, \
+        assert self.grid_maker.beat_division_factors == [4] and self.time_signatures[0].denominator == 4, \
             "Currently Swing calculation can only be done for binary grids with time signature denominator of 4"
 
         # Ensure duration is 16 steps
@@ -3051,7 +2227,8 @@ class HVO_Sequence(object):
         snare_ix = list(self.drum_mapping.keys()).index(snare_key_in_drum_mapping)
         chat_ix = list(self.drum_mapping.keys()).index(hihat_key_in_drum_mapping)
 
-        microtiming_event_profile_1bar = _getmicrotiming_event_profile_1bar(microtiming_matrix, kick_ix, snare_ix, chat_ix, threshold )
+        microtiming_event_profile_1bar = _getmicrotiming_event_profile_1bar(
+            microtiming_matrix, kick_ix, snare_ix, chat_ix, threshold)
 
         return microtiming_event_profile_1bar
 
@@ -3060,7 +2237,7 @@ class HVO_Sequence(object):
         # timing accuracy is defined as the sum of microtiming deviations on 8th note positions
 
         # Get micro-timings in ms
-        microtiming_matrix = self.get("o", offsets_in_ms=offsets_in_ms, use_NaN_for_non_hits=True)
+        microtiming_matrix = self.get("o", offsets_in_ms=offsets_in_ms, use_nan_for_non_hits=True)
 
         if all(np.isnan(microtiming_matrix.flatten())):
             return np.nan
@@ -3117,7 +2294,6 @@ class HVO_Sequence(object):
                 "structural_similarity-structural_similarity": self.calculate_structural_similarity_distance_with(
                     hvo_seq_b)
             }
-
 
         sorted_dict = {key: value for key, value in sorted(distances_dictionary.items())}
 
@@ -3197,15 +2373,12 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-
-
         if reduction_map is not None:
             groove_a = self.get_with_different_drum_mapping("v", reduction_map)
             groove_b = hvo_seq_b.get_with_different_drum_mapping("v", reduction_map)
         else:
             groove_a = self.get("v")
             groove_b = hvo_seq_b.get("v")
-
 
         if beat_weighting is True:
             groove_a = _weight_groove(groove_a)
@@ -3231,13 +2404,13 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False or hvo_seq_b.is_ready_for_use() is False:
             return None
 
-        velocity_grooveA = self.get("v")
-        utiming_grooveA = self.get("o", offsets_in_ms = True, use_NaN_for_non_hits = True)
-        velocity_grooveB = hvo_seq_b.get("v")
-        utiming_grooveB = hvo_seq_b.get("o", offsets_in_ms=True, use_NaN_for_non_hits=True)
+        velocity_groove_a = self.get("v")
+        utiming_groove_a = self.get("o", offsets_in_ms=True, use_nan_for_non_hits=True)
+        velocity_groove_b = hvo_seq_b.get("v")
+        utiming_groove_b = hvo_seq_b.get("o", offsets_in_ms=True, use_nan_for_non_hits=True)
 
-        fuzzy_dist = fuzzy_Hamming_distance(velocity_grooveA, utiming_grooveA,
-                                            velocity_grooveB, utiming_grooveB,
+        fuzzy_dist = fuzzy_Hamming_distance(velocity_groove_a, utiming_groove_a,
+                                            velocity_groove_b, utiming_groove_b,
                                             beat_weighting=beat_weighting)
         return fuzzy_dist
 
@@ -3273,7 +2446,7 @@ class HVO_Sequence(object):
         velocity_groove = self.get("v")
 
         metrical_profile_4_4 = [0, -2, -1, -2, 0, -2, -1, -2, -0, -2, -1, -2, -0, -2, -1, -2,
-                            0, -2, -1, -2, 0, -2, -1, -2, 0, -2, -1, -2, 0, -2, -1, -2]
+                                0, -2, -1, -2, 0, -2, -1, -2, 0, -2, -1, -2, 0, -2, -1, -2]
 
         reduced_groove = np.zeros(velocity_groove.shape)
         for i in range(velocity_groove.shape[1]):  # number of parts to reduce
@@ -3321,7 +2494,10 @@ def empty_like(other_hvo_sequence):
     :param other_hvo_sequence:
     :return:
     """
-    new_hvo_seq = HVO_Sequence()
+    new_hvo_seq = HVO_Sequence(
+        beat_division_factors=other_hvo_sequence.grid_maker.beat_division_factors,
+        drum_mapping=other_hvo_sequence.drum_mapping
+    )
     other_dict = copy.deepcopy(other_hvo_sequence.__dict__)
     new_hvo_seq.__dict__.update(other_dict)
     new_hvo_seq.remove_hvo()
@@ -3329,7 +2505,10 @@ def empty_like(other_hvo_sequence):
 
 
 def zero_like(other_hvo_sequence):
-    new_hvo_seq = HVO_Sequence()
+    new_hvo_seq = HVO_Sequence(
+        beat_division_factors=other_hvo_sequence.grid_maker.beat_division_factors,
+        drum_mapping=other_hvo_sequence.drum_mapping
+    )
     other_dict = copy.deepcopy(other_hvo_sequence.__dict__)
     new_hvo_seq.__dict__.update(other_dict)
     if new_hvo_seq.hvo is not None:

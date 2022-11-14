@@ -19,7 +19,7 @@ The results can be accessed as a dictionary or a Pandas.DataFrame (Section [3.1]
 or they can be rendered as Bokeh plots (Section [3.2](#3_ii)). 
 Also, the ground truth samples and the generations can be rendered to piano roll, audio or midi files (Section [3.3](#3_iii)). 
 
-> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/01_grooveevalbasics_demo.py)
+> **Note** All codes provided below in this section is available [here](../../demos/GrooveEvaluator/01_grooveevalbasics_demo.py)
 
 
 ### 5.1. Results as Dictionaries or Pandas.DataFrame <a name="3_i"></a>
@@ -72,7 +72,7 @@ calculated:
 
 ```python
 hit_scores = statistics_of_hit_scores = evaluator_test_set.get_statistics_of_pos_neg_hit_scores(
-hit_weight=1, trim_decimals=1, csv_file="testers/GrooveEvaluator/misc/hit_scores.csv")
+hit_weight=1, trim_decimals=1, csv_file="demos/GrooveEvaluator/misc/hit_scores.csv")
 ```
 
 The results are available as a pandas dataframe and can be also stored to a csv file if needed
@@ -129,7 +129,7 @@ To get the boxplot statistics (`mean`, `std`, `median`, `q1`, `q3`, `min`, `max`
 
 ```python
 statistics_of_velocitiy_distributions = evaluator_test_set.get_statistics_of_velocity_distributions(
-        trim_decimals=1, csv_file="testers/GrooveEvaluator/misc/vel_stats.csv")
+        trim_decimals=1, csv_file="demos/GrooveEvaluator/misc/vel_stats.csv")
 ```
 
 <img src="assets/images/vel_stats.png" width="600">
@@ -141,7 +141,7 @@ Similar to the velocity distributions, the offset distributions can be accessed 
 ```python
 offset_distributions = evaluator_test_set.get_offset_distributions(return_as_pandas_df=False)
 statistics_of_offsetocitiy_distributions = evaluator_test_set.get_statistics_of_offset_distributions(
-   trim_decimals=1, csv_file="testers/GrooveEvaluator/misc/offset_stats.csv")
+   trim_decimals=1, csv_file="demos/GrooveEvaluator/misc/offset_stats.csv")
 ```
 
 ### Rhythmic Distances <a name="d"></a>
@@ -175,7 +175,7 @@ The distances are available as both raw data or as aggregated statistics.
 ```python
 rhythmic_distances = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt(return_as_pandas_df=False)
 rhythmic_distances_statistics_df = evaluator_test_set.get_statistics_of_rhythmic_distances_of_pred_to_gt(
-   tag_by_identifier=False, csv_dir="testers/GrooveEvaluator/misc/distances", trim_decimals=3)
+   tag_by_identifier=False, csv_dir="demos/GrooveEvaluator/misc/distances", trim_decimals=3)
 ```
 
 <img src="assets/images/DISTANCES.png" width="600">
@@ -219,7 +219,7 @@ The features are available as both raw data or as aggregated statistics:
 ```python
 global_features = evaluator_test_set.get_global_features_values(return_as_pandas_df=False)
 get_statistics_of_global_features_df = evaluator_test_set.get_statistics_of_global_features(
-  calc_gt=True, calc_pred=True, csv_file="testers/GrooveEvaluator/misc/global_features_statistics.csv", trim_decimals=3)
+  calc_gt=True, calc_pred=True, csv_file="demos/GrooveEvaluator/misc/global_features_statistics.csv", trim_decimals=3)
 ```
 
 <img src="assets/images/global_features_statistics.png" width="600">
@@ -230,13 +230,13 @@ The results in section [3.1](#3_i) can also be automatically rendered as Bokeh p
 These plots are violin plots, super-imposed with boxplots and the raw scatter data. The plots are separated by Tabs 
 for each set of analysis results.
 
-> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/02_accessing_evaluation_results.py)
+> **Note** All codes provided below in this section is available [here](../../demos/GrooveEvaluator/02_accessing_evaluation_results.py)
 
 
 ### Quality of Hits <a name="a2"></a>
 ```python
 pos_neg_hit_plots = evaluator_test_set.get_pos_neg_hit_plots(
-        save_path="testers/GrooveEvaluator/misc/pos_neg_hit_plots.html",
+        save_path="demos/GrooveEvaluator/misc/pos_neg_hit_plots.html",
         plot_width=1200, plot_height=800,
         kernel_bandwidth=0.05)
 ```
@@ -247,7 +247,7 @@ pos_neg_hit_plots = evaluator_test_set.get_pos_neg_hit_plots(
 
 ```python
 velocity_plots = evaluator_test_set.get_velocity_distribution_plots(
-        save_path="testers/GrooveEvaluator/misc/velocity_plots.html", plot_width=1200, plot_height=800,
+        save_path="demos/GrooveEvaluator/misc/velocity_plots.html", plot_width=1200, plot_height=800,
         kernel_bandwidth=0.05)
 ```
 
@@ -256,7 +256,7 @@ velocity_plots = evaluator_test_set.get_velocity_distribution_plots(
 ### Quality of Offsets <a name="c2"></a>
 ```python
 offset_plots = evaluator_test_set.get_velocity_distribution_plots(
-        save_path="testers/GrooveEvaluator/misc/offset_plots.html", plot_width=1200, plot_height=800,
+        save_path="demos/GrooveEvaluator/misc/offset_plots.html", plot_width=1200, plot_height=800,
         kernel_bandwidth=0.05)
 ```
 
@@ -265,7 +265,7 @@ offset_plots = evaluator_test_set.get_velocity_distribution_plots(
 ### Rhythmic Distances <a name="d2"></a>
 ```python
 rhythmic_distances_plot = evaluator_test_set.get_rhythmic_distances_of_pred_to_gt_plot(
-        save_path="testers/GrooveEvaluator/misc/rhythmic_distances_plots.html", plot_width=1200, plot_height=800,
+        save_path="demos/GrooveEvaluator/misc/rhythmic_distances_plots.html", plot_width=1200, plot_height=800,
         kernel_bandwidth=0.05)
 ```
 
@@ -276,7 +276,7 @@ rhythmic_distances_plot = evaluator_test_set.get_rhythmic_distances_of_pred_to_g
 #### Distributions
 ```python
 evaluator_test_set.get_global_features_plot(only_combined_data_needed=False,
-                                                save_path="testers/GrooveEvaluator/misc/global_features_all.html",
+                                                save_path="demos/GrooveEvaluator/misc/global_features_all.html",
                                                 plot_width=1200, plot_height=800,
                                                 kernel_bandwidth=0.05)
 ```
@@ -285,7 +285,7 @@ evaluator_test_set.get_global_features_plot(only_combined_data_needed=False,
 
 ```python
 evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
-                                                save_path="testers/GrooveEvaluator/misc/global_features_combinedOnly.html",
+                                                save_path="demos/GrooveEvaluator/misc/global_features_combinedOnly.html",
                                                 plot_width=1200, plot_height=800,
                                                 kernel_bandwidth=0.05)
 ```
@@ -296,19 +296,19 @@ evaluator_test_set.get_global_features_plot(only_combined_data_needed=True,
 ```python
 evaluator_test_set.get_velocity_heatmaps(
         s=(2, 4), bins=[32 * 4, 64], regroup_by_drum_voice=True,
-        save_path="testers/GrooveEvaluator/misc/velocity_heatmaps.html")
+        save_path="demos/GrooveEvaluator/misc/velocity_heatmaps.html")
 ```
 
 <img src="assets/images/velocity_heatmaps.png" width="600">
 
 ### 5.3 Rendering Piano Rolls/Audio/Midi <a name="3_iii"></a>
-> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/03_other_artifacts.py)
+> **Note** All codes provided below in this section is available [here](../../demos/GrooveEvaluator/03_other_artifacts.py)
 
 
 
 ### Piano Rolls <a name="a3"></a>
 ```python
-piano_rolls = evaluator_test_set.get_piano_rolls(save_path="testers/GrooveEvaluator/misc/piano_rolls.html")
+piano_rolls = evaluator_test_set.get_piano_rolls(save_path="demos/GrooveEvaluator/misc/piano_rolls.html")
 ```
 
 <img src="assets/images/pianorolls.png" width="600">
@@ -322,7 +322,7 @@ where the gt audio is followed by 1 sec of silence and then the generated patter
 # get audios - separate files for ground truth and predictions
 audio_tuples = evaluator_test_set.get_audio_tuples(
    sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2",
-   save_directory="testers/GrooveEvaluator/misc/audios",
+   save_directory="demos/GrooveEvaluator/misc/audios",
    concatenate_gt_and_pred=False)
 ```
 
@@ -335,7 +335,7 @@ audio_tuples = evaluator_test_set.get_audio_tuples(
 # get audios - a single file containing ground truth and predictions with a 1sec silence in between
 audio_tuples = evaluator_test_set.get_audio_tuples(
    sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2",
-   save_directory="testers/GrooveEvaluator/misc/audios",
+   save_directory="demos/GrooveEvaluator/misc/audios",
    concatenate_gt_and_pred=True)
 ```
 
@@ -345,14 +345,14 @@ audio_tuples = evaluator_test_set.get_audio_tuples(
 ### Midi <a name="c3"></a>
 
 ```python
-evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="testers/GrooveEvaluator/misc/midi")
+evaluator_test_set.export_to_midi(need_gt=True, need_pred=True, directory="demos/GrooveEvaluator/misc/midi")
 ```
 
 <img src="assets/images/midi_files.png" width="300">
 
 
 ## 6. Compiling Logging Media <a name="4"></a>
-> **Note** All codes provided below in this section is available [here](../../testers/GrooveEvaluator/04_compiled_results.py)
+> **Note** All codes provided below in this section is available [here](../../demos/GrooveEvaluator/04_compiled_results.py)
 
 
 Use the `get_logging_media` method to compile the logging media into a single dictionary.
@@ -364,7 +364,7 @@ logging_media = evaluator_test_set.get_logging_media()
 Also, you can automatically export all the requested media given a save_directory path
 
 ```python
-logging_media = evaluator_test_set.get_logging_media(save_directory="testers/GrooveEvaluator/misc/logged))
+logging_media = evaluator_test_set.get_logging_media(save_directory="demos/GrooveEvaluator/misc/logged))
 ```
 
 The resulting dictionary has the following keys:

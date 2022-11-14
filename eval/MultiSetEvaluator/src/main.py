@@ -527,5 +527,5 @@ def load_multi_set_evaluator(path):
 
 if __name__ == '__main__':
 
-    # For testing use testers/MultiSetEvaluator/demo.py
+    # For testing use demos/MultiSetEvaluator/demo.py
     pass

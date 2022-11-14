@@ -16,6 +16,9 @@ import numpy as np
 import bz2
 
 from copy import deepcopy
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("eval/GrooveEvaluator/utilities/subsetters.py")
 
 
 class SubsetterAndSampler(object):
@@ -160,7 +163,9 @@ class Set_Sampler(object):
         self.subsets_dict = {}
 
         total_samples = sum([len(x) for x in hvo_subsets_])
-        number_of_samples = number_of_samples if number_of_samples is not None else total_samples
+        if number_of_samples is None or number_of_samples > total_samples or number_of_samples <= 0:
+            logger.warning('All the samples are being used for GrooveEvaluator initialization')
+            number_of_samples = total_samples
 
         # delete empty sets
         for tag, hvo_subset in zip(tags_, hvo_subsets_):

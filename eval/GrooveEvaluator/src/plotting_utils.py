@@ -158,7 +158,8 @@ def velocity_timing_heatmaps_scatter_plotter(
 
 
             # Scatter Plot
-            c = p.circle(x=scatter_times, y=(scatter_vels + 127 * 1.02 * minor_ix), color=palette[minor_ix])
+            c = p.circle(x=scatter_times, y=(scatter_vels + 127 * 1.02 * minor_ix), color=palette[minor_ix],
+                         alpha=0.1)
             legend_it.append(("{}".format(minor_tags[minor_ix]), [c]))
             scatter_figures.append(c)
 
