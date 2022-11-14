@@ -41,7 +41,7 @@ training_dataset = MonotonicGrooveDataset(
     tapped_voice_idx=2,
     collapse_tapped_sequence=False,
     load_as_tensor=True,
-    sort_by_metada_key="loop_id"
+    sort_by_metadata_key="loop_id"
 )
 
 # =================================================================================================
