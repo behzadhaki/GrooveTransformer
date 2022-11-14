@@ -125,10 +125,18 @@ class InputLayer(torch.nn.Module):
         return out
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model, bce = False):
+    def __init__(self, embedding_size, d_model, offset_activation="tanh"):
+        """
+        Output layer of the transformer model
+        :param embedding_size: size of the embedding (output dim at each time step)
+        :param d_model:     size of the model         (input dim at each time step)
+        :param offset_activation:   activation function for the offset (default: tanh) (options: sigmoid, tanh)
+        """
         super(OutputLayer, self).__init__()
 
-        self.bce = bce
+        assert offset_activation in ["sigmoid", "tanh"], "offset_activation must be either sigmoid or tanh"
+
+        self.offset_activation = offset_activation
         self.embedding_size = embedding_size
         self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
 
@@ -137,23 +145,20 @@ class OutputLayer(torch.nn.Module):
         self.Linear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, decoder_out):
-
         y = self.Linear(decoder_out)
-
         y = torch.reshape(y, (decoder_out.shape[0], decoder_out.shape[1], 3, self.embedding_size // 3))
-
         _h = y[:, :, 0, :]
         _v = y[:, :, 1, :]
         _o = y[:, :, 2, :]
 
-        h = _h
+        h_logits = _h
         v = torch.sigmoid(_v)
-        if self.bce  == True:
-            o = torch.sigmoid(_o) - 0.5
-        else:
+        if self.offset_activation == "tanh":
             o = torch.tanh(_o) * 0.5
+        else:
+            o = torch.sigmoid(_o) - 0.5
 
-        return h, v, o
+        return h_logits, v, o
 
 # --------------------------------------------------------------------------------
 # ------------         VARIAIONAL REPARAMETERIZE BLOCK       ---------------------

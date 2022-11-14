@@ -11,8 +11,10 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
     """
     def __init__(self, d_model_enc, d_model_dec, embedding_size_src, embedding_size_tgt,
                  nhead_enc, nhead_dec, dim_feedforward, dropout, num_encoder_layers, latent_dim,
-                 num_decoder_layers, max_len, device, bce= False):
+                 num_decoder_layers, max_len, device, offset_activation):
         super(GrooveTransformerEncoderVAE, self).__init__()
+
+        assert offset_activation in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
 
         #input/output dims
         self.d_model_enc = d_model_enc
@@ -36,7 +38,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         self.deco_in = deco_imput(max_len, d_model_dec, latent_dim)
         self.Decoder = Encoder(d_model_dec, nhead_dec, dim_feedforward, dropout, num_decoder_layers)
 
-        self.OutputLayer = OutputLayer(embedding_size_tgt, d_model_dec, bce=bce)
+        self.OutputLayer = OutputLayer(embedding_size_tgt, d_model_dec, offset_activation=offset_activation)
 
         self.InputLayerEncoder.init_weights()
         self.OutputLayer.init_weights()
@@ -52,18 +54,24 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         out = self.OutputLayer(
             decoder_)  # (Nx32xembedding_size_tgt/3,Nx32xembedding_size_tgt/3,Nx32xembedding_size_tgt/3)
 
-
         return out, mu, log_var
 
     def predict(self, src, use_thres=True, thres=0.5, use_pd=False):
+        """
+        Predicts the actual hvo array from the input src
+        :param src:
+        :param use_thres:
+        :param thres:
+        :param use_pd:
+        :return: (full_hvo_array, mu, log_var)
+        """
         self.eval()
         with torch.no_grad():
-            _h, v, o = self.forward(
-                src)  # Nx32xembedding_size_src/3,Nx32xembedding_size_src/3,Nx32xembedding_size_src/3
-
+            # Nx32xembedding_size_src/3,Nx32xembedding_size_src/3,Nx32xembedding_size_src/3
+            (_h, v, o), mu, log_var = self.forward(src)
             h = get_hits_activation(_h, use_thres=use_thres, thres=thres, use_pd=use_pd)
 
-        return h, v, o
+        return torch.concat((h, v, o), dim=-1).detach().cpu().numpy(), mu, log_var
 
     def save(self, save_path, additional_info=None):
         if not save_path.endswith('.pth'):
