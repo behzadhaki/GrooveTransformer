@@ -57,7 +57,8 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
-                 collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None):
+                 collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
+                 down_sampled_ratio=None):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -66,6 +67,7 @@ class MonotonicGrooveDataset(Dataset):
         :param tapped_voice_idx:    [int] index of the voice to be tapped (default is 2 which is usually closed hat)
         :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
         :param load_as_tensor:      [bool] loads the data as a tensor of torch.float32 instead of a numpy array
+        :param sort_by_metadata_key: [str] sorts the data by the metadata key provided (e.g. "tempo")
         """
 
         # Get processed inputs, outputs and hvo sequences
@@ -73,7 +75,16 @@ class MonotonicGrooveDataset(Dataset):
         self.outputs = list()
         self.hvo_sequences = list()
 
-        subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
+        if down_sampled_ratio is None:
+            subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
+        else:
+            subset = load_down_sampled_gmd_hvo_sequences(
+                dataset_setting_json_path=dataset_setting_json_path,
+                subset_tag=subset_tag,
+                force_regenerate=False,
+                down_sampled_ratio=down_sampled_ratio,
+                cache_down_sampled_set=True
+            )
 
         if sort_by_metadata_key:
             if sort_by_metadata_key in subset[0].metadata[sort_by_metadata_key]:
