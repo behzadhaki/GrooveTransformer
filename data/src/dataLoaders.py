@@ -3,11 +3,13 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from math import ceil
+import json
+import os
+
 import logging
 logging.basicConfig(level=logging.DEBUG)
 dataLoaderLogger = logging.getLogger("data.src.dataLoaders")
-import json
-import os, sys
+
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
@@ -55,7 +57,7 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
-                 collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metada_key=None):
+                 collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -73,9 +75,9 @@ class MonotonicGrooveDataset(Dataset):
 
         subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
 
-        if sort_by_metada_key:
-            if sort_by_metada_key in subset[0].metadata[sort_by_metada_key]:
-                subset = sorted(subset, key=lambda x: x.metadata[sort_by_metada_key])
+        if sort_by_metadata_key:
+            if sort_by_metadata_key in subset[0].metadata[sort_by_metadata_key]:
+                subset = sorted(subset, key=lambda x: x.metadata[sort_by_metadata_key])
 
         # collect input tensors, output tensors, and hvo_sequences
         for idx, hvo_seq in enumerate(tqdm(subset)):
@@ -110,7 +112,7 @@ class MonotonicGrooveDataset(Dataset):
         return self.outputs[idx]
 
 # ---------------------------------------------------------------------------------------------- #
-# loading a downsampled dataset
+# loading a down sampled dataset
 # ---------------------------------------------------------------------------------------------- #
 
 
@@ -203,13 +205,14 @@ def down_sample_dataset(hvo_seq_list, down_sample_ratio):
 
 
 def load_down_sampled_gmd_hvo_sequences(
-        dataset_setting_json_path, subset_tag, down_sampled_ratio, force_regenerate=False):
+        dataset_setting_json_path, subset_tag, down_sampled_ratio, cache_down_sampled_set=True, force_regenerate=False):
     """
     Loads the hvo_sequences using the settings provided in the json file.
 
     :param dataset_setting_json_path: path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
     :param subset_tag: [str] whether to load the train/test/validation set
     :param down_sampled_ratio: [float] the ratio of the dataset to downsample to
+    :param cache_downsampled_set: [bool] whether to cache the down sampled dataset
     :param force_regenerate: [bool] if True, will regenerate the hvo_sequences from the raw data regardless of cache
     :return:
     """
@@ -217,7 +220,7 @@ def load_down_sampled_gmd_hvo_sequences(
     dir__ = get_data_directory_using_filters(dataset_tag,
                                              dataset_setting_json_path,
                                              down_sampled_ratio=down_sampled_ratio)
-    if (not os.path.exists(dir__)) or force_regenerate is True:
+    if (not os.path.exists(dir__)) or force_regenerate is True or cache_down_sampled_set is False:
         dataLoaderLogger.info(f"No Cached Version Available Here: {dir__}. ")
         dataLoaderLogger.info(f"Downsampling the dataset to {down_sampled_ratio} and saving to {dir__}.")
 
@@ -229,25 +232,27 @@ def load_down_sampled_gmd_hvo_sequences(
                 force_regenerate=False)
             down_sampled_dict.update({subset_tag: down_sample_dataset(hvo_seq_set, down_sampled_ratio)})
 
-        # create directories if needed
-        if not os.path.exists(dir__):
-            os.makedirs(dir__)
-
         # collect and dump samples that match filter
-        for set_key_, set_data_ in down_sampled_dict.items():
-            ofile = bz2.BZ2File(os.path.join(dir__, f"{set_key_}.bz2pickle"), 'wb')
-            pickle.dump(set_data_, ofile)
-            ofile.close()
+        if cache_down_sampled_set:
+            # create directories if needed
+            if not os.path.exists(dir__):
+                os.makedirs(dir__)
+            for set_key_, set_data_ in down_sampled_dict.items():
+                ofile = bz2.BZ2File(os.path.join(dir__, f"{set_key_}.bz2pickle"), 'wb')
+                pickle.dump(set_data_, ofile)
+                ofile.close()
+
+        dataLoaderLogger.info(f"Loaded {len(down_sampled_dict[subset_tag])} {subset_tag} samples from {dir__}")
+        return down_sampled_dict[subset_tag]
     else:
         dataLoaderLogger.info(f"Loading Cached Version from: {dir__}")
+        ifile = bz2.BZ2File(os.path.join(dir__, f"{subset_tag}.bz2pickle"), 'rb')
+        set_data_ = pickle.load(ifile)
+        ifile.close()
+        dataLoaderLogger.info(f"Loaded {len(set_data_)} {subset_tag} samples from {dir__}")
+        return set_data_
 
-    ifile = bz2.BZ2File(os.path.join(dir__, f"{subset_tag}.bz2pickle"), 'rb')
-    data = pickle.load(ifile)
-    ifile.close()
 
-    dataLoaderLogger.info(f"Loaded {len(data)} {subset_tag} samples from {dir__}")
-
-    return data
 
 
 if __name__ == "__main__":
