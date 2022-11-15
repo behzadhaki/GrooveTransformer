@@ -5,15 +5,12 @@
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16g
-#SBATCH -o /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.out
-#SBATCH -e /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.err
-
-export PATH="$HOME/GrooveTransformer/VarGrvTrnsfmr/bin:$PATH"
-
-module load CUDA/11.0.3
+#SBATCH -o /homedtic/bhaki/GrooveTransformer/error/%N.%J.VAE_test_loader.out
+#SBATCH -e /homedtic/bhaki/GrooveTransformer/error/%N.%J.VAE_test_loader.err
 
 export PATH="$HOME/project/anaconda3/bin:$PATH"
 export PATH="$/homedtic/bhaki/project/anaconda3/envs/torch_thesis:$PATH"
+
 source activate torch_thesis
 cd GrooveTransformer
 wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/7295cxer
