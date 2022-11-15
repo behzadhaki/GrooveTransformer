@@ -142,18 +142,24 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
 
         return (h_logits, v_logits, o_logits), mu, log_var, latent_z
 
-    def predict(self, src, thres=0.5):
+    def predict(self, src, thres=0.5, return_concatenated=False):
         """
         Predicts the actual hvo array from the input Base
         :param src: the input sequence [batch_size, seq_len, embedding_size_src]
         :param thres: (default=0.5) the threshold to use for the output
-        :return: (full_hvo_array, mu, log_var, latent_z)
+        :param return_concatenated: (default=False) if True, the output will be a single array of shape
+        :return: (full_hvo_array, mu, log_var, latent_z) if return_concatenated is False, else
+        ((h, v, o), mu, log_var, latent_z)
         """
         def encode_decode(src_):
             mu, log_var, latent_z = self.encode(src_)
-            h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_pd=False, use_thres=True)
-            hvo = torch.cat((h, v, o), dim=-1)
-            return hvo, mu, log_var, latent_z
+            h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_pd=False, use_thres=True,
+                                          return_concatenated=False)
+            if return_concatenated:
+                hvo = torch.cat((h, v, o), dim=-1)
+                return hvo, mu, log_var, latent_z
+            else:
+                return (h, v, o), mu, log_var, latent_z
 
         if not self.training:
             with torch.no_grad():

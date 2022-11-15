@@ -1,6 +1,4 @@
 # loaders and samplers
-from model.Base.modelLoadersSamplers import load_groove_transformer_encoder_model
-from model.Base.modelLoadersSamplers import get_prediction
 from model.Base.utils import get_hits_activation
 
 # BasicGrooveTransformer imports

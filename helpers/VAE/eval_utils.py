@@ -57,7 +57,7 @@ def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, datase
     in_groove = torch.tensor(
         np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
         device)
-    hvos_array, _, _, _ = groove_transformer_vae.predict(in_groove)
+    hvos_array, _, _, _ = groove_transformer_vae.predict(in_groove, return_concatenated=True)
     evaluator.add_predictions(hvos_array.detach().cpu().numpy())
 
     # Get the media from the evaluator

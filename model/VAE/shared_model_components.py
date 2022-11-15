@@ -244,8 +244,7 @@ class VAE_Decoder(torch.nn.Module):
         self.output_max_len = output_max_len
         self.output_embedding_size = output_embedding_size
         self.dropout = dropout
-
-        self.o_activation = torch.sigmoid if o_activation == "sigmoid" else torch.tanh
+        self.o_activation = o_activation
 
         self.DecoderInput = DecoderInput(
             max_len=self.output_max_len,
@@ -275,13 +274,14 @@ class VAE_Decoder(torch.nn.Module):
 
         return h_logits, v_logits, o_logits
 
-    def decode(self, latent_z, threshold=0.5, use_thres=True, use_pd=False):
+    def decode(self, latent_z, threshold=0.5, use_thres=True, use_pd=False, return_concatenated=False):
         """Converts the latent vector into hit, vel, offset values
 
         :param latent_z: (Tensor) [N x latent_dim]
         :param threshold: (float) Threshold for hit prediction
         :param use_thres: (bool) Whether to use thresholding for hit prediction
         :param use_pd: (bool) Whether to use a pd for hit prediction
+        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
         **For now only thresholding is supported**
 
         :return: (Tensor) h, v, o (each with dimension [N x max_len x num_voices])"""
@@ -294,7 +294,10 @@ class VAE_Decoder(torch.nn.Module):
 
             if self.o_activation == "tanh":
                 o = torch.tanh(o_logits) * 0.5
-            else:
+            elif self.o_activation == "sigmoid":
                 o = torch.sigmoid(o_logits) - 0.5
+            else:
+                raise ValueError(f"{self.o_activation} for offsets is not supported")
 
-        return h, v, o
+        return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
+
