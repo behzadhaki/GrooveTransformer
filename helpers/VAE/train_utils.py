@@ -41,7 +41,18 @@ def dice_fn(hit_logits, hit_targets):
 
 
 def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=None):
-
+    """
+    Calculate the hit loss for the given hit logits and hit targets.
+    The loss is calculated either using BCE or Dice loss function.
+    :param hit_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
+    :param hit_targets:     (torch.Tensor)  target output of the model
+    :param hit_loss_function:     (str)  either "bce" or "dice"
+    :param hit_loss_penalty_tensor: (default None)
+                                    (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
+                                    containing the hit loss penalty values per each location in the sequences.
+                                    **Only used when hit_loss_function is "bce"**
+    :return:    hit_loss (float)  the hit loss value
+    """
     if hit_loss_penalty_tensor is None:
         hit_loss_penalty_tensor = torch.ones_like(hit_targets)
 
@@ -59,6 +70,17 @@ def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_pena
 
 
 def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
+    """
+    Calculate the velocity loss for the velocity targets and the **Pre-Activation** output of the model.
+    The loss is calculated using either MSE or BCE loss function.
+    :param vel_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
+    :param vel_targets:     (torch.Tensor)  target output of the model
+    :param vel_loss_function:     (str)  either "mse" or "bce"
+    :param hit_loss_penalty_mat: (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
+                                    containing the hit loss penalty values per each location in the sequences.
+                                    **Used regardless of the vel_loss_function**
+    :return:    vel_loss (float)  the velocity loss value
+    """
     if isinstance(vel_loss_function, torch.nn.MSELoss):
         loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets) * hit_loss_penalty_mat
     elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):
@@ -69,11 +91,24 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss
     return torch.sum(loss_v, dim=2).mean()
 
 
-def calculate_kld_loss(mu, log_var):
-    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
-
-
 def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, hit_loss_penalty_mat):
+    """
+    Calculate the offset loss for the offset targets and the **Pre-Activation** output of the model.
+    The loss is calculated using either MSE or BCE loss function.
+
+    **For MSE, the offset_logit is first mapped to -0.5 to 0.5 using a tanh function. Alternatively, for BCE,
+    it is assumed that the offset_logit will be activated using a sigmoid function.**
+
+    :param offset_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
+    :param offset_targets:     (torch.Tensor)  target output of the model
+    :param offset_loss_function:     (str)  either "mse" or "bce"
+    :param hit_loss_penalty_mat: (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
+                                    containing the hit loss penalty values per each location in the sequences.
+                                    **Used regardless of the offset_loss_function**
+    :return:    offset_loss (float)  the offset loss value
+
+    """
+
     if isinstance(offset_loss_function, torch.nn.MSELoss):
         loss_o = offset_loss_function(torch.tanh(offset_logits), offset_targets) * hit_loss_penalty_mat
     elif isinstance(offset_loss_function, torch.nn.BCEWithLogitsLoss):
@@ -86,92 +121,38 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     return torch.sum(loss_o, dim=2).mean()
 
 
-
-def hits_accuracy(hits_predicted, hits_target):
-
-    y_true = np.reshape(hits_target, (-1,))
-    y_pred = np.reshape(hits_predicted, (-1,))
-
-    acc = np.sum(np.equal(y_true.astype(int), y_pred.astype(int))) / len(y_true)
-    return acc
-
-
-
-
-def initialize_model(params):
-    model_params = params["model"]
-    training_params = params["training"]
-    load_model = params["load_model"]
-
-    if model_params['encoder_only']:
-        groove_transformer = GrooveTransformerEncoder(model_params['d_model'], model_params['embedding_size_src'],
-                                                      model_params['embedding_size_tgt'], model_params['n_heads'],
-                                                      model_params['dim_feedforward'], model_params['dropout'],
-                                                      model_params['num_encoder_layers'],
-                                                      model_params['max_len'], model_params['device'])
-    else:
-        groove_transformer = GrooveTransformer(model_params['d_model'],
-                                               model_params['embedding_size_src'],
-                                               model_params['embedding_size_tgt'], model_params['n_heads'],
-                                               model_params['dim_feedforward'], model_params['dropout'],
-                                               model_params['num_encoder_layers'],
-                                               model_params['num_decoder_layers'],
-                                               model_params['max_len'], model_params['device'])
-
-    groove_transformer.to(model_params['device'])
-    optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=training_params['learning_rate']) if \
-        model_params['optimizer'] == 'adam' else torch.optim.SGD(groove_transformer.parameters(),
-                                                                 lr=training_params['learning_rate'])
-    epoch = 0
-
-    if load_model is not None:
-
-        # If model was saved locally
-        if load_model['location'] == 'local':
-
-            last_checkpoint = 0
-            # From the file pattern, get the file extension of the saved model (in case there are other files in dir)
-            file_extension_pattern = re.compile(r'\w+')
-            file_ext = file_extension_pattern.findall(load_model['file_pattern'])[-1]
-
-            # Search for all continuous digits in the file name
-            ckpt_pattern = re.compile(r'\d+')
-            ckpt_filename = ""
-
-            # Iterate through files in directory, find last checkpoint
-            for root, dirs, files in os.walk(load_model['dir']):
-                for name in files:
-                    if name.endswith(file_ext):
-                        checkpoint_epoch = int(ckpt_pattern.findall(name)[-1])
-                        if checkpoint_epoch > last_checkpoint:
-                            last_checkpoint = checkpoint_epoch
-                            ckpt_filename = name
-
-            # Load latest checkpoint found
-            if last_checkpoint > 0:
-                path = os.path.join(load_model['dir'], ckpt_filename)
-                checkpoint = torch.load(path)
-
-        # If restoring from wandb
-        elif load_model['location'] == 'wandb':
-            model_file = wandb.restore(load_model['file_pattern'].format(load_model['run'],
-                                                                         load_model['epoch']),
-                                       run_path=load_model['dir'])
-            checkpoint = torch.load(model_file.name)
-
-        groove_transformer.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint['epoch']
-
-    return groove_transformer, optimizer, epoch
+def calculate_kld_loss(mu, log_var):
+    """calculate the KLD loss for the given mu and log_var values against a standard normal distribution"""
+    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None):
-    # DONT PASS OPTIMIZER FOR EVALUATION
+    """
+    This function iteratively loops over the given dataloader and calculate the loss for each batch. If an optimizer is
+    provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
+    and returned at the end of the loop.
+
+    **Can be used for both training and testing. In testing however, backpropagation will not be performed**
 
 
+    :param dataloader_:     (torch.utils.data.DataLoader)  dataloader for the dataset
+    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param hit_loss_fn:     (str)  either "dice" or "bce"
+    :param velocity_loss_fn:    (str)  either "mse" or "bce"
+    :param offset_loss_fn:  (str)  either "mse" or "bce"
+    :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
+    :param device:  (torch.device)  the device to use for the model
+    :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
+    :return:    (dict)  a dictionary containing the loss values for the current batch
 
+                metrics = {
+                    "loss_total": np.mean(loss_total),
+                    "loss_h": np.mean(loss_h),
+                    "loss_v": np.mean(loss_v),
+                    "loss_o": np.mean(loss_o),
+                    "loss_KL": np.mean(loss_KL)}
+    """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
     loss_total, loss_h, loss_v, loss_o, loss_KL = [], [], [], [], []
@@ -241,6 +222,29 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, loss_hit_penalty_multiplier, device):
+    """
+    This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
+    and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
+    returned at the end of the loop.
+
+    :param train_dataloader:    (torch.utils.data.DataLoader)  dataloader for the training dataset
+    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param optimizer:  (torch.optim.Optimizer)  the optimizer to use for the model (sgd or adam)
+    :param hit_loss_fn:     ("dice" or torch.nn.BCEWithLogitsLoss)
+    :param velocity_loss_fn:  (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
+    :param offset_loss_fn:      (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
+    :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
+    :param device:  (str)  the device to use for the model
+
+    :return:    (dict)  a dictionary containing the loss values for the current batch
+
+            metrics = {
+                    "train/loss_total": np.mean(loss_total),
+                    "train/loss_h": np.mean(loss_h),
+                    "train/loss_v": np.mean(loss_v),
+                    "train/loss_o": np.mean(loss_o),
+                    "train/loss_KL": np.mean(loss_KL)}
+    """
     # ensure model is in training mode
     if groove_transformer_vae.training is False:
         logger.warning("Model is not in training mode. Setting to training mode.")
@@ -263,6 +267,27 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, loss_hit_penalty_multiplier, device):
+    """
+    This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
+    and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
+    of the loop.
+
+    :param test_dataloader:   (torch.utils.data.DataLoader)  dataloader for the test dataset
+    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param hit_loss_fn:     ("dice" or torch.nn.BCEWithLogitsLoss)
+    :param velocity_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
+    :param offset_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
+    :param loss_hit_penalty_multiplier:     (float)  the hit loss penalty multiplier
+    :param device:  (str)  the device to use for the model
+    :return:   (dict)  a dictionary containing the loss values for the current batch
+
+            metrics = {
+                    "test/loss_total": np.mean(loss_total),
+                    "test/loss_h": np.mean(loss_h),
+                    "test/loss_v": np.mean(loss_v),
+                    "test/loss_o": np.mean(loss_o),
+                    "test/loss_KL": np.mean(loss_KL)}
+    """
     # ensure model is in eval mode
     if groove_transformer_vae.training is True:
         logger.warning("Model is not in eval mode. Setting to eval mode.")
