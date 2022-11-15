@@ -128,7 +128,7 @@ for conveniently inspecting the model params.
 Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
 ```python
-from model.modelLoadesSamplers import load_groove_transformer_encoder_model
+from model.modelLoadesSamplers import load_mgt_model
 from model.saved.monotonic_groove_transformer_v1.params import model_params
 import torch
 import numpy as np
@@ -139,7 +139,7 @@ model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
 model_param = model_params[model_name]
 
 # 1. LOAD MODEL
-GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
+GrooveTransformer = load_mgt_model(model_path, model_param)
 checkpoint = torch.load(model_path, map_location=model_param['device'])
 ```
 
@@ -153,17 +153,17 @@ The models are:
 - `hopeful_gorge_252`       --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/v7p0se6e
 - `solar_shadow_247`        --> https://wandb.ai/mmil_tap2drum/transformer_groove_tap2drum/runs/35c9fysk
 
-To load the model, use the `load_groove_transformer_encoder_model` method from 
+To load the model, use the `load_mgt_model` method from 
 the `modelLoadesSamplers` module as discussed above. For example, to load the `misunderstood_bush_246` model,
 use the following [code](../../demos/model/monotonic_groove_transformer_v1/load_pretrained_versions_available.py):
 
 ```python
 
 ```python
-from model.Base.modelLoadesSamplers import load_groove_transformer_encoder_model
+from model.Base.modelLoadersSamplers import load_mgt_model
 
 model_path = f"model/saved/monotonic_groove_transformer_v1/latest/misunderstood_bush_246.pth"
-GrooveTransformer = load_groove_transformer_encoder_model(model_path)
+GrooveTransformer = load_mgt_model(model_path)
 ```
 ### 3.v Generation <a name="3_v"></a>
 Source code available [here](../../demos/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
@@ -182,10 +182,10 @@ input_groove_hvo = torch.tensor(input_hvo_seq.flatten_voices(), dtype=torch.floa
 
 Pass groove to model and sample a drum pattern
 ```python
-from model.modelLoadesSamplers import get_prediction
+from model.modelLoadesSamplers import predict_using_mgt
 voice_thresholds = [0.5] * 9           # per voice sampling thresholds
 voice_max_count_allowed = [32] * 9     # per voice max number of hits allowed
-output_hvo = get_prediction(GrooveTransformer, input_groove_hvo, voice_thresholds,
+output_hvo = predict_using_mgt(GrooveTransformer, input_groove_hvo, voice_thresholds,
                             voice_max_count_allowed, return_concatenated=True)
 ```
 

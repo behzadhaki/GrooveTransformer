@@ -1,2 +1,5 @@
 import helpers.VAE.train_utils as vae_train_utils
 import helpers.VAE.eval_utils as vae_test_utils
+
+from helpers.BasicMonotonicGrooveTransformer.modelLoadersSamplers import load_mgt_model
+from helpers.BasicMonotonicGrooveTransformer.modelLoadersSamplers import predict_using_mgt as get_prediction_from_basic_mgt

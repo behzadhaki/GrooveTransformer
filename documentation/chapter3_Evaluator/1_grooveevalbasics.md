@@ -144,7 +144,7 @@ input = np.array(
 #### 2.3.2 Pass Samples to Model <a name="2_iii_b"></a>
 
 ```python
-from model import load_groove_transformer_encoder_model
+from model import load_mgt_model
 from model.saved.monotonic_groove_transformer_v1.params import model_params
 import torch
 import numpy as np
@@ -152,7 +152,7 @@ import numpy as np
 model_name = "colorful_sweep_41" # robust_sweep_29
 model_path = f"model/saved/monotonic_groove_transformer_v1/{model_name}.model"
 model_param = model_params[model_name]
-GrooveTransformer = load_groove_transformer_encoder_model(model_path, model_param)
+GrooveTransformer = load_mgt_model(model_path, model_param)
 predictions = GrooveTransformer.predict(torch.tensor(evaluator_test_set.get_ground_truth_hvos_array(), dtype=torch.float32))
 predictions = torch.cat(predictions, -1)
 ```
