@@ -540,6 +540,7 @@ class Evaluator:
         FPR_array = []
         FP_over_N = []
         FN_over_P = []
+        DICE = []
 
         n_samples = len(self._gt_hvos_array)
         prediction_hvos_array = self._prediction_hvos_array if self._prediction_hvos_array is not None else [None] * n_samples
@@ -566,10 +567,12 @@ class Evaluator:
                 FP_array.append(FP)
                 FP_over_N.append(FP / Actual_N)
                 FN_over_P.append(FN / Actual_P)
+                DICE.append(2 * TP / (2 * TP + FP + FN) if (2 * TP + FP + FN) > 0 else 0)
                 Total_predicted_array.append((predictions == 1).sum())
 
         if predictions is not None:
             hit_scores_dict.update({
+                "Relative - DICE": DICE,
                 "Relative - TPR": TPR_array,
                 "Relative - FPR": FPR_array,
                 "Relative - PPV": PPV_array,
