@@ -1,81 +1,34 @@
 import os
 import torch
-#from torchmetrics import Accuracy
 import wandb
 import re
 import numpy as np
-from model.src.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
+from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
 
 
-def dice_fn(pred, target):
-    """This definition generalize to real valued pred and target vector.
-This should be differentiable.
-    pred: tensor with first dimension as batch
-    target: tensor with first dimension as batch
-    """
-    smooth = 1.
-    # have to use contiguous since they may from a torch.view op
-    iflat = pred.contiguous().view(-1)
-    tflat = target.contiguous().view(-1)
-    intersection = (iflat * tflat).sum()
-
-    A_sum = torch.sum(iflat * iflat)
-    B_sum = torch.sum(tflat * tflat)
-
-    return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
-def hits_accuracy(prediction, y):
-    y_h, y_v, y_o = torch.split(y, int(y.shape[2] / 3), 2)  # split in voices
-
-    preds, mu, log_var = prediction
-    pred_h, pred_v, pred_o = preds
-
-    #accuracy = Accuracy()
-    y_true = torch.reshape(y_h, (-1,)).cpu().detach().numpy()
-    y_pred = torch.reshape(pred_h, (-1,)).cpu().detach().numpy()
-
-    #acc = accuracy(y_true,y_pred )
-    acc = np.sum(np.equal(y_true.astype(int), y_pred.astype(int))) / len(y_true)
-    return acc
-
-
-def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = False, bce = False):
+def calculate_loss(prediction, y, bce_fn, mse_fn, hit_loss_penalty):
 
     y_h, y_v, y_o = torch.split(y, int(y.shape[2] / 3), 2)  # split in voices
-
-    preds, mu, log_var = prediction
-    pred_h, pred_v, pred_o = preds
-
-    #mu, log_var = variation
-
+    pred_h, pred_v, pred_o = prediction
 
     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
-    if dice == True:
-        loss_h = dice_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
-    else:
-        loss_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
-    bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
-    loss_hits = bce_h_sum_voices.mean()
 
+    bce_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+    bce_h_sum_voices = torch.sum(bce_h, dim=2)  # batch, time_steps
+    bce_hits = bce_h_sum_voices.mean()
 
-    if bce == True:
-        loss_v = bce_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
-    else:
-        loss_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
-    mse_v_sum_voices = torch.sum(loss_v, dim=2)  # batch, time_steps
-    loss_velocities = mse_v_sum_voices.mean()
+    mse_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
+    mse_v_sum_voices = torch.sum(mse_v, dim=2)  # batch, time_steps
+    mse_velocities = mse_v_sum_voices.mean()
 
-    if bce == True:
-        loss_o = bce_fn(pred_o, y_o) * hit_loss_penalty_mat
-    else:
-        loss_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
-    mse_o_sum_voices = torch.sum(loss_o, dim=2)
-    loss_offsets = mse_o_sum_voices.mean()
-
-    kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+    mse_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
+    mse_o_sum_voices = torch.sum(mse_o, dim=2)
+    mse_offsets = mse_o_sum_voices.mean()
 
 
 
-    total_loss = loss_hits + loss_velocities + loss_offsets + kld_loss
+
+    total_loss = bce_hits + mse_velocities + mse_offsets
 
     _h = torch.sigmoid(pred_h)
     h = torch.where(_h > 0.5, 1, 0)  # batch=64, timesteps=32, n_voices=9
@@ -85,20 +38,10 @@ def calculate_loss_VAE(prediction, y, bce_fn, mse_fn, hit_loss_penalty, dice = F
     n_hits = h_flat.shape[-1]
     hit_accuracy = (torch.eq(h_flat, y_h_flat).sum(axis=-1) / n_hits).mean()
 
-    hit_perplexity = torch.exp(loss_hits)
+    hit_perplexity = torch.exp(bce_hits)
 
-    losses = {
-        'training_accuracy': hit_accuracy.item(),
-        'training_perplexity': hit_perplexity.item(),
-        'loss_h': loss_hits.item(),
-        'loss_v': loss_velocities.item(),
-        'loss_o': loss_offsets.item(),
-        'loss_KL': kld_loss.item()
-    }
-
-    return total_loss, losses
-           #hit_accuracy.item(), hit_perplexity.item(), loss_hits.item(), loss_velocities.item(), \
-           #loss_offsets.item()
+    return total_loss, hit_accuracy.item(), hit_perplexity.item(), bce_hits.item(), mse_velocities.item(), \
+           mse_offsets.item()
 
 
 def initialize_model(params):

@@ -5,7 +5,7 @@ sweep_config = {
             'method': 'random',
             'metric': {
                 'name': 'loss',
-                'goal': 'minimize'
+                'goal': 'minimize'          # FIXME: Maximize accuracy
             }}
 
 parameters_dict = {

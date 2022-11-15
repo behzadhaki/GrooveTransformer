@@ -1,9 +1,14 @@
 # loaders and samplers
-from model.src.modelLoadesSamplers import load_groove_transformer_encoder_model
-from model.src.modelLoadesSamplers import get_prediction
-
+from model.Base.modelLoadesSamplers import load_groove_transformer_encoder_model
+from model.Base.modelLoadesSamplers import get_prediction
+from model.Base.utils import get_hits_activation
 
 # BasicGrooveTransformer imports
-from model.src.BasicGrooveTransformer import GrooveTransformer
-from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
+from model.Base.BasicGrooveTransformer import GrooveTransformer
+from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder
+
+
+# VAE Imports
+import model.VAE.shared_model_components_VAE as VAE_components
+from model.VAE.MonotonicGrooveVAE import GrooveTransformerEncoderVAE
 

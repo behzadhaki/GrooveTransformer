@@ -20,7 +20,7 @@ from bokeh.plotting import figure, show
 from bokeh.transform import cumsum
 
 import logging
-logger = logging.getLogger("data.src.utils")
+logger = logging.getLogger("data.Base.utils")
 logger.setLevel(logging.DEBUG)
 
 def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE

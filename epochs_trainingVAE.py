@@ -1,7 +1,7 @@
 import torch
 
 torch.backends.cudnn.enabled = False
-from model.src.BasicGrooveTransformer_VAE import *
+from model.Base.BasicGrooveTransformer_VAE import *
 from helpers.BasicGrooveTransformer_train_VAE import *
 
 ### encoder params

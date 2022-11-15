@@ -73,16 +73,16 @@ if __name__ == '__main__':
     TEM.save("model/misc/rand_model.pth")
 
     # test input layer
-    # from model.src.BasicGrooveTransformer import InputLayer
+    # from model.Base.BasicGrooveTransformer import InputLayer
     #
-    # src = torch.rand(params["N"], params["max_len"], params["embedding_size"])
-    # print(src.shape)
+    # Base = torch.rand(params["N"], params["max_len"], params["embedding_size"])
+    # print(Base.shape)
     # InputLayer = InputLayer(params["embedding_size_src"], params["d_model"], params["dropout"], params["max_len"])
-    # y = InputLayer(src)
+    # y = InputLayer(Base)
     # print(y.shape, y)
     #
     # # test output layer
-    # from model.src.BasicGrooveTransformer import OutputLayer
+    # from model.Base.BasicGrooveTransformer import OutputLayer
     #
     # OutputLayer = OutputLayer(params["embedding_size_tgt"], params["d_model"])
     # h, v, o = OutputLayer(y)

@@ -1,8 +1,8 @@
 import wandb
 import torch
 from statistics import mean
-from model.src.BasicGrooveTransformer_VAE import GrooveTransformerEncoderVAE
-from helpers.BasicGrooveTransformer_train_VAE import calculate_loss_VAE, hits_accuracy
+from model import GrooveTransformerEncoderVAE
+from helpers.VAE.train_utils import calculate_loss_VAE, hits_accuracy
 from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
 import numpy as np
@@ -10,6 +10,7 @@ import logging
 import yaml
 import argparse
 from eval.GrooveEvaluator import load_evaluator
+from helpers.VAE.eval_utils import get_logging_media_for_vae_model_wandb
 
 logger = logging.getLogger("train.py")
 logger.setLevel(logging.DEBUG)
@@ -29,32 +30,36 @@ parser.add_argument(
 )
 parser.add_argument("--wandb_project", help="WANDB Project Name", default="sweeps_small")
 
-# HParams for the model, to use if no config file is provided
-parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
-parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
+# model parameters
 parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=16)
 parser.add_argument("--d_model_dec", help="Dimension of the decoder model", default=16)
 parser.add_argument("--embedding_size_src", help="Dimension of the source embedding", default=27)
 parser.add_argument("--embedding_size_tgt", help="Dimension of the target embedding", default=27)
-parser.add_argument("--dim_feedforward", help="Dimension of the feedforward layer", default=32)
+parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
+parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
+parser.add_argument("--dim_feedforward_enc", help="Dimension of the feedforward layer for the encoder", default=32)
+parser.add_argument("--dim_feedforward_dec", help="Dimension of the feedforward layer for the decoder", default=32)
+parser.add_argument("--num_encoder_layers", help="Number of encoder layers", default=2)
+parser.add_argument("--num_decoder_layers", help="Number of decoder layers", default=2)
 parser.add_argument("--dropout", help="Dropout", default=0.4)
+parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
+parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
+parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)          # FIXME: check the model tester, if this is different from the encoder, it will fail
+parser.add_argument("--device", help="Device to use", default="cpu")
+parser.add_argument("--o_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
+                    default="tanh")
+parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss", default='bce')   # FIXME: WHAT DOES THIS DO? FI (check)
+
+# HParams for the model, to use if no config file is provided
 parser.add_argument("--loss_hit_penalty_multiplier",
                     help="loss values corresponding to correctly predicted silences will be weighted with this factor",
                     default=0.5)
-parser.add_argument("--num_encoder_layers", help="Number of encoder layers", default=2)
-parser.add_argument("--num_decoder_layers", help="Number of decoder layers", default=2)
-parser.add_argument("--max_len", help="Maximum length of the sequence", default=32)
-parser.add_argument("--device", help="Device to use", default=0)
-parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
 parser.add_argument("--epochs", help="Number of epochs", default=50)
 parser.add_argument("--batch_size", help="Batch size", default=16)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
-parser.add_argument("--use_bce", help="Use BCE loss", default=True)     # FIXME: WHAT DOES THIS DO?
-parser.add_argument("--use_dice", help="Use DICE loss", default=True)   # FIXME: WHAT DOES THIS DO?
-parser.add_argument("--offset_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
-                    default="tanh")             # FIXME: I added this (bce in output layer was super confusing -> renamed to offset_activation)
 
-parser.add_argument("--test_mode", help="Use testing dataset (1% of full date) for testing the script", default=False)  # FIXME: Default should be False before merging
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)  # FIXME: Default should be False before merging
+parser.add_argument("--optimizer", help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd")
 parser.add_argument("--dataset_json_dir",
                     help="Path to the folder hosting the dataset json file",
                     default="data/dataset_json_settings")
@@ -86,26 +91,35 @@ if args.config is not None:
         hparams = yaml.safe_load(f)
 else:
     hparams = dict(
-        nhead_enc=args.nhead_enc,
-        nhead_dec=args.nhead_dec,
         d_model_enc=args.d_model_enc,
         d_model_dec=args.d_model_dec,
         embedding_size_src=args.embedding_size_src,
         embedding_size_tgt=args.embedding_size_tgt,
-        dim_feedforward=args.dim_feedforward,
-        dropout=args.dropout,
-        loss_hit_penalty_multiplier=args.loss_hit_penalty_multiplier,
+        nhead_enc=args.nhead_enc,
+        nhead_dec=args.nhead_dec,
+        dim_feedforward_enc=args.dim_feedforward_enc,
+        dim_feedforward_dec=args.dim_feedforward_dec,
         num_encoder_layers=args.num_encoder_layers,
         num_decoder_layers=args.num_decoder_layers,
-        max_len=int(args.max_len),
-        device="cpu" if args.device == 0 or not torch.cuda.is_available() else "cuda",
+        dropout=args.dropout,
         latent_dim=args.latent_dim,
+        max_len_enc=args.max_len_enc,
+        max_len_dec=args.max_len_dec,
+        device=args.device,
+        o_activation=args.o_activation,
+        hit_loss_function=args.hit_loss_function,
+        loss_hit_penalty_multiplier=args.loss_hit_penalty_multiplier,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        lr=args.lr,                 # FIXME only two values set in the sweep!!!!
-        use_bce=args.use_bce,
-        use_dice=args.use_dice,
-        offset_activation=args.offset_activation)  # TODO add dice loss to log
+        lr=args.lr,
+        optimizer=args.optimizer,
+        is_testing=args.is_testing,
+        dataset_json_dir=args.dataset_json_dir,
+        dataset_json_fname=args.dataset_json_fname,
+    )
+
+
+
 
 # config files without wandb_project specified
 if args.wandb_project is not None:
@@ -138,38 +152,24 @@ if __name__ == "__main__":
     training_dataset = MonotonicGrooveDataset(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="train",
-        max_len=int(args.max_len),
+        max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
         collapse_tapped_sequence=False,
-        down_sampled_ratio=0.1 if args.test_mode is True else None)
+        down_sampled_ratio=0.1 if args.is_testing is True else None)
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
     test_dataset = MonotonicGrooveDataset(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="test",
-        max_len=int(args.max_len),
+        max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
         collapse_tapped_sequence=False,
-        down_sampled_ratio=0.1 if args.test_mode is True else None)
+        down_sampled_ratio=0.1 if args.is_testing is True else None)
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
     # Initialize the model
     # ------------------------------------------------------------------------------------------------------------
-    groove_transformer_cpu = GrooveTransformerEncoderVAE(
-        d_model_enc=config.d_model_enc,
-        d_model_dec=config.d_model_dec,
-        embedding_size_src=config.embedding_size_src,
-        embedding_size_tgt=config.embedding_size_tgt,
-        nhead_enc=config.nhead_enc,
-        nhead_dec=config.nhead_dec,
-        dim_feedforward=config.dim_feedforward,
-        dropout=config.dropout,
-        num_encoder_layers=config.num_encoder_layers,
-        latent_dim=config.latent_dim,
-        num_decoder_layers=config.num_decoder_layers,
-        max_len=config.max_len,
-        device=config.device,
-        offset_activation=config.offset_activation)
+    groove_transformer_cpu = GrooveTransformerEncoderVAE(config)
 
     groove_transformer = groove_transformer_cpu.to(config.device)
 
@@ -188,6 +188,12 @@ if __name__ == "__main__":
         # ------------------------------------------------------------------------------------------
         groove_transformer.train()
 
+        loss_total = np.array([])
+        loss_h = np.array([])
+        loss_v = np.array([])
+        loss_o = np.array([])
+        loss_KL = np.array([])
+
         # Iterate over batches
         # ------------------------------------------------------------------------------------------
         for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
@@ -205,12 +211,12 @@ if __name__ == "__main__":
             # ---------------------------------------------------------------------------------------
             loss, losses = calculate_loss_VAE(
                 prediction=output_net,
-                y=outputs,                                      # TODO rename y to targets
+                targets=outputs,  # TODO rename y to targets (chek)
                 bce_fn=bce_fn,
                 mse_fn=mse_fn,
                 hit_loss_penalty=config.loss_hit_penalty_multiplier,
-                dice=config.use_dice,                           # TODO rename to use_dice
-                bce=config.use_bce)                             # TODO rename to use_bce
+                hit_loss_function=config.hit_loss_function,  # TODO rename to use_dice (check)
+                offset_activation=config.offset_activation)  # TODO rename to use_bce (check)
 
             # Backward pass
             # ---------------------------------------------------------------------------------------
@@ -220,17 +226,22 @@ if __name__ == "__main__":
 
             # Log metrics
             # ---------------------------------------------------------------------------------------
-            # FIXME!!!! You're only logging the last batch of the epoch!!!
-            metrics = {"train/loss_total": loss.cpu().detach().numpy(),
-                       "train/epoch": epoch,
-                       "train/loss_h": losses['loss_h'],
-                       "train/loss_v": losses['loss_v'],
-                       "train/loss_o": losses['loss_o'],
-                       "train/loss_KL": losses['loss_KL'],
-                       }
+            loss_total = np.append(loss_total, val_loss.cpu().detach().numpy())
+            loss_h = np.append(loss_h, val_losses['loss_h'])
+            loss_v = np.append(loss_v, val_losses['loss_v'])
+            loss_o = np.append(loss_o, val_losses['loss_o'])
+            loss_KL = np.append(loss_KL, val_losses['loss_KL'])
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+
+        # FIXME!!!! You're only logging the last batch of the epoch!!! (check)
+        # Log metrics
+        wandb.log({"train/loss_total": loss_total.mean(),
+                   "train/loss_h": loss_h.mean(),
+                   "train/loss_v": loss_v.mean(),
+                   "train/loss_o": loss_o.mean(),
+                   "train/loss_KL": loss_KL.mean()}, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
         # After each epoch, evaluate the model on the test set
@@ -282,28 +293,31 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.generate_audio_samples:
             if epoch % args.piano_roll_frequency == 0:
-                eval_audio_piano_roll_test = load_evaluator(
-                    f"eval/GrooveEvaluator/templates/5_percent_of_4_4_Beats_gmd_test_evaluator.Eval.bz2")
-                hvo_seqs = eval_audio_piano_roll_test.get_ground_truth_hvo_sequences()
-                eval_in = torch.tensor(
-                    np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
-                    config.device)
-                hvos_array, _, _= groove_transformer.predict(eval_in)
-                eval_audio_piano_roll_test.add_predictions(hvos_array)
-                media = eval_audio_piano_roll_test.get_logging_media(
-                    prepare_for_wandb=True, need_piano_roll=True, need_audio=False, need_kl_oa=True)
+                media = get_logging_media_for_vae_model_wandb(
+                    groove_transformer_vae=groove_transformer,
+                    device=config.device,
+                    dataset_setting_json_path=config.dataset_setting_json_path,
+                    subset_name='test',
+                    down_sampled_ratio=0.005,
+                    cached_folder="eval/GrooveEvaluator/templates",
+                    divide_by_genre=True,
+                    need_piano_roll=True,
+                    need_kl_plot=False,
+                    need_audio=False
+                )
                 wandb.log(media, commit=False)
 
         # EVALUATION: Log Mean of Per Batch Metrics
         # ---------------------------------------------------------------------------------------------------
-        val_metrics = {"val/accuracy_h": accuracy_h.mean(),
-                       "val/loss_total": loss_total.mean(),
-                       "val/loss_h": loss_h.mean(),
-                       "val/loss_v":  loss_v.mean(),
-                       "val/loss_o":  loss_o.mean(),
-                       "val/loss_KL":  loss_KL.mean()}
+        wandb.log({
+            "test/accuracy_h": accuracy_h.mean(),
+            "test/loss_total": loss_total.mean(),
+            "test/loss_h": loss_h.mean(),
+            "test/loss_v":  loss_v.mean(),
+            "test/loss_o":  loss_o.mean(),
+            "test/loss_KL":  loss_KL.mean()},
+            commit=True)
 
-        wandb.log({**metrics, **val_metrics})
         logger.info(f"Epoch {epoch} Finished with total loss of {loss_total.mean()} and acc of {accuracy_h.mean()}")
 
         # Save the model if needed

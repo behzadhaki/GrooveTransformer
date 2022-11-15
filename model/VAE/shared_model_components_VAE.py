@@ -1,6 +1,8 @@
+#  Copyright (c) 2022. \n Created by Behzad Haki. behzad.haki@upf.edu
+
 import torch
 import math
-
+from model import get_hits_activation
 
 
 
@@ -55,52 +57,64 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
-
 # --------------------------------------------------------------------------------
 # ------------                  ENCODER BLOCK                ---------------------
 # --------------------------------------------------------------------------------
 class Encoder(torch.nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward, dropout, num_encoder_layers):
+    def __init__(self, d_model, nhead, dim_feedforward, num_encoder_layers, dropout, ):
         super(Encoder, self).__init__()
         norm_encoder = torch.nn.LayerNorm(d_model)
-        encoder_layer = torch.nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
-        self.Encoder = torch.nn.TransformerEncoder(encoder_layer, num_encoder_layers, norm_encoder)
+        encoder_layer = torch.nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        self.Encoder = torch.nn.TransformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=num_encoder_layers,
+            norm=norm_encoder)
 
     def forward(self, src):
-        src = src.permute(1, 0, 2)  # 32xNxd_model
-        out = self.Encoder(src)  # 32xNxd_model ()
-        out = out.permute(1, 0, 2)  # Nx32xd_model
+        """
+        input and output both have shape (batch, seq_len, embed_dim)
+        :param src:
+        :return:
+        """
+        out = self.Encoder(src)
         return out
 
-# --------------------------------------------------------------------------------
-# ------------                  DECODER BLOCK                ---------------------
-# --------------------------------------------------------------------------------
-def get_tgt_mask(d_model):
-    mask = (torch.triu(torch.ones(d_model, d_model)) == 1).transpose(0, 1).float()
-    mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-    return mask
-
-class Decoder(torch.nn.Module):
-
-    def __init__(self, d_model, nhead, dim_feedforward, dropout, num_decoder_layers):
-        super(Decoder, self).__init__()
-        norm_decoder = torch.nn.LayerNorm(d_model)
-        decoder_layer = torch.nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
-        self.Decoder = torch.nn.TransformerDecoder(decoder_layer, num_decoder_layers, norm_decoder)
-
-    def forward(self, tgt, memory, tgt_mask):
-        # tgt    Nx32xd_model
-        # memory Nx32xd_model
-
-        tgt = tgt.permute(1, 0, 2)  # 32xNxd_model
-        memory = memory.permute(1, 0, 2)  # 32xNxd_model
-
-        out = self.Decoder(tgt, memory, tgt_mask)  # 32xNxd_model
-
-        out = out.permute(1, 0, 2)  # Nx32xd_model
-
-        return out
+# # --------------------------------------------------------------------------------
+# # ------------                  DECODER BLOCK                ---------------------
+# # --------------------------------------------------------------------------------
+# def get_tgt_mask(d_model):
+#     mask = (torch.triu(torch.ones(d_model, d_model)) == 1).transpose(0, 1).float()
+#     mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+#     return mask
+#
+# class Decoder(torch.nn.Module):
+#
+#     def __init__(self, d_model, nhead, dim_feedforward, dropout, num_decoder_layers):
+#         super(Decoder, self).__init__()
+#         norm_decoder = torch.nn.LayerNorm(d_model)
+#         decoder_layer = torch.nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
+#         self.Decoder = torch.nn.TransformerDecoder(decoder_layer, num_decoder_layers, norm_decoder)
+#
+#     def forward(self, tgt, memory, tgt_mask):
+#         # tgt    Nx32xd_model
+#         # memory Nx32xd_model
+#
+#         tgt = tgt.permute(1, 0, 2)  # 32xNxd_model
+#         memory = memory.permute(1, 0, 2)  # 32xNxd_model
+#
+#         out = self.Decoder(tgt, memory, tgt_mask)  # 32xNxd_model
+#
+#         out = out.permute(1, 0, 2)  # Nx32xd_model
+#
+#         return out
 
 # --------------------------------------------------------------------------------
 # ------------                     I/O Layers                ---------------------
@@ -125,7 +139,7 @@ class InputLayer(torch.nn.Module):
         return out
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model, offset_activation="tanh"):
+    def __init__(self, embedding_size, d_model):
         """
         Output layer of the transformer model
         :param embedding_size: size of the embedding (output dim at each time step)
@@ -134,9 +148,6 @@ class OutputLayer(torch.nn.Module):
         """
         super(OutputLayer, self).__init__()
 
-        assert offset_activation in ["sigmoid", "tanh"], "offset_activation must be either sigmoid or tanh"
-
-        self.offset_activation = offset_activation
         self.embedding_size = embedding_size
         self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
 
@@ -147,18 +158,18 @@ class OutputLayer(torch.nn.Module):
     def forward(self, decoder_out):
         y = self.Linear(decoder_out)
         y = torch.reshape(y, (decoder_out.shape[0], decoder_out.shape[1], 3, self.embedding_size // 3))
-        _h = y[:, :, 0, :]
-        _v = y[:, :, 1, :]
-        _o = y[:, :, 2, :]
+        h_logits = y[:, :, 0, :]
+        v_logits = y[:, :, 1, :]
+        o_logits = y[:, :, 2, :]
 
-        h_logits = _h
-        v = torch.sigmoid(_v)
-        if self.offset_activation == "tanh":
-            o = torch.tanh(_o) * 0.5
-        else:
-            o = torch.sigmoid(_o) - 0.5
+        # h_logits = _h
+        # v = torch.sigmoid(_v)
+        # if self.offset_activation == "tanh":
+        #     o = torch.tanh(_o) * 0.5
+        # else:
+        #     o = torch.sigmoid(_o) - 0.5
 
-        return h_logits, v, o
+        return h_logits, v_logits, o_logits
 
 # --------------------------------------------------------------------------------
 # ------------         VARIAIONAL REPARAMETERIZE BLOCK       ---------------------
@@ -177,20 +188,26 @@ class reparameterize(torch.nn.Module):
 
     def forward(self, src):
         result = torch.flatten(src, start_dim=1)
+        print(f"result shape: {result.shape}")
         # Split the result into mu and var components
         # of the latent Gaussian distribution
         mu = self.fc_mu(result)
+        print(f"mu shape: {mu.shape}")
         log_var = self.fc_var(result)
+        print(f"log_var shape: {log_var.shape}")
 
         std = torch.exp(0.5 * log_var)
+        print(f"std shape: {std.shape}")
         eps = torch.randn_like(std)
+        print(f"eps shape: {eps.shape}")
         z = eps * std + mu
+        print(f"z shape: {z.shape}")
         return mu, log_var, z
 
 # --------------------------------------------------------------------------------
-# ------------       RECONTRUCTION DECODER IMPUT             ---------------------
+# ------------       RE-CONSTRUCTION DECODER INPUT             -------------------
 # --------------------------------------------------------------------------------
-class deco_imput(torch.nn.Module):
+class DecoderInput(torch.nn.Module):
     """
     reshape the input tensor to fix dimensions with decoder
 
@@ -198,8 +215,8 @@ class deco_imput(torch.nn.Module):
    :return: (Tensor) [N x max_len x d_model]
    """
 
-    def __init__(self, max_len, d_model, latent_dim):
-        super(deco_imput, self).__init__()
+    def __init__(self, max_len, latent_dim, d_model):
+        super(DecoderInput, self).__init__()
 
         self.max_len = max_len
         self.d_model = d_model
@@ -213,3 +230,59 @@ class deco_imput(torch.nn.Module):
         result = uptensor.view(-1, self.max_len, self.d_model)
 
         return result
+
+
+class VAE_Decoder(torch.nn.Module):
+    def __init__(self, latent_dim, d_model, num_decoder_layers, nhead, dim_feedforward,
+                 output_max_len, output_embedding_size, dropout, o_activation):
+        super(VAE_Decoder, self).__init__()
+
+        assert o_activation in ["sigmoid", "tanh"]
+
+        self.latent_dim = latent_dim
+        self.d_model = d_model
+        self.num_decoder_layers =    num_decoder_layers
+        self.nhead = nhead
+        self.dim_feedforward = dim_feedforward
+        self.output_max_len = output_max_len
+        self.output_embedding_size = output_embedding_size
+        self.dropout = dropout
+
+        self.o_activation = torch.sigmoid if o_activation == "sigmoid" else torch.tanh
+
+        self.DecoderInput = DecoderInput(
+            max_len=self.output_max_len,
+            latent_dim=self.latent_dim,
+            d_model=self.d_model)
+
+        self.Decoder = Encoder(
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            num_encoder_layers=self.num_decoder_layers,
+            dropout=self.dropout)
+
+        self.OutputLayer = OutputLayer(
+            embedding_size=self.output_embedding_size,
+            d_model=self.d_model)
+
+    def forward(self, latent_z):
+        pre_out = self.DecoderInput(latent_z)
+        decoder_ = self.Decoder(pre_out)
+        h_logits, v_logits, o_logits = self.OutputLayer(decoder_)
+
+        return h_logits, v_logits, o_logits
+
+    def predict(self, latent_z, threshold=0.5, use_thres=True, use_pd=False):
+        self.eval()
+        with torch.no_grad():
+            h_logits, v_logits, o_logits = self.forward(latent_z)
+            h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
+            v = torch.sigmoid(v_logits)
+
+            if self.o_activation == "tanh":
+                o = torch.tanh(o_logits) * 0.5
+            else:
+                o = torch.sigmoid(o_logits) - 0.5
+
+        return h, v, o

@@ -1,5 +1,5 @@
 import torch
-from model.src.BasicGrooveTransformer_VAE import *
+from model.Base.BasicGrooveTransformer_VAE import *
 from helpers.BasicGrooveTransformer_train_VAE import *
 # Load dataset as torch.utils.data.Dataset
 from data.dataLoaders import MonotonicGrooveDataset

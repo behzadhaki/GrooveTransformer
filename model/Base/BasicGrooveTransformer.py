@@ -3,8 +3,8 @@ import json
 
 import torch
 
-from model.src.shared_model_components import *
-from model.src.utils import *
+from model.Base.shared_model_components import *
+from model.Base.utils import *
 
 class GrooveTransformer(torch.nn.Module):
     """

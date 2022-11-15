@@ -8,7 +8,7 @@ import os
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
-dataLoaderLogger = logging.getLogger("data.src.dataLoaders")
+dataLoaderLogger = logging.getLogger("data.Base.dataLoaders")
 
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):

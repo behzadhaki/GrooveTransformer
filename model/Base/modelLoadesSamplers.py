@@ -1,5 +1,5 @@
 import torch
-from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
+from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder
 
 
 # --------------------------------------------------------------------------------

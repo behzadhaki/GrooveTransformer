@@ -33,7 +33,7 @@ Source code available [here](../../demos/model/monotonic_groove_transformer_v1/B
 
 ```python
 # Instantiating a model
-from model.src.BasicGrooveTransformer import GrooveTransformer
+from model.Base.BasicGrooveTransformer import GrooveTransformer
 
 params = {
     "d_model": 128,
@@ -43,9 +43,9 @@ params = {
     "num_encoder_layers": 6,
     "num_decoder_layers": 6,
     "max_len": 32,
-    "N": 64,             # batch size
-    "embedding_size_src": 16,   # input dimensionality at each timestep
-    "embedding_size_tgt": 27    # output dimensionality at each timestep
+    "N": 64,  # batch size
+    "embedding_size_src": 16,  # input dimensionality at each timestep
+    "embedding_size_tgt": 27  # output dimensionality at each timestep
 }
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -85,18 +85,18 @@ only section of the original transformer
 Source code available [here](../../demos/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
 
 ```python
-from model.src.BasicGrooveTransformer import GrooveTransformerEncoder
+from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder
 
 params = {
-        'd_model': 512,
-        'embedding_size_src': 27,
-        'embedding_size_tgt': 27,
-        'nhead': 1,
-        'dim_feedforward': 64,
-        'dropout': 0.25542373735391866,
-        'num_encoder_layers': 10,
-        'max_len': 32,
-        'device': 'gpu'
+    'd_model': 512,
+    'embedding_size_src': 27,
+    'embedding_size_tgt': 27,
+    'nhead': 1,
+    'dim_feedforward': 64,
+    'dropout': 0.25542373735391866,
+    'num_encoder_layers': 10,
+    'max_len': 32,
+    'device': 'gpu'
 }
 
 from model import GrooveTransformerEncoder
@@ -156,10 +156,12 @@ The models are:
 To load the model, use the `load_groove_transformer_encoder_model` method from 
 the `modelLoadesSamplers` module as discussed above. For example, to load the `misunderstood_bush_246` model,
 use the following [code](../../demos/model/monotonic_groove_transformer_v1/load_pretrained_versions_available.py):
+
 ```python
 
 ```python
-from model.src.modelLoadesSamplers import load_groove_transformer_encoder_model
+from model.Base.modelLoadesSamplers import load_groove_transformer_encoder_model
+
 model_path = f"model/saved/monotonic_groove_transformer_v1/latest/misunderstood_bush_246.pth"
 GrooveTransformer = load_groove_transformer_encoder_model(model_path)
 ```

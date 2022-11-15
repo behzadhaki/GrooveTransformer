@@ -1,12 +1,12 @@
 import torch
 
-from model.src.shared_model_components_VAE import *
+from model.Base.shared_model_components_VAE import *
 
 # import math
 
 encoder_layer = torch.nn.TransformerEncoderLayer(d_model=100, nhead=10, batch_first=True)
 src = torch.rand(20, 32, 100)
-# out = encoder_layer(src)
+# out = encoder_layer(Base)
 print(src.shape)
 
 encodermodule = Encoder(d_model=100, nhead=10, dim_feedforward=2048, dropout=0.4, num_encoder_layers=2)
