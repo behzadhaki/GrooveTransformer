@@ -24,7 +24,7 @@ parser.add_argument(
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored",
     default=None,
 )
-parser.add_argument("--wandb_project", help="WANDB Project Name", default="sweeps_small")
+parser.add_argument("--wandb_project", help="WANDB Project Name", default="SmallSweeps_MGT_VAE")
 
 # model parameters
 parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=16)
@@ -72,10 +72,10 @@ parser.add_argument("--dataset_json_fname",
 
 parser.add_argument("--save_model", help="Save model", default=True)
 parser.add_argument("--save_model_dir", help="Path to save the model", default="misc/VAE")
-parser.add_argument("--save_model_frequency", help="Save model every n epochs", default=10)
+parser.add_argument("--save_model_frequency", help="Save model every n epochs", default=100)
 
 parser.add_argument("--generate_audio_samples", help="Generate audio samples", default=True)
-parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=10)
+parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=40)
 
 # --------------------------------------------------------------------
 # Dummy arguments for running the script in pycharm's python console
@@ -121,8 +121,6 @@ else:
         dataset_json_dir=args.dataset_json_dir,
         dataset_json_fname=args.dataset_json_fname,
     )
-
-
 
 
 # config files without wandb_project specified
