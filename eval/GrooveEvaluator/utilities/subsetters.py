@@ -7,7 +7,6 @@ import sys
 sys.path.append("../../..")
 sys.path.append("../..")
 sys.path.append("..")
-print(sys.path)
 
 from hvo_sequence.hvo_seq import HVO_Sequence                           # required for loading pickles
 import note_seq

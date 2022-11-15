@@ -1,9 +1,11 @@
 from data import load_gmd_hvo_sequences, load_down_sampled_gmd_hvo_sequences
 from eval.GrooveEvaluator import Evaluator
 from eval.GrooveEvaluator import load_evaluator
-
 import os
 
+import logging
+logger = logging.getLogger("eval.GrooveEvaluator.templates.main")
+logger.setLevel("DEBUG")
 
 def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=None,
                     cached_folder="eval/GrooveEvaluator/templates/", divide_by_genre=True):
@@ -45,7 +47,7 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
         if down_sampled_ratio is not None else f"complete_set_of_{dataset_name}_{subset_name}"
 
     # create the evaluator
-    Evaluator(
+    eval = Evaluator(
         hvo_sequences_list_=hvo_seq_set,
         list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
         _identifier=_identifier,
@@ -61,10 +63,12 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
         need_piano_roll=False,
         need_kl_oa=False,
         n_samples_to_synthesize_and_draw="all",
-        disable_tqdm=False).dump(
-        path=cached_folder)
+        disable_tqdm=False)
 
-    return Evaluator
+    eval.dump(path=cached_folder)
+
+    logger.info(f"Template created and cached at {cached_folder}")
+    return eval
 
 
 def load_evaluator_template(dataset_setting_json_path, subset_name,
@@ -90,6 +94,7 @@ def load_evaluator_template(dataset_setting_json_path, subset_name,
     if os.path.exists(path):
         return load_evaluator(path)
     else:
+
         return create_template(
             dataset_setting_json_path=dataset_setting_json_path,
             subset_name=subset_name,

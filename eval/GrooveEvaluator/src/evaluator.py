@@ -594,7 +594,7 @@ class Evaluator:
         else:
             return hit_scores_dict
 
-    def get_statistics_of_pos_neg_hit_scores(self, hit_weight=1, csv_file=None, trim_decimals=3):
+    def get_statistics_of_pos_neg_hit_scores(self, hit_weight=1, csv_file=None, trim_decimals=3, return_as_pandas_df=False):
         # make sure that the csv file ends in .csv
         if csv_file is not None:
             if not csv_file.endswith(".csv"):
@@ -610,7 +610,10 @@ class Evaluator:
         if csv_file is not None:
             df2.to_csv(csv_file)
 
-        return df2
+        if return_as_pandas_df:
+            return df2
+        else:
+            return df2.to_dict()
 
     def get_pos_neg_hit_plots(self, save_path=None, prepare_for_wandb=False, kernel_bandwidth=0.05, plot_width=1200, plot_height=800):
         hit_scores_dict = self.get_pos_neg_hit_scores()
@@ -1328,7 +1331,6 @@ class HVOSeq_SubSet_Evaluator(object):
             self.global_features_dict = self.feature_extractor.get_global_features_dicts(
                 regroup_by_feature=self.group_by_minor_keys)
 
-        print(self.need_heatmap)
         if self.need_heatmap:
             self.vel_heatmaps_dict, self.vel_scatters_dict = self.feature_extractor.get_velocity_timing_heatmap_dicts(
                 s=(4, 10),

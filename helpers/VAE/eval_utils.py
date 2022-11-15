@@ -1,10 +1,12 @@
 #  Copyright (c) 2022. \n Created by Behzad Haki. behzad.haki@upf.edu
 import torch
 import numpy as np
-from eval.GrooveEvaluator import load_evaluator
-from eval.GrooveEvaluator import Evaluator
 from model import GrooveTransformerEncoderVAE
 from eval.GrooveEvaluator import load_evaluator_template
+
+from logging import getLogger
+logger = getLogger("helpers.VAE.eval_utils")
+logger.setLevel("DEBUG")
 
 def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
                             down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
@@ -33,6 +35,8 @@ def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, datase
         divide_by_genre=divide_by_genre
     )
 
+    # logger.info("Generating the PianoRolls for subset: {}".format(subset_name))
+
     # Prepare the flags for require media
     # ----------------------------------
     need_hit_scores = kwargs["need_hit_scores"] if "need_hit_scores" in kwargs.keys() else False
@@ -51,8 +55,6 @@ def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, datase
 
     # (1) Get the targets, (2) tapify and pass to the model (3) add the predictions to the evaluator
     # ------------------------------------------------------------------------------------------
-    print("**" * 20)
-    print(type(evaluator))
     hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
     in_groove = torch.tensor(
         np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
@@ -75,3 +77,47 @@ def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, datase
         need_kl_oa=need_kl_oa)
 
     return media
+
+
+def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
+                            down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
+                            divide_by_genre=True):
+
+    # logger.info("Generating the hit scores for subset: {}".format(subset_name))
+    # and model is correct type
+
+    assert isinstance(groove_transformer_vae, GrooveTransformerEncoderVAE)
+
+    # load the evaluator template (or create a new one if it does not exist)
+    evaluator = load_evaluator_template(
+        dataset_setting_json_path=dataset_setting_json_path,
+        subset_name=subset_name,
+        down_sampled_ratio=down_sampled_ratio,
+        cached_folder=cached_folder,
+        divide_by_genre=divide_by_genre
+    )
+
+    # (1) Get the targets, (2) tapify and pass to the model (3) add the predictions to the evaluator
+    # ------------------------------------------------------------------------------------------
+    hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
+
+    in_groove = torch.tensor(
+        np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32)
+    predictions = []
+
+    # batchify the input
+    groove_transformer_vae.eval()
+    with torch.no_grad():
+        for batch_ix, batch_in in enumerate(torch.split(in_groove, 32)):
+            hvos_array, _, _, _ = groove_transformer_vae.predict(
+                batch_in.to(device),
+                return_concatenated=True)
+            predictions.append(hvos_array.detach().cpu().numpy())
+
+    evaluator.add_predictions(np.concatenate(predictions))
+
+    hit_dict = evaluator.get_statistics_of_pos_neg_hit_scores()
+
+    score_dict = {f"{subset_name}/{key}_mean".replace(" ","_").replace("-","_"): float(value['mean']) for key, value in hit_dict.items()}
+    score_dict.update({f"{subset_name}/{key}_std".replace(" ","_").replace("-","_"): float(value['std']) for key, value in hit_dict.items()})
+    return score_dict

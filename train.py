@@ -261,7 +261,32 @@ if __name__ == "__main__":
                 )
                 wandb.log(media, commit=False)
 
+        # Get Hit Scores for the entire train and the entire test set
+        # ---------------------------------------------------------------------------------------------------
+        train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
+            groove_transformer_vae=groove_transformer_vae,
+            device=config.device,
+            dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+            subset_name='train',
+            down_sampled_ratio=0.1,
+            cached_folder="eval/GrooveEvaluator/templates",
+            divide_by_genre=False
+        )
+        wandb.log(train_set_hit_scores, commit=False)
+
+        test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
+            groove_transformer_vae=groove_transformer_vae,
+            device=config.device,
+            dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+            subset_name='test',
+            down_sampled_ratio=None,
+            cached_folder="eval/GrooveEvaluator/templates",
+            divide_by_genre=False
+        )
+        wandb.log(test_set_hit_scores, commit=False)
+
         wandb.log({"epoch": epoch}, commit=True)
+
         # Save the model if needed
         # ---------------------------------------------------------------------------------------------------
         if args.save_model:
