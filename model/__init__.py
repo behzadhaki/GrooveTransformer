@@ -9,6 +9,6 @@ from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder
 
 
 # VAE Imports
-import model.VAE.shared_model_components_VAE as VAE_components
+import model.VAE.shared_model_components as VAE_components
 from model.VAE.MonotonicGrooveVAE import GrooveTransformerEncoderVAE
 

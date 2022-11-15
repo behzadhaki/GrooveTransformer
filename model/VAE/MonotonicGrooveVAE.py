@@ -74,7 +74,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             num_encoder_layers=self.num_encoder_layers,
             dropout=self.dropout)
 
-        self.LatentEncoder = VAE_components.reparameterize(
+        self.LatentEncoder = VAE_components.LatentLayer(
             max_len=self.max_len_dec,
             d_model=self.d_model_enc,
             latent_dim=self.latent_dim)
@@ -94,39 +94,76 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         self.Decoder.OutputLayer.init_weights()
 
     def encode(self, src):
-        x = self.InputLayerEncoder(src)  # Nx32xd_model
-        print("x", x.shape)
-        memory = self.Encoder(x)  # Nx32xd_model
-        print("memory", memory.shape)
-        mu, log_var, latent_z = self.LatentEncoder(memory)
-        print(f"mu: {mu.shape}, log_var: {log_var.shape}, latent_z: {latent_z.shape}")
-        return mu, log_var, latent_z
+        """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space
+        of shape (batch_size, latent_dim)
+
+        :param src: the input sequence
+        :param eval: if True, the encoder will be in eval mode
+        :return: mu, log_var, latent_z (each of shape [batch_size, latent_dim])
+        """
+
+        def reparametrize(src_):
+            x = self.InputLayerEncoder(src_)  # Nx32xd_model
+            memory = self.Encoder(x)  # Nx32xd_model
+            mu, log_var, latent_z = self.LatentEncoder(memory)
+            return mu, log_var, latent_z
+
+        if not self.training:
+            with torch.no_grad():
+                return reparametrize(src)
+        else:
+            self.train()
+            return reparametrize(src)
+
+    def decode(self, latent_z, threshold=0.5):
+        """ Decodes a given latent space of shape (batch_size, latent_dim) into a sequence of shape
+        (batch_size, seq_len, embedding_size_tgt)
+
+        :param latent_z: the latent space of shape (batch_size, latent_dim)
+        :param threshold: (default 0.5) the threshold to use for hits
+        :return: the output sequence of shape (batch_size, seq_len, embedding_size_tgt)
+        """
+        if not self.training:
+            with torch.no_grad():
+                return self.Decoder.decode(latent_z, threshold=0.5)
+        else:
+            self.train()
+            return self.Decoder.decode(latent_z, threshold=0.5)
 
     def forward(self, src):
-        print("src", src.shape)
+        """ Converts a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a
+        **pre-activation** output sequence of shape (batch_size, seq_len, embedding_size_tgt)
+
+        :param src: the input sequence [batch_size, seq_len, embedding_size_src]
+        :return: (h_logits, v_logits, o_logits), mu, log_var, latent_z
+        """
         mu, log_var, latent_z = self.encode(src)
-        print(f"mu: {mu.shape}, log_var: {log_var.shape}, latent_z: {latent_z.shape}")
         h_logits, v_logits, o_logits = self.Decoder(latent_z)
 
-        return (h_logits, v_logits, o_logits), mu, log_var
+        return (h_logits, v_logits, o_logits), mu, log_var, latent_z
 
-    def predict(self, src, use_thres=True, thres=0.5, use_pd=False):
+    def predict(self, src, thres=0.5):
         """
         Predicts the actual hvo array from the input Base
-        :param src:
-        :param use_thres:
-        :param thres:
-        :param use_pd:
-        :return: (full_hvo_array, mu, log_var)
+        :param src: the input sequence [batch_size, seq_len, embedding_size_src]
+        :param thres: (default=0.5) the threshold to use for the output
+        :return: (full_hvo_array, mu, log_var, latent_z)
         """
-        self.eval()
-        with torch.no_grad():
-            mu, log_var, latent_z = self.encode(src)
-            h, v, o = self.Decoder.predict(latent_z, use_thres=use_thres, threshold=thres, use_pd=use_pd)
-            hvo = torch.cat((h, v, o), dim=-1).detach().cpu().numpy()
-        return hvo, mu, log_var
+        def encode_decode(src_):
+            mu, log_var, latent_z = self.encode(src_)
+            h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_pd=False, use_thres=True)
+            hvo = torch.cat((h, v, o), dim=-1)
+            return hvo, mu, log_var, latent_z
+
+        if not self.training:
+            with torch.no_grad():
+                return encode_decode(src)
+        else:
+            return encode_decode(src)
 
     def save(self, save_path, additional_info=None):
+        """ Saves the model to the given path. The Saved pickle has all the parameters ('params' field) as well as
+        the state_dict ('state_dict' field) """
         if not save_path.endswith('.pth'):
             save_path += '.pth'
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
