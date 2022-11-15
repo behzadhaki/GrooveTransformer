@@ -290,6 +290,7 @@ class VAE_Decoder(torch.nn.Module):
         **For now only thresholding is supported**
 
         :return: (Tensor) h, v, o (each with dimension [N x max_len x num_voices])"""
+
         self.eval()
         with torch.no_grad():
             h_logits, v_logits, o_logits = self.forward(latent_z)

@@ -1,4 +1,3 @@
-#  Copyright (c) 2022. \n Created by Behzad Haki. behzad.haki@upf.edu
 
 import os
 import torch
@@ -7,22 +6,36 @@ import wandb
 import re
 import numpy as np
 from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
+from logging import getLogger
+
+logger = getLogger("VAE_LOSS_CALCULATOR")
+logger.setLevel("DEBUG")
 
 
-def dice_fn(pred, target):
-    """This definition generalize to real valued pred and target vector.
-This should be differentiable.
-    pred: tensor with first dimension as batch
-    target: tensor with first dimension as batch
+def dice_fn(hit_logits, hit_targets):
     """
+    Dice loss function for binary segmentation problems. This function is used to calculate the loss for the hits.
+
+    **This code was taken from https://gist.github.com/weiliu620/52d140b22685cf9552da4899e2160183**
+
+    :param pred: Predicted output of the model
+    :param target: Target output of the model
+    :return: Dice loss value (1 - dice coefficient) where dice coefficient is calculated as 2*TP/(2*TP + FP + FN)
+
+    :param pred:    (torch.Tensor)  predicted output of the model -->
+    :param target:  (torch.Tensor)  target output of the model
+    :return:
+    """
+    hit_probs = torch.sigmoid(hit_logits)
+
     smooth = 1.
     # have to use contiguous since they may from a torch.view op
-    iflat = pred.contiguous().view(-1)
-    tflat = target.contiguous().view(-1)
-    intersection = (iflat * tflat).sum()
+    flat_probs = hit_probs.contiguous().view(-1)
+    flat_targets = hit_targets.contiguous().view(-1)
+    intersection = (flat_probs * flat_targets).sum()
 
-    A_sum = torch.sum(iflat * iflat)
-    B_sum = torch.sum(tflat * tflat)
+    A_sum = torch.sum(flat_probs * flat_probs)
+    B_sum = torch.sum(flat_targets * flat_targets)
 
     return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
 
@@ -36,63 +49,50 @@ def hits_accuracy(hits_predicted, hits_target):
     return acc
 
 
-def calculate_loss_VAE(mu, log_var, predictions, targets, bce_fn, mse_fn, hit_loss_penalty, hit_loss_function, offset_activation):
+def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=1.0):
 
-    assert hit_loss_function in ["bce", "dice"], "hit_loss_function MUST be 'bce' or 'dice'"
-    assert offset_activation in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
-
-    # Get target h, v, os from the targets tensor
-    target_h, target_v, target_o = torch.split(targets, int(targets.shape[2] / 3), dim=2)
-    pred_h, pred_v, pred_o = torch.split(predictions, int(predictions.shape[2] / 3), dim=2)
-
-    hit_loss_penalty_mat = torch.where(target_h == 1, float(1), float(hit_loss_penalty))
-
-    if hit_loss_function == 'dice':
-        loss_h = dice_fn(pred_h, target_h) * hit_loss_penalty_mat  # batch, time steps, voices
+    if isinstance(hit_loss_function, str):
+        assert hit_loss_function in ['dice']
+        logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
+        hit_loss = dice_fn(hit_logits, hit_targets)
     else:
-        loss_h = bce_fn(pred_h, target_h) * hit_loss_penalty_mat  # batch, time steps, voices
-    bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
-    loss_hits = bce_h_sum_voices.mean()
+        assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
+        loss_h = hit_loss_function(hit_logits, hit_targets) * hit_loss_penalty_tensor  # batch, time steps, voices
+        bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
+        hit_loss = bce_h_sum_voices.mean()
 
-    if offset_activation == "sigmoid":
-        loss_v = bce_fn(pred_v, target_v) * hit_loss_penalty_mat  # batch, time steps, voices
+    return hit_loss
+
+
+def calculate_vel_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
+    if isinstance(vel_loss_function, torch.nn.MSELoss):
+        loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets) * hit_loss_penalty_mat
+    elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):
+        loss_v = vel_loss_function(vel_logits, vel_targets) * hit_loss_penalty_mat
     else:
-        loss_v = mse_fn(pred_v, target_v) * hit_loss_penalty_mat  # batch, time steps, voices
-    loss_velocities = torch.sum(loss_v, dim=2).mean()
+        raise NotImplementedError(f"the vel_loss_function {vel_loss_function} is not implemented")
 
-    if offset_activation == "sigmoid":
-        loss_o = bce_fn(pred_o, target_o) * hit_loss_penalty_mat
+    return torch.sum(loss_v, dim=2).mean()
+
+
+def kld_loss(mu, log_var):
+    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
+
+
+def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, hit_loss_penalty_mat):
+    if isinstance(offset_loss_function, torch.nn.MSELoss):
+        loss_o = offset_loss_function(torch.tanh(offset_logits), offset_targets) * hit_loss_penalty_mat
+    elif isinstance(offset_loss_function, torch.nn.BCEWithLogitsLoss):
+        # here the offsets MUST be in the range of [0, 1]. Our existing targets are from [-0.5, 0.5].
+        # So we need to shift them to [0, 1] range by adding 0.5
+        loss_o = offset_loss_function(offset_logits, offset_targets+0.5) * hit_loss_penalty_mat
     else:
-        loss_o = mse_fn(pred_o, target_o) * hit_loss_penalty_mat
-    loss_offsets = torch.sum(loss_o, dim=2).mean()
+        raise NotImplementedError(f"the offset_loss_function {offset_loss_function} is not implemented")
 
-    kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+    return torch.sum(loss_o, dim=2).mean()
 
 
-    total_loss = loss_hits + loss_velocities + loss_offsets + kld_loss
 
-    _h = torch.sigmoid(pred_h)
-    h = torch.where(_h > 0.5, 1, 0)  # batch=64, timesteps=32, n_voices=9
-
-    h_flat = torch.reshape(h, (h.shape[0], -1))
-    h_target_flat = torch.reshape(target_h, (target_h.shape[0], -1))
-    n_hits = h_flat.shape[-1]
-    hit_accuracy = (torch.eq(h_flat, h_target_flat).sum(axis=-1) / n_hits).mean()
-
-    hit_perplexity = torch.exp(loss_hits)
-
-    losses = {
-        'training_accuracy': hit_accuracy.item(),
-        'training_perplexity': hit_perplexity.item(),
-        'loss_h': loss_hits.item(),
-        'loss_v': loss_velocities.item(),
-        'loss_o': loss_offsets.item(),
-        'loss_KL': kld_loss.item()
-    }
-
-    return total_loss, losses
-           #hit_accuracy.item(), hit_perplexity.item(), loss_hits.item(), loss_velocities.item(), \
-           #loss_offsets.item()
 
 
 def train_loop(dataloader, groove_transformer, loss_fn, bce_fn, mse_fn, opt, epoch, save, device,
@@ -238,3 +238,64 @@ def initialize_model(params):
         epoch = checkpoint['epoch']
 
     return groove_transformer, optimizer, epoch
+
+
+# def calculate_loss_VAE(prediction, targets, bce_fn, mse_fn, hit_loss_penalty, hit_loss_function, offset_activation):
+#     assert hit_loss_function in ["bce", "dice"], "hit_loss_function MUST be 'bce' or 'dice'"
+#     assert offset_activation in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
+#
+#     y_h, y_v, y_o = torch.split(targets, int(targets.shape[2] / 3), 2)  # split in voices
+#
+#     preds, mu, log_var = prediction
+#     pred_h, pred_v, pred_o = preds
+#
+#     #mu, log_var = variation
+#
+#
+#     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
+#     if hit_loss_function == 'dice':
+#         loss_h = dice_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+#     else:
+#         hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
+#         loss_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
+#     bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
+#     loss_hits = bce_h_sum_voices.mean()
+#
+#     if offset_activation == "sigmoid":
+#         loss_v = bce_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
+#     else:
+#         loss_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
+#     loss_velocities = torch.sum(loss_v, dim=2).mean()
+#
+#     if offset_activation == "sigmoid":
+#         loss_o = bce_fn(pred_o, y_o) * hit_loss_penalty_mat
+#     else:
+#         loss_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
+#     loss_offsets = torch.sum(loss_o, dim=2).mean()
+#
+#     kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+#
+#     total_loss = loss_hits + loss_velocities + loss_offsets + kld_loss
+#
+#     _h = torch.sigmoid(pred_h)
+#     h = torch.where(_h > 0.5, 1, 0)  # batch=64, timesteps=32, n_voices=9
+#
+#     h_flat = torch.reshape(h, (h.shape[0], -1))
+#     y_h_flat = torch.reshape(y_h, (y_h.shape[0], -1))
+#     n_hits = h_flat.shape[-1]
+#     hit_accuracy = (torch.eq(h_flat, y_h_flat).sum(axis=-1) / n_hits).mean()
+#
+#     hit_perplexity = torch.exp(loss_hits)
+#
+#     losses = {
+#         'training_accuracy': hit_accuracy.item(),
+#         'training_perplexity': hit_perplexity.item(),
+#         'loss_h': loss_hits.item(),
+#         'loss_v': loss_velocities.item(),
+#         'loss_o': loss_offsets.item(),
+#         'loss_KL': kld_loss.item()
+#     }
+#
+#     return total_loss, losses
+#            #hit_accuracy.item(), hit_perplexity.item(), loss_hits.item(), loss_velocities.item(), \
+#            #loss_offsets.item()
