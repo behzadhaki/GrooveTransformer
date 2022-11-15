@@ -12,8 +12,8 @@ export PATH="$HOME/project/anaconda3/bin:$PATH"
 export PATH="$/homedtic/bhaki/project/anaconda3/envs/torch_thesis:$PATH"
 export PATH="$/homedtic/bhaki:$PATH"
 
-conda activate torch_thesis
 cd GrooveTransformer
 
+source activate torch_thesis
 wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/7295cxer
 #python sweep_tester_VAE.py
