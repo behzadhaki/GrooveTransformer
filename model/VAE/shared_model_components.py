@@ -176,20 +176,15 @@ class LatentLayer(torch.nn.Module):
         :return:  mu , logvar, z (each with dimensions [N, latent_dim_size])
         """
         result = torch.flatten(src, start_dim=1)
-        print(f"result shape: {result.shape}")
         # Split the result into mu and var components
         # of the latent Gaussian distribution
         mu = self.fc_mu(result)
-        print(f"mu shape: {mu.shape}")
         log_var = self.fc_var(result)
-        print(f"log_var shape: {log_var.shape}")
 
         std = torch.exp(0.5 * log_var)
-        print(f"std shape: {std.shape}")
         eps = torch.randn_like(std)
-        print(f"eps shape: {eps.shape}")
         z = eps * std + mu
-        print(f"z shape: {z.shape}")
+
         return mu, log_var, z
 
 

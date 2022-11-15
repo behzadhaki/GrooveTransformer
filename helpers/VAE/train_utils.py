@@ -40,18 +40,12 @@ def dice_fn(hit_logits, hit_targets):
     return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
 
 
-def hits_accuracy(hits_predicted, hits_target):
+def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=None):
 
-    y_true = np.reshape(hits_target, (-1,))
-    y_pred = np.reshape(hits_predicted, (-1,))
+    if hit_loss_penalty_tensor is None:
+        hit_loss_penalty_tensor = torch.ones_like(hit_targets)
 
-    acc = np.sum(np.equal(y_true.astype(int), y_pred.astype(int))) / len(y_true)
-    return acc
-
-
-def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=1.0):
-
-    if isinstance(hit_loss_function, str):
+    if hit_loss_function == "dice":
         assert hit_loss_function in ['dice']
         logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
         hit_loss = dice_fn(hit_logits, hit_targets)
@@ -64,7 +58,7 @@ def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_pena
     return hit_loss
 
 
-def calculate_vel_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
+def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
     if isinstance(vel_loss_function, torch.nn.MSELoss):
         loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets) * hit_loss_penalty_mat
     elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):
@@ -75,7 +69,7 @@ def calculate_vel_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_pena
     return torch.sum(loss_v, dim=2).mean()
 
 
-def kld_loss(mu, log_var):
+def calculate_kld_loss(mu, log_var):
     return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
 
 
@@ -93,83 +87,15 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
 
 
 
+def hits_accuracy(hits_predicted, hits_target):
+
+    y_true = np.reshape(hits_target, (-1,))
+    y_pred = np.reshape(hits_predicted, (-1,))
+
+    acc = np.sum(np.equal(y_true.astype(int), y_pred.astype(int))) / len(y_true)
+    return acc
 
 
-def train_loop(dataloader, groove_transformer, loss_fn, bce_fn, mse_fn, opt, epoch, save, device,
-               encoder_only, hit_loss_penalty=1, test_inputs=None, test_gt=None):
-    size = len(dataloader.dataset)
-    groove_transformer.train()  # train mode
-    loss = 0
-
-    for batch, (x, y, idx) in enumerate(dataloader):
-
-        opt.zero_grad()
-
-        x = x.to(device)
-        y = y.to(device)
-
-        # Compute prediction and loss
-        if encoder_only:
-            pred = groove_transformer(x)
-        else:
-            # y_shifted
-            y_s = torch.zeros([y.shape[0], 1, y.shape[2]]).to(device)
-            y_s = torch.cat((y_s, y[:, :-1, :]), dim=1).to(device)
-            pred = groove_transformer(x, y_s)
-
-        loss, training_accuracy, training_perplexity, bce_h, mse_v, mse_o = loss_fn(pred, y, bce_fn, mse_fn,
-                                                                                    hit_loss_penalty)
-
-        # Backpropagation
-        loss.backward()
-        # update optimizer
-        opt.step()
-
-        if batch % 1 == 0:
-            wandb.log({'loss': loss.item(), 'hit_accuracy': training_accuracy, 'hit_perplexity': training_perplexity,
-                       'hit_loss': bce_h, 'velocity_loss': mse_v, 'offset_loss': mse_o, 'epoch': epoch,
-                       'batch': batch}, commit=False)
-        if batch % 100 == 0:
-            print('=======')
-            current = batch * len(x)
-            print(f"loss: {loss.item():>4f}  [{current:>4d}/{size:>4d}]")
-            print("hit accuracy:", np.round(training_accuracy, 4))
-            print("hit perplexity: ", np.round(training_perplexity, 4))
-            print("hit bce: ", np.round(bce_h, 4))
-            print("velocity mse: ", np.round(mse_v, 4))
-            print("offset mse: ", np.round(mse_o, 4))
-
-    if save:
-
-        save_filename = os.path.join(wandb.run.dir, "transformer_run_{}_Epoch_{}.Model".format(wandb.run.id, epoch))
-        torch.save({'epoch': epoch, 'model_state_dict': groove_transformer.state_dict(),
-                    'optimizer_state_dict': opt.state_dict(), 'loss': loss.item()}, save_filename)
-
-        # save model during training (if the training crashes, models will still be available at wandb.ai)
-        wandb.save(save_filename, base_path = wandb.run.dir)
-
-    if test_inputs is not None and test_gt is not None:
-        test_inputs = test_inputs.to(device)
-        test_gt = test_gt.to(device)
-        groove_transformer.eval()
-        with torch.no_grad():
-            if encoder_only:
-                test_predictions = groove_transformer(test_inputs)
-            else:
-                # test_gt_shifted
-                test_gt_s = torch.zeros([test_gt.shape[0], 1, test_gt.shape[2]]).to(device)
-                test_gt_s = torch.cat((test_gt_s, test_gt[:, :-1, :]), dim=1).to(device)
-                test_predictions = groove_transformer(test_inputs, test_gt_s)
-            test_loss, test_hits_accuracy, test_hits_perplexity, test_bce_h, test_mse_v, test_mse_o = \
-                loss_fn(test_predictions, test_gt, bce_fn, mse_fn, hit_loss_penalty)
-            wandb.log({'test_loss': test_loss.item(), 'test_hit_accuracy': test_hits_accuracy,
-                       'test_hit_perplexity': test_hits_perplexity, 'test_hit_loss': test_bce_h,
-                       'test_velocity_loss': test_mse_v, 'test_offset_loss': test_mse_o, 'epoch': epoch}, commit=False)
-
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    return loss.item()
 
 
 def initialize_model(params):
@@ -240,62 +166,119 @@ def initialize_model(params):
     return groove_transformer, optimizer, epoch
 
 
-# def calculate_loss_VAE(prediction, targets, bce_fn, mse_fn, hit_loss_penalty, hit_loss_function, offset_activation):
-#     assert hit_loss_function in ["bce", "dice"], "hit_loss_function MUST be 'bce' or 'dice'"
-#     assert offset_activation in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
-#
-#     y_h, y_v, y_o = torch.split(targets, int(targets.shape[2] / 3), 2)  # split in voices
-#
-#     preds, mu, log_var = prediction
-#     pred_h, pred_v, pred_o = preds
-#
-#     #mu, log_var = variation
-#
-#
-#     hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
-#     if hit_loss_function == 'dice':
-#         loss_h = dice_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
-#     else:
-#         hit_loss_penalty_mat = torch.where(y_h == 1, float(1), float(hit_loss_penalty))
-#         loss_h = bce_fn(pred_h, y_h) * hit_loss_penalty_mat  # batch, time steps, voices
-#     bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
-#     loss_hits = bce_h_sum_voices.mean()
-#
-#     if offset_activation == "sigmoid":
-#         loss_v = bce_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
-#     else:
-#         loss_v = mse_fn(pred_v, y_v) * hit_loss_penalty_mat  # batch, time steps, voices
-#     loss_velocities = torch.sum(loss_v, dim=2).mean()
-#
-#     if offset_activation == "sigmoid":
-#         loss_o = bce_fn(pred_o, y_o) * hit_loss_penalty_mat
-#     else:
-#         loss_o = mse_fn(pred_o, y_o) * hit_loss_penalty_mat
-#     loss_offsets = torch.sum(loss_o, dim=2).mean()
-#
-#     kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
-#
-#     total_loss = loss_hits + loss_velocities + loss_offsets + kld_loss
-#
-#     _h = torch.sigmoid(pred_h)
-#     h = torch.where(_h > 0.5, 1, 0)  # batch=64, timesteps=32, n_voices=9
-#
-#     h_flat = torch.reshape(h, (h.shape[0], -1))
-#     y_h_flat = torch.reshape(y_h, (y_h.shape[0], -1))
-#     n_hits = h_flat.shape[-1]
-#     hit_accuracy = (torch.eq(h_flat, y_h_flat).sum(axis=-1) / n_hits).mean()
-#
-#     hit_perplexity = torch.exp(loss_hits)
-#
-#     losses = {
-#         'training_accuracy': hit_accuracy.item(),
-#         'training_perplexity': hit_perplexity.item(),
-#         'loss_h': loss_hits.item(),
-#         'loss_v': loss_velocities.item(),
-#         'loss_o': loss_offsets.item(),
-#         'loss_KL': kld_loss.item()
-#     }
-#
-#     return total_loss, losses
-#            #hit_accuracy.item(), hit_perplexity.item(), loss_hits.item(), loss_velocities.item(), \
-#            #loss_offsets.item()
+def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
+               offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None):
+    # DONT PASS OPTIMIZER FOR EVALUATION
+
+
+
+    # Prepare the metric trackers for the new epoch
+    # ------------------------------------------------------------------------------------------
+    loss_total, loss_h, loss_v, loss_o, loss_KL = [], [], [], [], []
+
+    # Iterate over batches
+    # ------------------------------------------------------------------------------------------
+    for batch_count, (inputs, outputs, indices) in enumerate(dataloader_):
+        # Move data to GPU if available
+        # ---------------------------------------------------------------------------------------
+        inputs = inputs.to(device)
+        outputs = outputs.to(device)
+
+        # Forward pass
+        # ---------------------------------------------------------------------------------------
+        (h_logits, v_logits, o_logits), mu, log_var, latent_z = groove_transformer_vae.forward(inputs)
+
+        # Prepare targets for loss calculation
+        h_targets, v_targets, o_targets = torch.split(outputs, int(outputs.shape[2] / 3), 2)
+        hit_loss_penalty_mat = torch.where(h_targets == 1, float(1), float(loss_hit_penalty_multiplier))
+
+        # Compute losses
+        # ---------------------------------------------------------------------------------------
+        batch_loss_h = calculate_hit_loss(
+            hit_logits=h_logits, hit_targets=h_targets,
+            hit_loss_function=hit_loss_fn, hit_loss_penalty_tensor=hit_loss_penalty_mat)
+
+        batch_loss_v = calculate_velocity_loss(
+            vel_logits=v_logits, vel_targets=v_targets,
+            vel_loss_function=velocity_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+
+        batch_loss_o = calculate_offset_loss(
+            offset_logits=o_logits, offset_targets=o_targets,
+            offset_loss_function=offset_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+
+        batch_loss_KL = calculate_kld_loss(mu, log_var)
+
+        batch_loss_total = batch_loss_h + batch_loss_v + batch_loss_o + batch_loss_KL
+
+        # Backward pass
+        # ---------------------------------------------------------------------------------------
+        if optimizer is not None:
+            optimizer.zero_grad()
+            batch_loss_total.backward()
+            optimizer.step()
+
+        # Update the per batch loss trackers
+        # ---------------------------------------------------------------------------------------
+        loss_h.append(batch_loss_h.item())
+        loss_v.append(batch_loss_v.item())
+        loss_o.append(batch_loss_o.item())
+        loss_KL.append(batch_loss_KL.item())
+        loss_total.append(batch_loss_total.item())
+
+    # empty gpu cache if cuda
+    if device != 'cpu':
+        torch.cuda.empty_cache()
+
+    metrics = {
+        "loss_total": np.mean(loss_total),
+        "loss_h": np.mean(loss_h),
+        "loss_v": np.mean(loss_v),
+        "loss_o": np.mean(loss_o),
+        "loss_KL": np.mean(loss_KL)}
+
+    return metrics
+
+
+def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
+               offset_loss_fn, loss_hit_penalty_multiplier, device):
+    # ensure model is in training mode
+    if groove_transformer_vae.training is False:
+        logger.warning("Model is not in training mode. Setting to training mode.")
+        groove_transformer_vae.train()
+
+    # Run the batch loop
+    metrics = batch_loop(
+        dataloader_=train_dataloader,
+        groove_transformer_vae=groove_transformer_vae,
+        hit_loss_fn=hit_loss_fn,
+        velocity_loss_fn=velocity_loss_fn,
+        offset_loss_fn=offset_loss_fn,
+        loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
+        device=device,
+        optimizer=optimizer)
+
+    metrics = {f"train/{key}": value for key, value in metrics.items()}
+    return metrics
+
+
+def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
+               offset_loss_fn, loss_hit_penalty_multiplier, device):
+    # ensure model is in eval mode
+    if groove_transformer_vae.training is True:
+        logger.warning("Model is not in eval mode. Setting to eval mode.")
+        groove_transformer_vae.eval()
+
+    with torch.no_grad():
+        # Run the batch loop
+        metrics = batch_loop(
+            dataloader_=test_dataloader,
+            groove_transformer_vae=groove_transformer_vae,
+            hit_loss_fn=hit_loss_fn,
+            velocity_loss_fn=velocity_loss_fn,
+            offset_loss_fn=offset_loss_fn,
+            loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
+            device=device,
+            optimizer=None)
+
+    metrics = {f"test/{key}": value for key, value in metrics.items()}
+    return metrics

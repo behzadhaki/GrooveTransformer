@@ -1,16 +1,12 @@
 import wandb
 import torch
-from statistics import mean
 from model import GrooveTransformerEncoderVAE
-from helpers.VAE.train_utils import calculate_loss_VAE, hits_accuracy
+from helpers import vae_train_utils, vae_test_utils
 from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
-import numpy as np
 import logging
 import yaml
 import argparse
-from eval.GrooveEvaluator import load_evaluator
-from helpers.VAE.eval_utils import get_logging_media_for_vae_model_wandb
 
 logger = logging.getLogger("train.py")
 logger.setLevel(logging.DEBUG)
@@ -48,7 +44,12 @@ parser.add_argument("--max_len_dec", help="Maximum length of the decoder", defau
 parser.add_argument("--device", help="Device to use", default="cpu")
 parser.add_argument("--o_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
                     default="tanh")
-parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss", default='bce')   # FIXME: WHAT DOES THIS DO? FI (check)
+parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
+                    default='bce', choices=['bce', 'dice'])
+parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
+                    default='mse', choices=['bce', 'mse'])
+parser.add_argument("--offset_loss_function", help="offset_loss_function - either 'bce' or 'mse' loss",
+                    default='mse', choices=['bce', 'mse'])
 
 # HParams for the model, to use if no config file is provided
 parser.add_argument("--loss_hit_penalty_multiplier",
@@ -59,7 +60,8 @@ parser.add_argument("--batch_size", help="Batch size", default=16)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
 
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)  # FIXME: Default should be False before merging
-parser.add_argument("--optimizer", help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd")
+parser.add_argument("--optimizer", help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
+                    choices=['sgd', 'adam'])
 parser.add_argument("--dataset_json_dir",
                     help="Path to the folder hosting the dataset json file",
                     default="data/dataset_json_settings")
@@ -108,6 +110,8 @@ else:
         device=args.device,
         o_activation=args.o_activation,
         hit_loss_function=args.hit_loss_function,
+        velocity_loss_function=args.velocity_loss_function,
+        offset_loss_function=args.offset_loss_function,
         loss_hit_penalty_multiplier=args.loss_hit_penalty_multiplier,
         epochs=args.epochs,
         batch_size=args.batch_size,
@@ -169,134 +173,84 @@ if __name__ == "__main__":
 
     # Initialize the model
     # ------------------------------------------------------------------------------------------------------------
-    groove_transformer_cpu = GrooveTransformerEncoderVAE(config)
+    groove_transformer_vae_cpu = GrooveTransformerEncoderVAE(config)
 
-    groove_transformer = groove_transformer_cpu.to(config.device)
+    groove_transformer_vae = groove_transformer_vae_cpu.to(config.device)
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
-    bce_fn = torch.nn.BCEWithLogitsLoss(reduction='none')       # used for hit loss
-    mse_fn = torch.nn.MSELoss(reduction='none')                 # used for velocities and offsets losses
-    optimizer = torch.optim.Adam(groove_transformer.parameters(), lr=1e-4)    # FIXME !!!!!!!!! WHY JUST ADAM?????
+
+    if config.hit_loss_function == "bce":
+        hit_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
+    else:
+        hit_loss_fn = "dice"
+
+    if config.velocity_loss_function == "bce":
+        velocity_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
+    else:
+        velocity_loss_fn = torch.nn.MSELoss(reduction='none')
+
+    if config.offset_loss_function == "bce":
+        offset_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
+    else:
+        offset_loss_fn = torch.nn.MSELoss(reduction='none')
+
+    if config.optimizer == 'adam':
+        optimizer = torch.optim.Adam(groove_transformer_vae.parameters(), lr=config.lr)
+    else:
+        optimizer = torch.optim.SGD(groove_transformer_vae.parameters(), lr=config.lr)
 
     # Iterate over epochs
     # ------------------------------------------------------------------------------------------------------------
     metrics = dict()
     for epoch in range(config.epochs):
 
-        # Ensure Train Mode
+        # Run the training loop (trains per batch internally)
         # ------------------------------------------------------------------------------------------
-        groove_transformer.train()
+        groove_transformer_vae.train()
 
-        loss_total = np.array([])
-        loss_h = np.array([])
-        loss_v = np.array([])
-        loss_o = np.array([])
-        loss_KL = np.array([])
+        train_log_metrics = vae_train_utils.train_loop(
+            train_dataloader=train_dataloader,
+            groove_transformer_vae=groove_transformer_vae,
+            optimizer=optimizer,
+            hit_loss_fn=hit_loss_fn,
+            velocity_loss_fn=velocity_loss_fn,
+            offset_loss_fn=offset_loss_fn,
+            loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
+            device=config.device
+        )
 
-        # Iterate over batches
-        # ------------------------------------------------------------------------------------------
-        for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
-
-            # Move data to GPU if available
-            # ---------------------------------------------------------------------------------------
-            inputs = inputs.to(config.device)
-            outputs = outputs.to(config.device)
-
-            # Forward pass
-            # ---------------------------------------------------------------------------------------
-            output_net = groove_transformer(inputs)
-
-            # Compute losses
-            # ---------------------------------------------------------------------------------------
-            loss, losses = calculate_loss_VAE(
-                prediction=output_net,
-                targets=outputs,  # TODO rename y to targets (chek)
-                bce_fn=bce_fn,
-                mse_fn=mse_fn,
-                hit_loss_penalty=config.loss_hit_penalty_multiplier,
-                hit_loss_function=config.hit_loss_function,  # TODO rename to use_dice (check)
-                offset_activation=config.offset_activation)  # TODO rename to use_bce (check)
-
-            # Backward pass
-            # ---------------------------------------------------------------------------------------
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # Log metrics
-            # ---------------------------------------------------------------------------------------
-            loss_total = np.append(loss_total, val_loss.cpu().detach().numpy())
-            loss_h = np.append(loss_h, val_losses['loss_h'])
-            loss_v = np.append(loss_v, val_losses['loss_v'])
-            loss_o = np.append(loss_o, val_losses['loss_o'])
-            loss_KL = np.append(loss_KL, val_losses['loss_KL'])
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        # FIXME!!!! You're only logging the last batch of the epoch!!! (check)
-        # Log metrics
-        wandb.log({"train/loss_total": loss_total.mean(),
-                   "train/loss_h": loss_h.mean(),
-                   "train/loss_v": loss_v.mean(),
-                   "train/loss_o": loss_o.mean(),
-                   "train/loss_KL": loss_KL.mean()}, commit=False)
+        wandb.log(train_log_metrics, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
         # After each epoch, evaluate the model on the test set
         #     - To ensure not overloading the GPU, we evaluate the model on the test set also in batche
         #           rather than all at once
         # ---------------------------------------------------------------------------------------------------
-        groove_transformer.eval()
+        groove_transformer_vae.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
 
-        accuracy_h = np.array([])
-        loss_total = np.array([])
-        loss_h = np.array([])
-        loss_v = np.array([])
-        loss_o = np.array([])
-        loss_KL = np.array([])
+        test_log_metrics = vae_train_utils.test_loop(
+            test_dataloader=test_dataloader,
+            groove_transformer_vae=groove_transformer_vae,
+            hit_loss_fn=hit_loss_fn,
+            velocity_loss_fn=velocity_loss_fn,
+            offset_loss_fn=offset_loss_fn,
+            loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
+            device=config.device
+        )
 
-        for batch_count, (inputs, outputs, indices) in enumerate(test_dataloader):
-
-            # FIXME: ALL EVALUATIONS SO FAR ARE INCORRECT! check comments below
-            # EVALUATION: Move data to GPU if available
-            # ---------------------------------------------------------------------------------------
-            inputs_test = inputs.to(config.device)      # FIXME THERE WAS A BUG HERE, YOU WERE USING THE INPUTS AS OUTPUTS
-            output_test = outputs.to(config.device)
-
-            # EVALUATION: Forward pass
-            # ---------------------------------------------------------------------------------------
-            output_net_test = groove_transformer(inputs_test)       # FIXME: WHy isn't there a predict call here?
-            val_loss, val_losses = calculate_loss_VAE(
-                prediction=output_net_test,
-                y=output_test,
-                bce_fn=bce_fn,
-                mse_fn=mse_fn,
-                hit_loss_penalty=config.loss_hit_penalty_multiplier,
-                bce=config.use_bce,
-                dice=config.use_dice)       # FIXME THE order of the bce and dice was reversed ---> check if affects the test results
-
-            # EVALUATION: Track Per Batch Metrics to be logged
-            # ---------------------------------------------------------------------------------------
-            accuracy_h = np.append(accuracy_h, hits_accuracy(output_net_test, output_test))
-            loss_total = np.append(loss_total, val_loss.cpu().detach().numpy())
-            loss_h = np.append(loss_h, val_losses['loss_h'])
-            loss_v = np.append(loss_v, val_losses['loss_v'])
-            loss_o = np.append(loss_o, val_losses['loss_o'])
-            loss_KL = np.append(loss_KL, val_losses['loss_KL'])
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        wandb.log(test_log_metrics, commit=False)
+        logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
+                    f"and test loss of {test_log_metrics['test/loss_total']}")
 
         # Generate PianoRolls and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
         if args.generate_audio_samples:
             if epoch % args.piano_roll_frequency == 0:
-                media = get_logging_media_for_vae_model_wandb(
-                    groove_transformer_vae=groove_transformer,
+                media = vae_test_utils.get_logging_media_for_vae_model_wandb(
+                    groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
-                    dataset_setting_json_path=config.dataset_setting_json_path,
+                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name='test',
                     down_sampled_ratio=0.005,
                     cached_folder="eval/GrooveEvaluator/templates",
@@ -307,19 +261,7 @@ if __name__ == "__main__":
                 )
                 wandb.log(media, commit=False)
 
-        # EVALUATION: Log Mean of Per Batch Metrics
-        # ---------------------------------------------------------------------------------------------------
-        wandb.log({
-            "test/accuracy_h": accuracy_h.mean(),
-            "test/loss_total": loss_total.mean(),
-            "test/loss_h": loss_h.mean(),
-            "test/loss_v":  loss_v.mean(),
-            "test/loss_o":  loss_o.mean(),
-            "test/loss_KL":  loss_KL.mean()},
-            commit=True)
-
-        logger.info(f"Epoch {epoch} Finished with total loss of {loss_total.mean()} and acc of {accuracy_h.mean()}")
-
+        wandb.log({"epoch": epoch}, commit=True)
         # Save the model if needed
         # ---------------------------------------------------------------------------------------------------
         if args.save_model:
@@ -332,7 +274,7 @@ if __name__ == "__main__":
                     ep_ = epoch
                 model_artifact = wandb.Artifact(f'model_epoch_{ep_}', type='model')
                 model_path = f"{args.save_model_dir}/{args.wandb_project}/{run_name}_{run_id}/{ep_}.pth"
-                groove_transformer.save(model_path)
+                groove_transformer_vae.save(model_path)
                 model_artifact.add_file(model_path)
                 wandb_run.log_artifact(model_artifact)
                 logger.info(f"Model saved to {model_path}")

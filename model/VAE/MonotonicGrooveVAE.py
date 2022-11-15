@@ -125,10 +125,10 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         """
         if not self.training:
             with torch.no_grad():
-                return self.Decoder.decode(latent_z, threshold=0.5)
+                return self.Decoder.decode(latent_z, threshold=threshold)
         else:
             self.train()
-            return self.Decoder.decode(latent_z, threshold=0.5)
+            return self.Decoder.decode(latent_z, threshold=threshold)
 
     def forward(self, src):
         """ Converts a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a

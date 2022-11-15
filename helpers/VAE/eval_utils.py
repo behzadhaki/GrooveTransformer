@@ -51,12 +51,14 @@ def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, datase
 
     # (1) Get the targets, (2) tapify and pass to the model (3) add the predictions to the evaluator
     # ------------------------------------------------------------------------------------------
+    print("**" * 20)
+    print(type(evaluator))
     hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
     in_groove = torch.tensor(
         np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
         device)
-    hvos_array, _, _ = groove_transformer_vae.predict(in_groove)
-    evaluator.add_predictions(hvos_array)
+    hvos_array, _, _, _ = groove_transformer_vae.predict(in_groove)
+    evaluator.add_predictions(hvos_array.detach().cpu().numpy())
 
     # Get the media from the evaluator
     # -------------------------------
