@@ -110,6 +110,9 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     """
 
     if isinstance(offset_loss_function, torch.nn.MSELoss):
+        # the offset logits after the tanh activation are in the range of -1 to 1 . Therefore, we need to
+        # scale the offset targets to the same range. This is done by multiplying the offset values after
+        # the tanh activation by 0.5
         loss_o = offset_loss_function(torch.tanh(offset_logits)*0.5, offset_targets) * hit_loss_penalty_mat
     elif isinstance(offset_loss_function, torch.nn.BCEWithLogitsLoss):
         # here the offsets MUST be in the range of [0, 1]. Our existing targets are from [-0.5, 0.5].
