@@ -2,11 +2,11 @@ import wandb        # √
 import torch         # √
 from model import GrooveTransformerEncoderVAE        # √
 from helpers import vae_train_utils, vae_test_utils         # x
-from data.src.dataLoaders import MonotonicGrooveDataset
-from torch.utils.data import DataLoader
-import logging
-import yaml
-import argparse
+from data.src.dataLoaders import MonotonicGrooveDataset     # x
+from torch.utils.data import DataLoader # √
+import logging  # √
+import yaml # √
+import argparse # √
 
 logger = logging.getLogger("train.py")
 logger.setLevel(logging.DEBUG)
@@ -27,16 +27,16 @@ parser.add_argument(
 parser.add_argument("--wandb_project", help="WANDB Project Name", default="SmallSweeps_MGT_VAE")
 
 # model parameters
-parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=16)
-parser.add_argument("--d_model_dec", help="Dimension of the decoder model", default=16)
+parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=32)
+parser.add_argument("--d_model_dec", help="Dimension of the decoder model", default=256)
 parser.add_argument("--embedding_size_src", help="Dimension of the source embedding", default=27)
 parser.add_argument("--embedding_size_tgt", help="Dimension of the target embedding", default=27)
 parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
-parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
-parser.add_argument("--dim_feedforward_enc", help="Dimension of the feedforward layer for the encoder", default=32)
-parser.add_argument("--dim_feedforward_dec", help="Dimension of the feedforward layer for the decoder", default=32)
-parser.add_argument("--num_encoder_layers", help="Number of encoder layers", default=2)
-parser.add_argument("--num_decoder_layers", help="Number of decoder layers", default=2)
+parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=8)
+parser.add_argument("--dim_feedforward_enc", help="Dimension of the feedforward layer for the encoder", default=64)
+parser.add_argument("--dim_feedforward_dec", help="Dimension of the feedforward layer for the decoder", default=512)
+parser.add_argument("--num_encoder_layers", help="Number of encoder layers", default=3)
+parser.add_argument("--num_decoder_layers", help="Number of decoder layers", default=6)
 parser.add_argument("--dropout", help="Dropout", default=0.4)
 parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
 parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
@@ -47,16 +47,16 @@ parser.add_argument("--o_activation", help="Offset activation function - either 
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
                     default='bce', choices=['bce', 'dice'])
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
-                    default='mse', choices=['bce', 'mse'])
+                    default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", help="offset_loss_function - either 'bce' or 'mse' loss",
-                    default='mse', choices=['bce', 'mse'])
+                    default='bce', choices=['bce', 'mse'])
 
 # HParams for the model, to use if no config file is provided
 parser.add_argument("--loss_hit_penalty_multiplier",
                     help="loss values corresponding to correctly predicted silences will be weighted with this factor",
                     default=0.5)
-parser.add_argument("--epochs", help="Number of epochs", default=50)
-parser.add_argument("--batch_size", help="Batch size", default=16)
+parser.add_argument("--epochs", help="Number of epochs", default=100)
+parser.add_argument("--batch_size", help="Batch size", default=64)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
 
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)  # FIXME: Default should be False before merging

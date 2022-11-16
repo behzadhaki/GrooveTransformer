@@ -1,7 +1,7 @@
 from data.src.utils import get_data_directory_using_filters, get_drum_mapping_using_label, load_original_gmd_dataset_pickle, extract_hvo_sequences_dict, pickle_hvo_dict
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 from torch.utils.data import Dataset
 from math import ceil
 import json
