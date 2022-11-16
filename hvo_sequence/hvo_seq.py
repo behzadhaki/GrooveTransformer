@@ -30,16 +30,17 @@ from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_
 from bokeh.plotting import figure
 from bokeh.models import HoverTool, Legend
 from bokeh.palettes import viridis
-from scipy.io import wavfile
+
 
 import logging
 logger = logging.getLogger(__name__)
 
 try:
     import fluidsynth
-    _HAS_FLUIDSYNTH = True
+    _CAN_SYNTHESIZE = True
+    from scipy.io import wavfile
 except ImportError:
-    _HAS_FLUIDSYNTH = False
+    _CAN_SYNTHESIZE = False
     logger.warning("Could not import fluidsynth. AUDIO rendering will not work.")
 
 # --------------------- #
@@ -1234,7 +1235,7 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        if _HAS_FLUIDSYNTH:
+        if _CAN_SYNTHESIZE:
             ns = self.to_note_sequence(midi_track_n=9)
             pm = note_seq.note_sequence_to_pretty_midi(ns)
             audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
@@ -1255,7 +1256,7 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        if _HAS_FLUIDSYNTH:
+        if _CAN_SYNTHESIZE:
             ns = self.to_note_sequence(midi_track_n=9)
             pm = note_seq.note_sequence_to_pretty_midi(ns)
             audio = pm.fluidsynth(sf2_path=sf_path, fs=sr)

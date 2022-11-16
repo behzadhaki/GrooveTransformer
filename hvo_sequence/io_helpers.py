@@ -1,17 +1,16 @@
 import pickle
 import note_seq
-import soundfile as sf
 import pretty_midi
 import numpy as np
 from hvo_sequence.utils import find_nearest, find_pitch_and_tag
 from hvo_sequence.hvo_seq import HVO_Sequence
 
 try:
+    import soundfile as sf
     import fluidsynth
-    _HAS_FLUIDSYNTH = True
+    _CAN_SYNTHESIZE = True
 except ImportError:
-    _HAS_FLUIDSYNTH = False
-
+    _CAN_SYNTHESIZE = False
 
 def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, num_steps=None, only_drums=False):
     """ Converts a note sequence to an HVO sequence
@@ -243,7 +242,7 @@ def note_sequence_to_audio(ns, sr=44100, sf_path="../test/soundfonts/Standard_Dr
     @param sf_path:             soundfont for synthesizing to audio
     @return audio:              the generated audio (if fluidsynth is installed, otherwise 1 second of silence)
     """
-    if _HAS_FLUIDSYNTH:
+    if _CAN_SYNTHESIZE:
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
     else:
@@ -270,7 +269,7 @@ def save_note_sequence_to_audio(ns, filename="temp.wav", sr=44100,
         @param sf_path:             soundfont for synthesizing to audio
         @return audio:              the generated audio
         """
-    if _HAS_FLUIDSYNTH:
+    if _CAN_SYNTHESIZE:
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         audio = pm.fluidsynth(sf2_path=sf_path)
         sf.write(filename, audio, sr, 'PCM_24')
