@@ -21,15 +21,13 @@ if __name__ == '__main__':
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    TM = GrooveTransformer(params["d_model"], params["embedding_size_src"], params["embedding_size_tgt"],
-                           params["nhead"], params["dim_forward"], params["dropout"],
-                           params["num_encoder_layers"], params["num_decoder_layers"], params["max_len"], device)
+    TM = GrooveTransformer(**params)
 
 
     # feed forward
     src = torch.rand(params["N"], params["max_len"], params["embedding_size_src"])
     tgt = torch.rand(params["N"], params["max_len"], params["embedding_size_tgt"])
-    h, v, o = TM(src, tgt)
+    h, v, o = TM.forward(src, tgt)
     print(h.shape, v.shape, o.shape)
     print(h[0, 0, :], v[0, 0, :], o[0, 0, :])
 

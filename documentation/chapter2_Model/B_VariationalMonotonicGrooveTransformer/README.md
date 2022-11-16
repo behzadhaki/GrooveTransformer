@@ -36,39 +36,40 @@ https://behzadhaki.com/assets/pdf/Haki_2022__Real-Time_Drum_Accompaniment_Using_
 }
 ```
 
-### 3.i Instantiation <a name="3_i"></a>
+### 2.i Instantiation <a name="2_i"></a>
 A groove transformer consisting of the 
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
 only section of the original transformer
 
-Source code available [here](../../demos/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
+Source code available [here](../../demos/model/VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
 
 ```python
+params = {
+  'd_model_enc': 128,
+  'd_model_dec': 512,
+  'embedding_size_src': 9,
+  'embedding_size_tgt': 27,
+  'nhead_enc': 2,
+  'nhead_dec': 4,
+  'dim_feedforward_enc': 16,
+  'dim_feedforward_dec': 32,
+  'num_encoder_layers': 3,
+  'num_decoder_layers': 5,
+  'dropout': 0.1,
+  'latent_dim': 32,
+  'max_len_enc': 32,
+  'max_len_dec': 32,
+  'device': 'cpu',
+  'o_activation': 'sigmoid',
+  'batch_size': 8 }
+
+# test transformer
+
 from model import GrooveTransformerEncoderVAE
-
-config = {
-    'd_model_enc': 128,
-    'd_model_dec': 512,
-    'embedding_size_src': 9,
-    'embedding_size_tgt': 27,
-    'nhead_enc': 2,
-    'nhead_dec': 4,
-    'dim_feedforward_enc': 16,
-    'dim_feedforward_dec': 32,
-    'num_encoder_layers': 3,
-    'num_decoder_layers': 5,
-    'dropout': 0.1,
-    'latent_dim': 32,
-    'max_len_enc': 32,
-    'max_len_dec': 32,
-    'device': 'cpu',
-    'o_activation': 'sigmoid'}
-
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 config.update({'device': device})
 
-TEM = GrooveTransformerEncoderVAE(config)
+TM = GrooveTransformer(config)
 ```
 
 ### 2.ii Storing <a name="2_ii"></a>
@@ -106,7 +107,7 @@ GrooveTransformer = load_variational_mgt_model(model_path, device=device)
 
 ```
 
-### 3.iv Pretrained Versions <a name="3_iv"></a>
+### 2.iv Pretrained Versions <a name="3_iv"></a>
 Four pretrained versions of this model are available. The models are trained according to the documents discussed above
 in the introduction section. The models are available in the `model/saved/monotonic_groove_transformer_v1` directory.
 
