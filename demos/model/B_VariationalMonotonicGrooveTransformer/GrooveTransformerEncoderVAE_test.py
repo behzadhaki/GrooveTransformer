@@ -39,5 +39,5 @@ if __name__ == '__main__':
 
     # test predict
     print("pred")
-    (h_pred, v_pred, o:pred), mu, log_var, latent_z = TM.predict(src)
+    (h_pred, v_pred, o_pred), mu, log_var, latent_z = TM.predict(src)
     print(h.shape)
