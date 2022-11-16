@@ -58,7 +58,7 @@ def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_pena
 
     if hit_loss_function == "dice":
         assert hit_loss_function in ['dice']
-        logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
+        # logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
         hit_loss = dice_fn(hit_logits, hit_targets)
     else:
         assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
