@@ -1,6 +1,5 @@
 from hvo_sequence.hvo_seq import HVO_Sequence
 from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING, Groove_Toolbox_5Part_keymap, Groove_Toolbox_3Part_keymap
-import fluidsynth
 import numpy as np
 from copy import deepcopy
 

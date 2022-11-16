@@ -35,6 +35,13 @@ from scipy.io import wavfile
 import logging
 logger = logging.getLogger(__name__)
 
+try:
+    import fluidsynth
+    _HAS_FLUIDSYNTH = True
+except ImportError:
+    _HAS_FLUIDSYNTH = False
+    logger.warning("Could not import fluidsynth. AUDIO rendering will not work.")
+
 # --------------------- #
 Version = "0.8.0"
 # --------------------- #
@@ -1220,15 +1227,19 @@ class HVO_Sequence(object):
         Synthesizes the hvo_sequence to audio using a provided sound font
         @param sr:                          sample rate
         @param sf_path:                     path to the soundfont samples
-        @return:                            synthesized audio sequence
+        @return:                            synthesized audio sequence (if fluidsynth is installed
+                                                otherwise 1 sec of silence)
         """
 
         if self.is_ready_for_use() is False:
             return None
 
-        ns = self.to_note_sequence(midi_track_n=9)
-        pm = note_seq.note_sequence_to_pretty_midi(ns)
-        audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
+        if _HAS_FLUIDSYNTH:
+            ns = self.to_note_sequence(midi_track_n=9)
+            pm = note_seq.note_sequence_to_pretty_midi(ns)
+            audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
+        else:
+            audio = [0.0]*44100
         return audio
 
     def save_audio(self, filename="misc/temp.wav", sr=44100,
@@ -1244,14 +1255,15 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        ns = self.to_note_sequence(midi_track_n=9)
-        pm = note_seq.note_sequence_to_pretty_midi(ns)
-        audio = pm.fluidsynth(sf2_path=sf_path, fs=sr)
-
-        # save audio using scipy
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        wavfile.write(filename, sr, audio)
-
+        if _HAS_FLUIDSYNTH:
+            ns = self.to_note_sequence(midi_track_n=9)
+            pm = note_seq.note_sequence_to_pretty_midi(ns)
+            audio = pm.fluidsynth(sf2_path=sf_path, fs=sr)
+            # save audio using scipy
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            wavfile.write(filename, sr, audio)
+        else:
+            audio = [0.0]*44100
         return audio
 
     #   --------------------------------------------------------------
