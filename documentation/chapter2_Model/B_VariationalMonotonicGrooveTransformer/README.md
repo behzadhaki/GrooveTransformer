@@ -33,14 +33,13 @@ and how the monotonic groove is transformed into a drum pattern.
 Source code available [here](../../../model/Base/BasicGrooveTransformer.py)
 
 
-![VAE Model](trasnsformer_VAE_scrath.png)
+<img src="trasnsformer_VAE_scrath.png" width="300">
 
 ### 2.ii loss functions <a name="2_ii"></a>
 
 The loss function is composed of four: the offset loss, velocities loss,
 hits loss and the KL divergence loss. 
 The reconstruction losses (offset, velocities, hits) are the same as the one used in the [MonotonicGrooveTransformer](../../chapter2_Model/A_MonotonicGrooveTransformer/README.md) model. The KL divergence loss is calculated as follows:
-
 
 
 ![KL loss](https://latex.codecogs.com/gif.latex?%5Cmathfrak%7BL%7D%20%3D%20-%20%5Cfrac%7B1%7D%7B2%7D%20%5Csum_%7Bi%3D1%7D%5E%7BK%7D1&plus;%20%5Clog%28%20%5Csigma_%7Bi%7D%5E%7B2%7D%29%20-%20%5Csigma_%7Bi%7D%5E%7B2%7D%20-%20%5Cmu_%7Bi%7D%5E%7B2%7D)
