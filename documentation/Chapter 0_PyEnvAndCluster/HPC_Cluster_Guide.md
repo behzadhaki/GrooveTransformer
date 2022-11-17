@@ -8,7 +8,8 @@
     1. [Resources](#2.1)
     2. [Interactive Sessions](#2.2)
     3. [Submitting Jobs](#2.3)
-    4. [Monitoring or Cancelling Jobs](#2.4)
+    4. [Available Software](#2.4)
+    5. [Monitoring or Cancelling Jobs](#2.5)
 
 
 This guide is intended to help you get started with the HPC clusters. It is not intended to be a comprehensive guide, 
@@ -161,7 +162,36 @@ python run_some_code.py
 For more information about the job script, refer to the 
 [**Basic Jobs**](https://guiesbibtic.upf.edu/recerca/hpc/basic-jobs) section of the HPC documentation.
 
-### 2.4. Monitoring or Canceling Jobs <a name="2.4"></a>
+### 2.4 Available Software <a name="2.4"></a>
+Many packages and applications are pre-compiled for use on the cluster. 
+
+These packages can be viewed [here](https://hpc.rp.upf.edu/lmod-web/).
+
+Alternatively, in an interactive session, you can call the `module avail` command after sourcing the 
+`/etc/profile.d/lmod.sh` and `/etc/profile.d/zz_hpcnow-arch.sh` files.
+
+```shell
+source /etc/profile.d/lmod.sh
+source /etc/profile.d/zz_hpcnow-arch.sh
+module avail
+```
+If you want to search for a specific package, use the `module spider PACKAGE_NAME` command:
+
+```shell
+module spider conda
+```
+
+Once you find a module, you can simply include it in your session by calling the `module load PACKAGE_NAME` command:
+
+```shell
+module load Anaconda3/2020.02
+```
+
+If you need a package that is not available, you can install it via conda, or pip (if Anaconda and/or Python) modules
+are loaded. Alternatively, contact the cluster admins (see beginning of this guide), and ask them to install the 
+software as a module to be loaded directly in a project.
+
+### 2.5. Monitoring or Canceling Jobs <a name="2.5"></a>
 
 Use the `squeue` command to monitor the jobs you have submitted. The `squeue` command will show you the jobs
 that are currently running, the jobs that are waiting in the queue, and the jobs that have finished running.

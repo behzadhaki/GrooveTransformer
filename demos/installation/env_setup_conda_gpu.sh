@@ -11,6 +11,8 @@ source /etc/profile.d/lmod.sh
 source /etc/profile.d/zz_hpcnow-arch.sh
 
 module load Anaconda3/2020.02
+# module load CUDA/11.3.1
+# module load PyTorch/1.10.0-foss-2020b-CUDA-11.3.1
 
 # Create a new conda environment with Python 3.9 if it doesn't exist
 # UNCOMMENT THE FOLLOWING LINE IF YOU WANT TO CREATE A THE ENVIRONMENT for THE FIRST TIME

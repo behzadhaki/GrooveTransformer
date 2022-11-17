@@ -1,10 +1,6 @@
+
 from hvo_sequence import HVO_Sequence
 from hvo_sequence import ROLAND_REDUCED_MAPPING
-from hvo_sequence import note_sequence_to_hvo_sequence, midi_to_hvo_sequence
-
-
-import pretty_midi, note_seq
-
 beat_div_factor = [4]           # divide each quarter note in 4 divisions
 hvo_seq = HVO_Sequence(beat_division_factors=beat_div_factor,
                        drum_mapping=ROLAND_REDUCED_MAPPING)
@@ -14,12 +10,10 @@ hvo_seq = HVO_Sequence(beat_division_factors=beat_div_factor,
 # ----------------------------------------------------------------
 
 # Add two time_signatures
-t_sig = [4, 4]
-t_stamp = 0
-hvo_seq.add_time_signature(t_stamp, t_sig[0], t_sig[0])
+hvo_seq.add_time_signature(time_step=0, numerator=4, denominator=4)
 
 # Add two tempos
-hvo_seq.add_tempo(0, 120)
+hvo_seq.add_tempo(time_step=0, qpm=120)
 
 # Create a random hvo for 32 time steps and 9 voices
 hvo_seq.random(32)
@@ -53,13 +47,16 @@ hvo_seq.get("ovhhv0")    # use h v o and 0 to create any tensor
 # ----------------------------------------------------------------
 # -----------           Plot PianoRoll              --------------
 # ----------------------------------------------------------------
-hvo_seq.to_html_plot("test.html", show_figure=True)
+hvo_seq.to_html_plot(
+    filename="test.html",
+    save_figure=False,
+    show_figure=True)
 
 # ----------------------------------------------------------------
 # -----------           Synthesize/Export           --------------
 # ----------------------------------------------------------------
 # Export to midi
-hvo_seq.save_hvo_to_midi("misc/test.mid")
+hvo_seq.save_hvo_to_midi(filename="misc/test.mid")
 
 # Export to note_sequece
 hvo_seq.to_note_sequence(midi_track_n=10)
@@ -75,4 +72,8 @@ hvo_seq.save_audio(filename="misc/temp.wav", sr=44100,
 # ----------------------------------------------------------------
 # -----------           Load from Midi             --------------
 # ----------------------------------------------------------------
-hvo_seq = midi_to_hvo_sequence('misc/test.mid', ROLAND_REDUCED_MAPPING, [4])
+from hvo_sequence import midi_to_hvo_sequence
+hvo_seq = midi_to_hvo_sequence(
+    filename='misc/test.mid',
+    drum_mapping=ROLAND_REDUCED_MAPPING,
+    beat_division_factors=[4])
