@@ -41,3 +41,7 @@ if __name__ == '__main__':
     print("pred")
     (h_pred, v_pred, o_pred), mu, log_var, latent_z = TM.predict(src)
     print(h_pred.shape)
+
+    # save model
+    model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_dommie_version.pth"
+    TM.save(model_path)

@@ -47,6 +47,140 @@ The reconstruction losses (offset, velocities, hits) are the same as the one use
 
 Losses source code available [here](../../../helpers/VAE/train_utils.py)
 
+### 2.iii Training Parameters <a name="2_iii"></a>
+   
+```yaml
+method: random
+metric:
+  goal: maximize
+  name: test/Relative___DICE_mean
+parameters:
+  batch_size:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+      - 1024
+  d_model_dec:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  d_model_enc:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dim_feedforward_dec:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dim_feedforward_enc:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dropout:
+    distribution: uniform
+    max: 0.4
+    min: 0.1
+  embedding_size_src:
+    value: 27
+  embedding_size_tgt:
+    value: 27
+  epochs:
+    value: 500
+  hit_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - dice
+  latent_dim:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  loss_hit_penalty_multiplier:
+    distribution: uniform
+    max: 0.7
+    min: 0.3
+  lr:
+    values:
+      - 0.001
+      - 0.0001
+  max_len_dec:
+    value: 32
+  max_len_enc:
+    value: 32
+  nhead_dec:
+    values:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+  nhead_enc:
+    values:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+  num_decoder_layers:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  num_encoder_layers:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  offset_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - mse
+  optimizer:
+    distribution: categorical
+    values:
+      - sgd
+      - adam
+  velocity_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - mse
+  wandb_project:
+    distribution: categorical
+    values:
+      - SmallSweeps_MGT_VAE
+program: train.py
+
+
+
+```
 
 
 ## 3. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
@@ -73,6 +207,7 @@ only section of the original transformer, used as the encoder and decoder of a V
 Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
 
 ```python
+import torch
 params = {
   'd_model_enc': 128,
   'd_model_dec': 512,
@@ -107,8 +242,9 @@ The `save` method takes in a  `**.pth` file path where the model attributes are 
 The model parameters as well as the model state dictionary are stored in the stored file.
 
 ```python
-model_path = "model/misc/???/rand_model.pth"
-TEM.save(model_path)
+# save model
+model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_dommie_version.pth"
+TM.save(model_path)
 ```
 
 Using this method, a `**.json` file is also created which stores the model parameters. The data stored in 
@@ -117,7 +253,7 @@ for conveniently inspecting the model params.
 
 ### 2.iii Loading <a name="2_iii"></a>
 
-Source code available [here](../../demos/model/VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
+Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
 
 ```python
 ## 4. Loading a Stored Model <a name="4"></a>
@@ -125,13 +261,12 @@ Source code available [here](../../demos/model/VariationalMonotonicGrooveTransfo
 from helpers import load_variational_mgt_model
 import torch
 
-# Model path and model_param dictionary
-model_name = f"{wandb_project}/{run_name}_{run_id}/{ep_}"
-model_path = f"misc/VAE/{model_name}.pth"
+model_name = f"save_dommie_version"
+model_path = f"{model_name}.pth"
 
 # 1. LOAD MODEL
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-GrooveTransformer = load_variational_mgt_model(model_path, device=device)
+groove_transformer_vae = load_variational_mgt_model(model_path, device=device)
 
 ```
 
