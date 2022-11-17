@@ -1,74 +1,98 @@
-# Chapter 2 - Models: Instantiating, Storing, Loading, Generating
+# Chapter 2 - Models:  Instantiating, Storing, Loading, Generating
 
 ----
 
 # Table of Contents
-1. [Introduction](#1)
-2. [MonotonicGrooveVAE.GrooveTransformerEncoderVAE](#2)
-   1. [Instantiation](#2_i)
-   2. [Storing](#2_ii)
-   3. [Loading](#2_iii)
-   4. [Pretrained Versions](#2_iv)
-   5. [Generation](#2_v)
+1. [Introduction](#1) 
+2. [Model Description](#2)
+   1. [Network Architecture](#2_i)
+   2. [loss functions](#2_ii)
+   2. [Training Parameters](#2_ii)
+
+
+2. [MonotonicGrooveVAE.GrooveTransformerEncoderVAE](#3)
+   1. [Instantiation](#3_i)
+   2. [Storing](#3_ii)
+   3. [Loading](#3_iii)
+   4. [Pretrained Versions](#3_iv)
+   5. [Generation](#3_v)
 
 
 ## 1. Introduction <a name="1"></a>
+The GrooveTransformerEncoderVAE is a real-time drum generator inspired on the "[MonotincGrooveTransformer](../../chapter2_Model/A_MonotonicGrooveTransformer/README.md)" model.
+The main difference is the implementation of a variational latent space, which allows a more controlled generation and the capacity to
+generate multiple suggestions for a given input.
+
+## 2. Model Description <a name="2"></a>
+
+### 2.i Network Architecture <a name="2_i"></a>
+
+The following figure shows the architecture of the model,  
+and how the monotonic groove is transformed into a drum pattern.
+
+Source code available [here](../../../model/Base/BasicGrooveTransformer.py)
 
 
-## 2. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
-This is a model that can take in a piano-roll-like monotonic groove and output a piano-roll-like drum pattern.
-This model consists of the encoder part of the original transformer model, and a decoding part implemented with the encoder part. 
+![VAE Model](trasnsformer_VAE_scrath.png)
 
-We have many pretrained versions of this model available (see [Pretrained Versions](#2_iv)). I suggest reading
-this [document](https://behzadhaki.com/blog/2022/trainingGrooveTransformer/) 
-to better understand the training/evaluation process.
+### 2.ii loss functions <a name="2_ii"></a>
+
+The loss function is composed of four: the offset loss, velocities loss,
+hits loss and the KL divergence loss. 
+The reconstruction losses (offset, velocities, hits) are the same as the one used in the [MonotonicGrooveTransformer](../../chapter2_Model/A_MonotonicGrooveTransformer/README.md) model. The KL divergence loss is calculated as follows:
+
+![KL loss](https://latex.codecogs.com/gif.latex?%5Cmathfrak%7BL%7D%20%3D%20-%20%5Cfrac%7B1%7D%7B2%7D%20%5Csum_%7Bi%3D1%7D%5E%7BK%7D1&plus;%20%5Clog%28%20%5Csigma_%7Bi%7D%5E%7B2%7D%29%20-%20%5Csigma_%7Bi%7D%5E%7B2%7D%20-%20%5Cmu_%7Bi%7D%5E%7B2%7D)
+
+## 3. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
+This model use the transformer ${this}_{is}^{inline}$ encoder as both the encoder and the decoder section of a VAE to generate a piano-roll-like drum pattern.
 
 
 
-If you use this model, please cite the following [paper](
-https://behzadhaki.com/assets/pdf/Haki_2022__Real-Time_Drum_Accompaniment_Using_Transformer_Architecture.pdf):
+
+If you use this model, please cite the following ...:
 ```citation
-@article{hakireal,
-  title={Real-Time Drum Accompaniment Using Transformer Architecture},
-  author={Haki, Behzad and Nieto, Marina and Pelinski, Teresa and Jord{\`a}, Sergi}
-  booktitle={Proceedings of the 3rd Conference on AI Music Creativity, AIMC}
-  year={2022}
+@article{,
+  title={Variational Monotonic Groove Transformer},
+  author={Behzad, Hernán, Sergi}
+  booktitle={}
+  year={}
 }
 ```
 
-### 3.i Instantiation <a name="3_i"></a>
-A groove transformer consisting of the 
+### 2.i Instantiation <a name="2_i"></a>
+A Variational Monotonic groove transformer consisting of the 
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
-only section of the original transformer
+only section of the original transformer, used as the encoder and decoder of a VAE. 
 
-Source code available [here](../../demos/model/monotonic_groove_transformer_v1/BasicGrooveTransformer_test.py)
+Source code available [here](../../../demos/model/VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
 
 ```python
+params = {
+  'd_model_enc': 128,
+  'd_model_dec': 512,
+  'embedding_size_src': 9,
+  'embedding_size_tgt': 27,
+  'nhead_enc': 2,
+  'nhead_dec': 4,
+  'dim_feedforward_enc': 16,
+  'dim_feedforward_dec': 32,
+  'num_encoder_layers': 3,
+  'num_decoder_layers': 5,
+  'dropout': 0.1,
+  'latent_dim': 32,
+  'max_len_enc': 32,
+  'max_len_dec': 32,
+  'device': 'cpu',
+  'o_activation': 'sigmoid',
+  'batch_size': 8 }
+
+# test transformer
+
 from model import GrooveTransformerEncoderVAE
-
-config = {
-    'd_model_enc': 128,
-    'd_model_dec': 512,
-    'embedding_size_src': 9,
-    'embedding_size_tgt': 27,
-    'nhead_enc': 2,
-    'nhead_dec': 4,
-    'dim_feedforward_enc': 16,
-    'dim_feedforward_dec': 32,
-    'num_encoder_layers': 3,
-    'num_decoder_layers': 5,
-    'dropout': 0.1,
-    'latent_dim': 32,
-    'max_len_enc': 32,
-    'max_len_dec': 32,
-    'device': 'cpu',
-    'o_activation': 'sigmoid'}
-
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 config.update({'device': device})
 
-TEM = GrooveTransformerEncoderVAE(config)
+TM = GrooveTransformer(config)
 ```
 
 ### 2.ii Storing <a name="2_ii"></a>
@@ -87,10 +111,10 @@ for conveniently inspecting the model params.
 
 ### 2.iii Loading <a name="2_iii"></a>
 
+Source code available [here](../../demos/model/VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
+
 ```python
 ## 4. Loading a Stored Model <a name="4"></a>
-
-Source code available [here](../../testers/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
 from helpers import load_variational_mgt_model
 import torch
@@ -99,18 +123,16 @@ import torch
 model_name = f"{wandb_project}/{run_name}_{run_id}/{ep_}"
 model_path = f"misc/VAE/{model_name}.pth"
 
-
 # 1. LOAD MODEL
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 GrooveTransformer = load_variational_mgt_model(model_path, device=device)
 
 ```
 
-### 3.iv Pretrained Versions <a name="3_iv"></a>
-Four pretrained versions of this model are available. The models are trained according to the documents discussed above
-in the introduction section. The models are available in the `model/saved/monotonic_groove_transformer_v1` directory.
+### 2.iv Pretrained Versions <a name="3_iv"></a>
 
 The models are:
+
 
 
 To load the model, use the `load_variational_mgt_model` 
