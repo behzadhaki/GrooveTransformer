@@ -132,7 +132,7 @@ def calculate_kld_loss(mu, log_var):
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None):
     """
-    This function iteratively loops over the given dataloader and calculate the loss for each batch. If an optimizer is
+    This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
     and returned at the end of the loop.
 

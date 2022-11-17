@@ -42,8 +42,9 @@ parser.add_argument("--latent_dim", help="Dimension of the latent space", defaul
 parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)          # FIXME: check the model tester, if this is different from the encoder, it will fail
 parser.add_argument("--device", help="Device to use", default="cpu")
-parser.add_argument("--o_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
-                    default="tanh")
+# parser.add_argument("--o_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
+#                     default="tanh")   # FIXME: if tanh with BCE, then it would be wrong
+#                                       #           as offset loss with BCE assumes sigmoid, and MSE assumes tanh
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
                     default='bce', choices=['bce', 'dice'])
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
@@ -108,7 +109,7 @@ else:
         max_len_enc=args.max_len_enc,
         max_len_dec=args.max_len_dec,
         device=args.device,
-        o_activation=args.o_activation,
+        o_activation="tanh" if isinstance(args.offset_loss_function, torch.nn.MSELoss) else "sigmoid",
         hit_loss_function=args.hit_loss_function,
         velocity_loss_function=args.velocity_loss_function,
         offset_loss_function=args.offset_loss_function,

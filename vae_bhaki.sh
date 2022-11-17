@@ -17,5 +17,5 @@ source activate torch_thesis
 
 cd GrooveTransformer
 
-wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/7295cxer
+wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/bib6bpsb
 #python sweep_tester_VAE.py
