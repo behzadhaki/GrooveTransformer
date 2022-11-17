@@ -43,5 +43,5 @@ if __name__ == '__main__':
     print(h_pred.shape)
 
     # save model
-    model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_dommie_version.pth"
+    model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_model/save_dommie_version.pth"
     TM.save(model_path)
