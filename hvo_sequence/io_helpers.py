@@ -1,7 +1,13 @@
 import pickle
-import note_seq
-import pretty_midi
-import numpy as np
+
+try:
+    import note_seq
+    import pretty_midi
+    _HAS_NOTE_SEQ_Pretty_Midi = True
+except ImportError:
+    _HAS_NOTE_SEQ_Pretty_Midi = False
+    print("note_seq and/or pretty MIDI missing --> synthesis and MIDI conversion not possible")
+
 from hvo_sequence.utils import find_nearest, find_pitch_and_tag
 from hvo_sequence.hvo_seq import HVO_Sequence
 
@@ -69,6 +75,10 @@ def note_sequence_to_hvo_sequence(ns, drum_mapping, beat_division_factors, num_s
 
 
 def midi_to_note_seq(filename):
+    if not _HAS_NOTE_SEQ_Pretty_Midi:
+        print("note_seq not found. Please install it using `pip install note_seq`.")
+        return None
+
     midi_data = pretty_midi.PrettyMIDI(filename)
     ns = note_seq.midi_io.midi_to_note_sequence(midi_data)
     return ns
@@ -76,6 +86,9 @@ def midi_to_note_seq(filename):
 
 def midi_to_hvo_sequence(filename, drum_mapping, beat_division_factors):
     ns = midi_to_note_seq(filename)
+    if ns is None:
+        return None
+
     return note_sequence_to_hvo_sequence(ns, drum_mapping=drum_mapping, beat_division_factors=beat_division_factors)
 
 
@@ -144,6 +157,10 @@ def get_pickled_note_sequences(pickle_path, item_list=None):
                                             # or a list of sequences (when item_list = [item indices]
                                             # or a single item (when item_list is an int)
     """
+    if not _HAS_NOTE_SEQ_Pretty_Midi:
+        print("note_seq missing! as a result, can't load the pickled instances. Please install it using `pip install note_seq`.")
+        return None
+
     # load pickled items
     note_sequence_pickle_file = open(pickle_path, 'rb')
     note_sequences = pickle.load(note_sequence_pickle_file)
@@ -220,6 +237,10 @@ def unique_pitches_in_note_sequence(ns):
     @param ns: note sequence object
     @return: list of unique pitches
     """
+    if not _HAS_NOTE_SEQ_Pretty_Midi:
+        print("note_seq missing! Please install it using `pip install note_seq`.")
+        return None
+
     unique_pitches = set([note.pitch for note in ns.notes])
     return unique_pitches
 
@@ -227,6 +248,10 @@ def unique_pitches_in_note_sequence(ns):
 #   -------------------- Midi Converters -----------------------
 
 def save_note_sequence_to_midi(ns, filename="temp.mid"):
+    if not _HAS_NOTE_SEQ_Pretty_Midi:
+        print("note_seq missing! Please install it using `pip install note_seq`.")
+        return None
+
     pm = note_seq.note_sequence_to_pretty_midi(ns)
     pm.write(filename)
 
@@ -242,12 +267,12 @@ def note_sequence_to_audio(ns, sr=44100, sf_path="../test/soundfonts/Standard_Dr
     @param sf_path:             soundfont for synthesizing to audio
     @return audio:              the generated audio (if fluidsynth is installed, otherwise 1 second of silence)
     """
-    if _CAN_SYNTHESIZE:
+    if _CAN_SYNTHESIZE and _HAS_NOTE_SEQ_Pretty_Midi:
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
     else:
         audio = None
-        print("FluidSynth is not installed. Please install it to use this feature.")
+        print("FluidSynth and/or note_seq are not installed. Please install it to use this feature.")
     return audio
 
 
@@ -269,13 +294,13 @@ def save_note_sequence_to_audio(ns, filename="temp.wav", sr=44100,
         @param sf_path:             soundfont for synthesizing to audio
         @return audio:              the generated audio
         """
-    if _CAN_SYNTHESIZE:
+    if _CAN_SYNTHESIZE and _HAS_NOTE_SEQ_Pretty_Midi:
         pm = note_seq.note_sequence_to_pretty_midi(ns)
         audio = pm.fluidsynth(sf2_path=sf_path)
         sf.write(filename, audio, sr, 'PCM_24')
     else:
         audio = None
-        print("FluidSynth is not installed. Please install it to use this feature.")
+        print("FluidSynth and/or note_seq are not installed. Please install it to use this feature.")
 
     return audio
 

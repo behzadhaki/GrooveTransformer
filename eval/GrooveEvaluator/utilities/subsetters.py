@@ -1,18 +1,9 @@
-import pickle
-import os
-import pandas as pd
-import warnings
-
 import sys
 sys.path.append("../../..")
 sys.path.append("../..")
 sys.path.append("..")
 
-from hvo_sequence.hvo_seq import HVO_Sequence                           # required for loading pickles
-import note_seq
-import math
 import numpy as np
-import bz2
 
 from copy import deepcopy
 import logging

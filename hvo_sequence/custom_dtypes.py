@@ -1,7 +1,6 @@
 import warnings
 from copy import deepcopy
 import numpy as np
-import note_seq
 import math
 
 # ======================================================================================================================

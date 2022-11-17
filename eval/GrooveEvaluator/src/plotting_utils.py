@@ -13,10 +13,16 @@ from bokeh.plotting import figure
 
 from bokeh.models.annotations import Title
 
-import holoviews as hv
-from holoviews import opts
+try:
+    import holoviews as hv
+    from holoviews import opts
+    hv.extension('bokeh')
+    _HAS_HOLOVIEWS = True
+except ImportError:
+    print("Holoviews not installed, will not be able to generate violin plots")
+    _HAS_HOLOVIEWS = False
+
 from bokeh.models import Tabs, Panel
-hv.extension('bokeh')
 
 ##############################################
 ###
@@ -743,6 +749,8 @@ def ridge_kde_multi_feature_with_complement_set(tags, data_list,
 def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01,
                           width=1200, height=800, scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
     '''
+    **WORKS only if holoviews is installed**
+
     Plots the data in a dictionary as violin plots
     {
     "tab1-Data_xx": [data1, data2, ...],            # plots in tab1 -        Title tab1 -       labels as Data_xx
@@ -764,60 +772,63 @@ def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01
     '''
     # source https://holoviews.org/reference/elements/bokeh/Violin.html
 
-    groups = []
-    categories = []
-    values = []
-    for key, val in data_dictionary.items():
-        if (isinstance(val, dict)):
-            for k, v_arr in val.items():
-                for v in v_arr:
-                    groups.append(key)
-                    categories.append(k)
+    if _HAS_HOLOVIEWS:
+        groups = []
+        categories = []
+        values = []
+        for key, val in data_dictionary.items():
+            if (isinstance(val, dict)):
+                for k, v_arr in val.items():
+                    for v in v_arr:
+                        groups.append(key)
+                        categories.append(k)
+                        values.append(v)
+            else:
+                for v in val:
+                    groups.append(key.split("-")[0] if len(key.split("-")) > 1 else " ")
+                    categories.append(key.split("-")[1] if len(key.split("-")) > 1 else key)
                     values.append(v)
-        else:
-            for v in val:
-                groups.append(key.split("-")[0] if len(key.split("-")) > 1 else " ")
-                categories.append(key.split("-")[1] if len(key.split("-")) > 1 else key)
-                values.append(v)
 
-    tab_labels = set(groups)
-    panels = list()
-    for tab_label in tab_labels:
-        g_ = []
-        c_ = []
-        v_ = []
-        for (group, category, val) in zip(groups, categories, values):
-            if group == tab_label:
-                g_.append(group.replace("_", " "))
-                c_.append(category.replace("_", " "))
-                v_.append(val)
+        tab_labels = set(groups)
+        panels = list()
+        for tab_label in tab_labels:
+            g_ = []
+            c_ = []
+            v_ = []
+            for (group, category, val) in zip(groups, categories, values):
+                if group == tab_label:
+                    g_.append(group.replace("_", " "))
+                    c_.append(category.replace("_", " "))
+                    v_.append(val)
 
-        violin = hv.Violin((c_, v_), ['Category'], 'Value', label='Violin Plots')
+            violin = hv.Violin((c_, v_), ['Category'], 'Value', label='Violin Plots')
 
-        scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
+            scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
 
-        violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width,
-                                         violin_color=hv.dim('Category').str(),
-                                         xrotation=xrotation,
-                                         fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size, 'ylabel': font_size, 'title': font_size},
-                                         bandwidth=kernel_bandwidth), clone=True)
+            violin = violin.opts(opts.Violin(height=height, show_legend=False, width=width,
+                                             violin_color=hv.dim('Category').str(),
+                                             xrotation=xrotation,
+                                             fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size, 'ylabel': font_size, 'title': font_size},
+                                             bandwidth=kernel_bandwidth), clone=True)
 
-        overlay = (violin * scatter).opts(title=tab_label.replace("_", " "), ylabel=" ", xlabel=" ")
-        overlay.options(opts.NdOverlay(show_legend=True))
+            overlay = (violin * scatter).opts(title=tab_label.replace("_", " "), ylabel=" ", xlabel=" ")
+            overlay.options(opts.NdOverlay(show_legend=True))
 
-        fig = hv.render(overlay, backend='bokeh')
-        fig.legend.click_policy="hide"
-        panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
+            fig = hv.render(overlay, backend='bokeh')
+            fig.legend.click_policy="hide"
+            panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
 
-    tabs = Tabs(tabs=panels)
+        tabs = Tabs(tabs=panels)
 
-    if save_path is not None:
-        if not save_path.endswith(".html"):
-            save_path += ".html"
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        save(tabs, save_path)
+        if save_path is not None:
+            if not save_path.endswith(".html"):
+                save_path += ".html"
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            save(tabs, save_path)
 
-    return tabs
+        return tabs
+    else:
+        return None
 
 
 if __name__ == '__main__':

@@ -2,11 +2,16 @@ from eval.MultiSetEvaluator.src.utils import *
 from bokeh.plotting import save
 import pickle, bz2
 
-import holoviews as hv
-from holoviews import opts
+try:
+    import holoviews as hv
+    from holoviews import opts
+    hv.extension('bokeh')
+    _HAS_HOLOVIEWS = True
+except ImportError:
+    _HAS_HOLOVIEWS = False
+
 from bokeh.models import Tabs, Panel
 
-hv.extension('bokeh')
 
 from bokeh.embed import file_html
 from bokeh.resources import CDN
@@ -14,30 +19,34 @@ from wandb import Html
 
 def get_violin_bokeh_plot(feature_label, value_dict, kernel_bandwidth=0.01,
                           scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
-    c_, v_ = [], []
-    for key, val in value_dict.items():
-        c_.extend([key] * len(val))
-        v_.extend(val)
+    if not _HAS_HOLOVIEWS:
+        print("Holoviews not installed. Please install holoviews to use this feature.")
+        return None
+    else:
+        c_, v_ = [], []
+        for key, val in value_dict.items():
+            c_.extend([key] * len(val))
+            v_.extend(val)
 
-    violin = hv.Violin((c_, v_), ['Category'], 'Value', label=feature_label)
+        violin = hv.Violin((c_, v_), ['Category'], 'Value', label=feature_label)
 
-    scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(
-        opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
+        scatter = hv.Scatter((c_, v_), label='Scatter Plots').opts(color=scatter_color, size=scatter_size).opts(
+            opts.Scatter(jitter=0.2, alpha=0.5, size=6, height=400, width=600))
 
-    violin = violin.opts(opts.Violin(violin_color=hv.dim('Category').str(),
-                                     xrotation=xrotation,
-                                     fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size,
-                                               'ylabel': font_size, 'title': font_size},
-                                     bandwidth=kernel_bandwidth), clone=True)
+        violin = violin.opts(opts.Violin(violin_color=hv.dim('Category').str(),
+                                         xrotation=xrotation,
+                                         fontsize={'xticks': font_size, 'yticks': font_size, 'xlabel': font_size,
+                                                   'ylabel': font_size, 'title': font_size},
+                                         bandwidth=kernel_bandwidth), clone=True)
 
-    overlay = (violin * scatter).opts(ylabel=" ", xlabel=" ")
-    overlay.options(opts.NdOverlay(show_legend=True))
+        overlay = (violin * scatter).opts(ylabel=" ", xlabel=" ")
+        overlay.options(opts.NdOverlay(show_legend=True))
 
-    fig = hv.render(overlay, backend='bokeh')
-    fig.title = feature_label
-    fig.legend.click_policy = "hide"
-    # panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
-    return fig
+        fig = hv.render(overlay, backend='bokeh')
+        fig.title = feature_label
+        fig.legend.click_policy = "hide"
+        # panels.append(Panel(child=fig, title=tab_label.replace("_", " ").split("::")[-1]))
+        return fig
 
 class MultiSetEvaluator:
     def __init__(self,

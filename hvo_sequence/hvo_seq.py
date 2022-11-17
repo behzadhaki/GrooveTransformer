@@ -1,13 +1,26 @@
 import os.path
 import numpy as np
-import note_seq
-from note_seq.protobuf import music_pb2
+try:
+    import note_seq
+    from note_seq.protobuf import music_pb2
+    _HAS_NOTE_SEQ = True
+
+except ImportError:
+    print("Note Sequence not found. Please install it with `pip install note-seq`.")
+    _HAS_NOTE_SEQ = False
+
 import librosa
 import librosa.display
-import matplotlib.pyplot as plt
+
+try:
+    import matplotlib.pyplot as plt
+    _HAS_MATPLOTLIB = True
+except ImportError:
+    _HAS_MATPLOTLIB = False
+
 from bokeh.plotting import output_file, show, save
 from bokeh.models import Span
-from scipy import stats
+from scipy.stats import skew
 from scipy.signal import find_peaks
 import math
 import copy
@@ -28,7 +41,7 @@ from hvo_sequence.metrical_profiles import WITEK_SYNCOPATION_METRICAL_PROFILE_4_
 from hvo_sequence.metrical_profiles import Longuet_Higgins_METRICAL_PROFILE_4_4_16th_NOTE
 
 from bokeh.plotting import figure
-from bokeh.models import HoverTool, Legend
+from bokeh.models import HoverTool
 from bokeh.palettes import viridis
 
 
@@ -1107,6 +1120,10 @@ class HVO_Sequence(object):
         """Exports the hvo_sequence to a note_sequence object
 
         :param midi_track_n:    the midi track channel used for the drum scores"""
+        if not _HAS_NOTE_SEQ:
+            print("Can't export to note sequence. Please install note_seq package")
+            return None
+
         if self.is_ready_for_use() is False:
             return None
 
@@ -1186,6 +1203,9 @@ class HVO_Sequence(object):
         :param filename:        the filename to save the midi file
         :param midi_track_n:    the midi track channel used for the drum scores
         """
+        if not _HAS_NOTE_SEQ:
+            print("Can't export to midi. Please install note_seq package")
+            return None
 
         if self.is_ready_for_use() is False:
             logger.warning("The hvo_sequence is not exportable to MIDI. "
@@ -1235,12 +1255,14 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        if _CAN_SYNTHESIZE:
+        if _CAN_SYNTHESIZE and _HAS_NOTE_SEQ:
             ns = self.to_note_sequence(midi_track_n=9)
             pm = note_seq.note_sequence_to_pretty_midi(ns)
             audio = pm.fluidsynth(fs=sr, sf2_path=sf_path)
         else:
             audio = [0.0]*44100
+            print("Generating 1 sec of Silence!! "
+                  "Please install note_seq and fluidsynth packages to synthesize correctly")
         return audio
 
     def save_audio(self, filename="misc/temp.wav", sr=44100,
@@ -1256,7 +1278,7 @@ class HVO_Sequence(object):
         if self.is_ready_for_use() is False:
             return None
 
-        if _CAN_SYNTHESIZE:
+        if _CAN_SYNTHESIZE and _HAS_NOTE_SEQ:
             ns = self.to_note_sequence(midi_track_n=9)
             pm = note_seq.note_sequence_to_pretty_midi(ns)
             audio = pm.fluidsynth(sf2_path=sf_path, fs=sr)
@@ -1265,6 +1287,8 @@ class HVO_Sequence(object):
             wavfile.write(filename, sr, audio)
         else:
             audio = [0.0]*44100
+            print("Generating 1 sec of Silence!! "
+                  "Please install note_seq and fluidsynth packages to synthesize correctly")
         return audio
 
     #   --------------------------------------------------------------
@@ -1501,7 +1525,7 @@ class HVO_Sequence(object):
         sy = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
         stft = np.abs(sy)
 
-        if plot:
+        if plot and _HAS_MATPLOTLIB:
             # Plot STFT
             # Plot params
             plt.rcParams['font.size'] = font_size
@@ -1980,7 +2004,7 @@ class HVO_Sequence(object):
 
         # Feature 1:
         # Calculate skewness of autocorrelation curve
-        autocorrelation_features["skewness"] = stats.skew(acorr)
+        autocorrelation_features["skewness"] = skew(acorr)
 
         # Feature 2:
         # Maximum of autocorrelation curve

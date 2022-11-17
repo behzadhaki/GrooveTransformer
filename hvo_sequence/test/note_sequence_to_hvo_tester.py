@@ -1,15 +1,9 @@
-import os
-from bokeh.plotting import show
-
 from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence
 
-from hvo_sequence.io_helpers import get_pickled_note_sequences, get_pickled_hvos
-# from hvo_sequence.io_helpers import save_note_sequence_to_audio
-# from hvo_sequence.hvo_seq import HVO_Sequence
+from hvo_sequence.io_helpers import get_pickled_note_sequences
+
 from hvo_sequence.drum_mappings import ROLAND_REDUCED_MAPPING
 
-import note_seq
-import pretty_midi
 
 if __name__ == '__main__':
 
