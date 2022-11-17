@@ -41,7 +41,13 @@ The loss function is composed of four: the offset loss, velocities loss,
 hits loss and the KL divergence loss. 
 The reconstruction losses (offset, velocities, hits) are the same as the one used in the [MonotonicGrooveTransformer](../../chapter2_Model/A_MonotonicGrooveTransformer/README.md) model. The KL divergence loss is calculated as follows:
 
+
+
 ![KL loss](https://latex.codecogs.com/gif.latex?%5Cmathfrak%7BL%7D%20%3D%20-%20%5Cfrac%7B1%7D%7B2%7D%20%5Csum_%7Bi%3D1%7D%5E%7BK%7D1&plus;%20%5Clog%28%20%5Csigma_%7Bi%7D%5E%7B2%7D%29%20-%20%5Csigma_%7Bi%7D%5E%7B2%7D%20-%20%5Cmu_%7Bi%7D%5E%7B2%7D)
+
+Losses source code available [here](../../../helpers/VAE/train_utils.py)
+
+
 
 ## 3. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
 This model use the transformer ${this}_{is}^{inline}$ encoder as both the encoder and the decoder section of a VAE to generate a piano-roll-like drum pattern.
@@ -64,7 +70,7 @@ A Variational Monotonic groove transformer consisting of the
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
 only section of the original transformer, used as the encoder and decoder of a VAE. 
 
-Source code available [here](../../../demos/model/VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
+Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
 
 ```python
 params = {
@@ -90,9 +96,9 @@ params = {
 
 from model import GrooveTransformerEncoderVAE
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-config.update({'device': device})
+params.update({'device': device})
 
-TM = GrooveTransformer(config)
+TM = GrooveTransformerEncoderVAE(params)
 ```
 
 ### 2.ii Storing <a name="2_ii"></a>
