@@ -1,8 +1,6 @@
 from eval.MultiSetEvaluator.src.utils import *
-from bokeh.plotting import figure, output_file, show, save
-from bokeh.models import Panel, Range
+from bokeh.plotting import save
 import pickle, bz2
-import os
 
 import holoviews as hv
 from holoviews import opts
@@ -12,7 +10,7 @@ hv.extension('bokeh')
 
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-import wandb
+from wandb import Html
 
 def get_violin_bokeh_plot(feature_label, value_dict, kernel_bandwidth=0.01,
                           scatter_color='red', scatter_size=10, xrotation=45, font_size=16):
@@ -253,7 +251,7 @@ class MultiSetEvaluator:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             save(tabs, filename=filename)
 
-        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Inter Intra PDF Plots"))
+        return tabs if not prepare_for_wandb else Html(file_html(tabs, CDN, "Inter Intra PDF Plots"))
 
     def get_kl_oa_plots(self, filename=None, prepare_for_wandb=False, figsize=(1200, 1000)):
 
@@ -286,7 +284,7 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "KL OA Plots"))
+        return tabs if not prepare_for_wandb else Html(file_html(tabs, CDN, "KL OA Plots"))
 
     def get_pos_neg_hit_score_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                     kernel_bandwidth=0.1,
@@ -340,7 +338,7 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Pos Neg Hit Score Plots"))
+        return tabs if not prepare_for_wandb else Html(file_html(tabs, CDN, "Pos Neg Hit Score Plots"))
 
     def get_velocity_distribution_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                         kernel_bandwidth=0.1,
@@ -395,7 +393,7 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Velocity Distribution Plots"))
+        return tabs if not prepare_for_wandb else Html(file_html(tabs, CDN, "Velocity Distribution Plots"))
 
     def get_offset_distribution_plots(self, filename=None, prepare_for_wandb=False, ncols=4, plot_width=400, plot_height=400,
                                       kernel_bandwidth=0.1,
@@ -447,7 +445,7 @@ class MultiSetEvaluator:
 
             save(tabs, filename=filename)
 
-        return tabs if not prepare_for_wandb else wandb.Html(file_html(tabs, CDN, "Offset Distribution Plots"))
+        return tabs if not prepare_for_wandb else Html(file_html(tabs, CDN, "Offset Distribution Plots"))
 
     def get_logging_media(self, identifier , prepare_for_wandb=False, save_directory=None, **kwargs):
         logging_media = dict()
