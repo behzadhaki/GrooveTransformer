@@ -1,6 +1,15 @@
-
-
 # A Guide to the HPC Clusters
+
+# Table of Contents
+1. [Getting Started](#1)
+   1. [Accounts](#1.1)
+   2. [Accessing the Clusters](#1.2)
+2. [Using the Clusters](#2)
+    1. [Resources](#2.1)
+    2. [Interactive Sessions](#2.2)
+    3. [Submitting Jobs](#2.3)
+    4. [Monitoring or Cancelling Jobs](#2.4)
+
 
 This guide is intended to help you get started with the HPC clusters. It is not intended to be a comprehensive guide, 
 but rather a quick reference to get you started. For the cluster documentation, please refer to [here](https://guiesbibtic.upf.edu/recerca/hpc).) 
@@ -152,7 +161,7 @@ python run_some_code.py
 For more information about the job script, refer to the 
 [**Basic Jobs**](https://guiesbibtic.upf.edu/recerca/hpc/basic-jobs) section of the HPC documentation.
 
-### 2.4. Monitoring, or Canceling Jobs <a name="2.4"></a>
+### 2.4. Monitoring or Canceling Jobs <a name="2.4"></a>
 
 Use the `squeue` command to monitor the jobs you have submitted. The `squeue` command will show you the jobs
 that are currently running, the jobs that are waiting in the queue, and the jobs that have finished running.

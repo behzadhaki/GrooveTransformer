@@ -9,6 +9,7 @@
    2. [HPC Cluster GPU Installation](#3.2)
       1. [Anaconda Installation](#3.2.1)
 
+> **Note:** If you want to set up on the clusters, first refer to the **`CLUSTER GUIDE`** available [HERE](HPC_Cluster_Guide.md) 
 
 # 1. Required Packages <a name="1"></a>
 The repository was last tested with 
