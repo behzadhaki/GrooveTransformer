@@ -48,6 +48,10 @@ The reconstruction losses (offset, velocities, hits) are the same as the one use
 Losses source code available [here](../../../helpers/VAE/train_utils.py)
 
 ### 2.iii Training Parameters <a name="2_iii"></a>
+
+The model was trained using [Weiths and Biases](https://wandb.ai/), and the following hyperparameters were used in the training process:
+
+The training code is available [here](../../../train.py)
    
 ```yaml
 method: random
@@ -182,6 +186,11 @@ program: train.py
 
 ```
 
+The training code is available [here](../../../train.py), the better models where selected 
+bassed on these [evaluetors](../../chapter3_Evaluator/README.md) and saved (look in the [pretrained models](#3_iv) section).
+
+```python
+
 
 ## 3. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
 This model use the transformer ${this}_{is}^{inline}$ encoder as both the encoder and the decoder section of a VAE to generate a piano-roll-like drum pattern.
@@ -199,7 +208,7 @@ If you use this model, please cite the following ...:
 }
 ```
 
-### 2.i Instantiation <a name="2_i"></a>
+### 3.i Instantiation <a name="3i"></a>
 A Variational Monotonic groove transformer consisting of the 
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
 only section of the original transformer, used as the encoder and decoder of a VAE. 
@@ -236,7 +245,7 @@ params.update({'device': device})
 TM = GrooveTransformerEncoderVAE(params)
 ```
 
-### 2.ii Storing <a name="2_ii"></a>
+### 3.ii Storing <a name="3_ii"></a>
 The models have a `save` method which can be used to store the model parameters. 
 The `save` method takes in a  `**.pth` file path where the model attributes are to be stored. 
 The model parameters as well as the model state dictionary are stored in the stored file.
@@ -251,7 +260,7 @@ Using this method, a `**.json` file is also created which stores the model param
 this json file is already available in the dictionary stored in the `.pth` file. The json file is created
 for conveniently inspecting the model params.
 
-### 2.iii Loading <a name="2_iii"></a>
+### 3.iii Loading <a name="3_iii"></a>
 
 Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
 
@@ -270,7 +279,7 @@ groove_transformer_vae = load_variational_mgt_model(model_path, device=device)
 
 ```
 
-### 2.iv Pretrained Versions <a name="3_iv"></a>
+### 3.iv Pretrained Versions <a name="3_iv"></a>
 
 The models are:
 
@@ -285,7 +294,7 @@ To load the model, use the `load_variational_mgt_model`
 
 
 ```
-### 2.v Generation <a name="3_v"></a>
+### 3.v Generation <a name="3_v"></a>
 Source code available [here](../../demos/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
 Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),
