@@ -9,13 +9,9 @@
 #SBATCH -o /homedtic/bhaki/GrooveTransformer/error/%N.%J.VAE_test_loader.out
 #SBATCH -e /homedtic/bhaki/GrooveTransformer/error/%N.%J.VAE_test_loader.err
 
-export PATH="$HOME/project/anaconda3/bin:$PATH"
-export PATH="$/homedtic/bhaki/project/anaconda3/envs/torch_thesis:$PATH"
-export PATH="$/homedtic/bhaki:$PATH"
-
-source activate torch_thesis
-
-cd GrooveTransformer
-
+source /etc/profile.d/lmod.sh
+source /etc/profile.d/zz_hpcnow-arch.sh
+module load Anaconda3/2020.02
+source activate GrooveTransformer
 wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/bib6bpsb
 #python sweep_tester_VAE.py
