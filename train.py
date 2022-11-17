@@ -1,15 +1,15 @@
-import wandb        # √
-import torch         # √
-from model import GrooveTransformerEncoderVAE        # √
-from helpers import vae_train_utils, vae_test_utils         # x
-from data.src.dataLoaders import MonotonicGrooveDataset     # x
-from torch.utils.data import DataLoader # √
-import logging  # √
-import yaml # √
-import argparse # √
+import wandb
+import torch
+from model import GrooveTransformerEncoderVAE
+from helpers import vae_train_utils, vae_test_utils
+from data.src.dataLoaders import MonotonicGrooveDataset
+from torch.utils.data import DataLoader
+from logging import getLogger, DEBUG
+import yaml
+import argparse
 
-logger = logging.getLogger("train.py")
-logger.setLevel(logging.DEBUG)
+logger = getLogger("train.py")
+logger.setLevel(DEBUG)
 
 # logger.info("MAKE SURE YOU DO THIS")
 # logger.warning("this is a warning!")
