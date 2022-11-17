@@ -1,6 +1,7 @@
 import torch
 
 if __name__ == '__main__':
+
     # 2.i BasicGrooveTransformer.GrooveTransformer
     params = {
         'd_model_enc': 128,
