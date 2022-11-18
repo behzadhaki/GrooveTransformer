@@ -40,7 +40,7 @@ def load_variational_mgt_model(model_path, params_dict=None, is_evaluating=True,
         with open(params_dict, 'r') as f:
             params_dict = json.load(f)
 
-    model = GrooveTransformerEncoderVAE(**params_dict)
+    model = GrooveTransformerEncoderVAE(params_dict)
     model.load_state_dict(loaded_dict["model_state_dict"])
     if is_evaluating:
         model.eval()

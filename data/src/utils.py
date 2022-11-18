@@ -5,23 +5,33 @@ import bz2
 from tqdm import tqdm
 
 import numpy as np
-from bokeh.plotting import figure, gridplot
-from bokeh.io import save
+from bokeh.plotting import gridplot
 from bokeh.models import Tabs, Panel
 from hvo_sequence.io_helpers import note_sequence_to_hvo_sequence
 from hvo_sequence.drum_mappings import get_drum_mapping_using_label
 
 from math import pi
 
-import pandas as pd
-
 from bokeh.palettes import Category20c
-from bokeh.plotting import figure, show
+from bokeh.plotting import figure
 from bokeh.transform import cumsum
 
 import logging
 logger = logging.getLogger("data.Base.utils")
 logger.setLevel(logging.DEBUG)
+
+import pandas as pd
+try:
+    import holoviews as hv
+    from holoviews import opts
+    hv.extension('bokeh')
+    _HAS_HOLOVIEWS = True
+except ImportError:
+    _HAS_HOLOVIEWS = False
+    logger.warning("Holoviews not installed. Please install holoviews to be able to generate heatmaps.")
+
+from bokeh.io import save
+
 
 def does_pass_filter(hvo_sample, filter_dict):   # FIXME THERE IS AN ISSUE HERE
     passed_conditions = [True]  # initialized with true in case no filters are required
@@ -408,85 +418,82 @@ def get_per_performer_bokeh_pi_chart(hvo_seq_list, dataset_label, ncols=3, filen
 
 
 def get_genre_performer_heatmaps(data_set, subset_tag, data_identifier, filename=None):
-    genres = []
-    performers = []
-    session_identifiers = []
-    loop_ids = []
+    if not _HAS_HOLOVIEWS:
+        logger.warning("holoviews is not installed. Please install it to use this function")
+        return  None
+    else:
+        genres = []
+        performers = []
+        session_identifiers = []
+        loop_ids = []
 
-    for hvo_sample in data_set:
-        genres.append(hvo_sample.metadata["style_primary"])
-        performer = hvo_sample.metadata["master_id"].split("/")[0]
-        if int(performer.split("drummer")[-1]) < 10:
-            performer = "drummer 0" + performer.split("drummer")[-1]
-        else:
-            performer = "drummer " + performer.split("drummer")[-1]
-        performers.append(performer)
-        session_identifiers.append("_".join(hvo_sample.metadata["master_id"].split("/")[1:]))
-        loop_ids.append(hvo_sample.metadata["loop_id"])
+        for hvo_sample in data_set:
+            genres.append(hvo_sample.metadata["style_primary"])
+            performer = hvo_sample.metadata["master_id"].split("/")[0]
+            if int(performer.split("drummer")[-1]) < 10:
+                performer = "drummer 0" + performer.split("drummer")[-1]
+            else:
+                performer = "drummer " + performer.split("drummer")[-1]
+            performers.append(performer)
+            session_identifiers.append("_".join(hvo_sample.metadata["master_id"].split("/")[1:]))
+            loop_ids.append(hvo_sample.metadata["loop_id"])
 
-    # place data in a dataframe
-    import pandas as pd
+        # place data in a dataframe
+        df = pd.DataFrame({
+            "genre": genres,
+            "performer": performers,
+            "session_identifier": session_identifiers,
+            "loop_id": loop_ids
+        })
 
-    df = pd.DataFrame({
-        "genre": genres,
-        "performer": performers,
-        "session_identifier": session_identifiers,
-        "loop_id": loop_ids
-    })
+        summarized_heatmaps = df.groupby(["genre", "performer"]).nunique()
+        # get first row
 
-    summarized_heatmaps = df.groupby(["genre", "performer"]).nunique()
-    # get first row
+        # histogrmas of performance, genre in terms of total performances
+        session_identifier_tuples = list()
+        loop_id_tuples = list()
+        for index in summarized_heatmaps.index:
+            session_identifier_tuples.append(
+                (index[0], index[1], summarized_heatmaps.loc[index[0], index[1]]['session_identifier']))
+            loop_id_tuples.append((index[0], index[1], summarized_heatmaps.loc[index[0], index[1]]['loop_id']))
 
-    # histogrmas of performance, genre in terms of total performances
-    session_identifier_tuples = list()
-    loop_id_tuples = list()
-    for index in summarized_heatmaps.index:
-        session_identifier_tuples.append(
-            (index[0], index[1], summarized_heatmaps.loc[index[0], index[1]]['session_identifier']))
-        loop_id_tuples.append((index[0], index[1], summarized_heatmaps.loc[index[0], index[1]]['loop_id']))
+        session_identifier_tuples = sorted(session_identifier_tuples, key=lambda x: x[0], reverse=True)
+        loop_id_tuples = sorted(loop_id_tuples, key=lambda x: x[0], reverse=True)
 
-    session_identifier_tuples = sorted(session_identifier_tuples, key=lambda x: x[0], reverse=True)
-    loop_id_tuples = sorted(loop_id_tuples, key=lambda x: x[0], reverse=True)
+        hm_sessions = hv.HeatMap(session_identifier_tuples)
+        hm_sessions = hm_sessions * hv.Labels(hm_sessions).opts(padding=0, text_color='white')
+        fig_sessions = hv.render(hm_sessions, backend='bokeh')
+        fig_sessions.plot_height = 400
+        fig_sessions.plot_width = 800
+        fig_sessions.title = f"Number of unique sessions per genre and performer ({subset_tag.capitalize()} - {data_identifier})"
+        fig_sessions.xaxis.axis_label = ""
+        fig_sessions.yaxis.axis_label = ""
+        fig_sessions.xaxis.major_label_orientation = 45
+        fig_sessions.xaxis.major_label_text_font_size = "12pt"
+        fig_sessions.yaxis.major_label_text_font_size = "12pt"
 
-    import holoviews as hv
-    from holoviews import opts
-    hv.extension('bokeh')
-    from bokeh.io import save
+        hm_loops = hv.HeatMap(loop_id_tuples)
+        hm_loops = hm_loops * hv.Labels(hm_loops).opts(padding=0, text_color='white')
+        fig_loops = hv.render(hm_loops, backend='bokeh')
+        fig_loops.plot_height = 400
+        fig_loops.plot_width = 800
+        fig_loops.title = f"Number of unique loops per genre and performer ({subset_tag.capitalize()} - {data_identifier})"
+        fig_loops.xaxis.axis_label = ""
+        fig_loops.yaxis.axis_label = ""
+        fig_loops.xaxis.major_label_orientation = 45
+        fig_loops.xaxis.major_label_text_font_size = "12pt"
+        fig_loops.yaxis.major_label_text_font_size = "12pt"
 
-    hm_sessions = hv.HeatMap(session_identifier_tuples)
-    hm_sessions = hm_sessions * hv.Labels(hm_sessions).opts(padding=0, text_color='white')
-    fig_sessions = hv.render(hm_sessions, backend='bokeh')
-    fig_sessions.plot_height = 400
-    fig_sessions.plot_width = 800
-    fig_sessions.title = f"Number of unique sessions per genre and performer ({subset_tag.capitalize()} - {data_identifier})"
-    fig_sessions.xaxis.axis_label = ""
-    fig_sessions.yaxis.axis_label = ""
-    fig_sessions.xaxis.major_label_orientation = 45
-    fig_sessions.xaxis.major_label_text_font_size = "12pt"
-    fig_sessions.yaxis.major_label_text_font_size = "12pt"
+        p = gridplot([fig_sessions, fig_loops], ncols=2, plot_width=800, plot_height=400)
 
-    hm_loops = hv.HeatMap(loop_id_tuples)
-    hm_loops = hm_loops * hv.Labels(hm_loops).opts(padding=0, text_color='white')
-    fig_loops = hv.render(hm_loops, backend='bokeh')
-    fig_loops.plot_height = 400
-    fig_loops.plot_width = 800
-    fig_loops.title = f"Number of unique loops per genre and performer ({subset_tag.capitalize()} - {data_identifier})"
-    fig_loops.xaxis.axis_label = ""
-    fig_loops.yaxis.axis_label = ""
-    fig_loops.xaxis.major_label_orientation = 45
-    fig_loops.xaxis.major_label_text_font_size = "12pt"
-    fig_loops.yaxis.major_label_text_font_size = "12pt"
+        if filename is not None:
+            if not filename.endswith(".html"):
+                filename += ".html"
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            filename = filename.replace(".html", f"_{subset_tag.capitalize()} - {data_identifier}.html")
+            save(p, filename)
 
-    p = gridplot([fig_sessions, fig_loops], ncols=2, plot_width=800, plot_height=400)
-
-    if filename is not None:
-        if not filename.endswith(".html"):
-            filename += ".html"
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        filename = filename.replace(".html", f"_{subset_tag.capitalize()} - {data_identifier}.html")
-        save(p, filename)
-
-    return p
+        return p
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ and how the monotonic groove is transformed into a drum pattern.
 Source code available [here](../../../model/Base/BasicGrooveTransformer.py)
 
 
-![VAE Model](trasnsformer_VAE_scrath.png)
+<img src="trasnsformer_VAE_scrath.png" width="300">
 
 ### 2.ii loss functions <a name="2_ii"></a>
 
@@ -41,7 +41,155 @@ The loss function is composed of four: the offset loss, velocities loss,
 hits loss and the KL divergence loss. 
 The reconstruction losses (offset, velocities, hits) are the same as the one used in the [MonotonicGrooveTransformer](../../chapter2_Model/A_MonotonicGrooveTransformer/README.md) model. The KL divergence loss is calculated as follows:
 
+
 ![KL loss](https://latex.codecogs.com/gif.latex?%5Cmathfrak%7BL%7D%20%3D%20-%20%5Cfrac%7B1%7D%7B2%7D%20%5Csum_%7Bi%3D1%7D%5E%7BK%7D1&plus;%20%5Clog%28%20%5Csigma_%7Bi%7D%5E%7B2%7D%29%20-%20%5Csigma_%7Bi%7D%5E%7B2%7D%20-%20%5Cmu_%7Bi%7D%5E%7B2%7D)
+
+Losses source code available [here](../../../helpers/VAE/train_utils.py)
+
+### 2.iii Training Parameters <a name="2_iii"></a>
+
+The model was trained using [Weiths and Biases](https://wandb.ai/), and the following hyperparameters were used in the training process:
+
+The training code is available [here](../../../train.py)
+   
+```yaml
+method: random
+metric:
+  goal: maximize
+  name: test/Relative___DICE_mean
+parameters:
+  batch_size:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+      - 1024
+  d_model_dec:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  d_model_enc:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dim_feedforward_dec:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dim_feedforward_enc:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  dropout:
+    distribution: uniform
+    max: 0.4
+    min: 0.1
+  embedding_size_src:
+    value: 27
+  embedding_size_tgt:
+    value: 27
+  epochs:
+    value: 500
+  hit_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - dice
+  latent_dim:
+    values:
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+      - 512
+  loss_hit_penalty_multiplier:
+    distribution: uniform
+    max: 0.7
+    min: 0.3
+  lr:
+    values:
+      - 0.001
+      - 0.0001
+  max_len_dec:
+    value: 32
+  max_len_enc:
+    value: 32
+  nhead_dec:
+    values:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+  nhead_enc:
+    values:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+  num_decoder_layers:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  num_encoder_layers:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  offset_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - mse
+  optimizer:
+    distribution: categorical
+    values:
+      - sgd
+      - adam
+  velocity_loss_function:
+    distribution: categorical
+    values:
+      - bce
+      - mse
+  wandb_project:
+    distribution: categorical
+    values:
+      - SmallSweeps_MGT_VAE
+program: train.py
+
+
+
+```
+
+The training code is available [here](../../../train.py), the better models where selected 
+bassed on these [evaluetors](../../chapter3_Evaluator/README.md) and saved (look in the [pretrained models](#3_iv) section).
+
+```python
+
 
 ## 3. `MonotonicGrooveVAE.GrooveTransformerEncoderVAE` <a name="3"></a>
 This model use the transformer ${this}_{is}^{inline}$ encoder as both the encoder and the decoder section of a VAE to generate a piano-roll-like drum pattern.
@@ -59,14 +207,15 @@ If you use this model, please cite the following ...:
 }
 ```
 
-### 2.i Instantiation <a name="2_i"></a>
+### 3.i Instantiation <a name="3i"></a>
 A Variational Monotonic groove transformer consisting of the 
 [transformerEncoder](https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoder.html#torch.nn.TransformerEncoder)
 only section of the original transformer, used as the encoder and decoder of a VAE. 
 
-Source code available [here](../../../demos/model/VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
+Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/GrooveTransformerEncoderVAE_test.py)
 
 ```python
+import torch
 params = {
   'd_model_enc': 128,
   'd_model_dec': 512,
@@ -90,46 +239,48 @@ params = {
 
 from model import GrooveTransformerEncoderVAE
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-config.update({'device': device})
+params.update({'device': device})
 
-TM = GrooveTransformer(config)
+TM = GrooveTransformerEncoderVAE(params)
 ```
 
-### 2.ii Storing <a name="2_ii"></a>
+### 3.ii Storing <a name="3_ii"></a>
 The models have a `save` method which can be used to store the model parameters. 
 The `save` method takes in a  `**.pth` file path where the model attributes are to be stored. 
 The model parameters as well as the model state dictionary are stored in the stored file.
 
 ```python
-model_path = "model/misc/???/rand_model.pth"
-TEM.save(model_path)
+# save model
+model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_model/save_dommie_version.pth"
+TM.save(model_path)
 ```
 
 Using this method, a `**.json` file is also created which stores the model parameters. The data stored in 
 this json file is already available in the dictionary stored in the `.pth` file. The json file is created
 for conveniently inspecting the model params.
 
-### 2.iii Loading <a name="2_iii"></a>
+### 3.iii Loading <a name="3_iii"></a>
 
-Source code available [here](../../demos/model/VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
+Source code available [here](../../../demos/model/B_VariationalMonotonicGrooveTransformer/loadVAE_pretrained_versions_available.py)
 
 ```python
 ## 4. Loading a Stored Model <a name="4"></a>
 
 from helpers import load_variational_mgt_model
+from model import GrooveTransformerEncoderVAE
 import torch
 
-# Model path and model_param dictionary
-model_name = f"{wandb_project}/{run_name}_{run_id}/{ep_}"
-model_path = f"misc/VAE/{model_name}.pth"
+model_name = f"save_dommie_version"
+model_path = f"demos/model/B_VariationalMonotonicGrooveTransformer/save_model/{model_name}.pth"
 
 # 1. LOAD MODEL
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-GrooveTransformer = load_variational_mgt_model(model_path, device=device)
+groove_transformer_vae = load_variational_mgt_model(model_path, device=device)
+
 
 ```
 
-### 2.iv Pretrained Versions <a name="3_iv"></a>
+### 3.iv Pretrained Versions <a name="3_iv"></a>
 
 The models are:
 
@@ -144,7 +295,7 @@ To load the model, use the `load_variational_mgt_model`
 
 
 ```
-### 2.v Generation <a name="3_v"></a>
+### 3.v Generation <a name="3_v"></a>
 Source code available [here](../../demos/model/monotonic_groove_transformer_v1/LoaderSamplerDemo.py)
 
 Create am input groove ([create a HVO_Sequence instance](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1_Data/README.md#create-a-score-),

@@ -6,11 +6,9 @@ try:
 except:
     import tensorflow_datasets as tfds
 
-# Import necessary libraries for processing/loading/storing the dataset
 import numpy as np
 import pickle
 import pandas as pd
-from shutil import copy2
 from tqdm import tqdm
 
 # Import libraries for creating/naming folders/files
