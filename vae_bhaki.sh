@@ -20,7 +20,12 @@ export PATH="$HOME/.conda/envs/GrooveTransformer/bin:$PATH"
 source /soft/easybuild/x86_64/software/Anaconda3/2020.02/etc/profile.d/conda.sh
 conda activate GrooveTransformer
 
+# Login to WANDB
+export WANDB_API_KEY=API_KEY
+python -m wandb login
+
 # Run your codes here
+
 cd GrooveTransformer
 #wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/bib6bpsb
 python train.py
