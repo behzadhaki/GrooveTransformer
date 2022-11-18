@@ -317,3 +317,62 @@ The rhythmic distances are computed as the distances between the one sequence an
 - 'Micro-Timing::Accuracy'
 
 ## 4. Multi-Segment HVO Sequences <a name="4"></a>
+
+A HVO_Sequence object can have multiple segments depending on the number of Tempo and/or Time Signature changes in the 
+score. In this section, we discuss a few ways to interact with these sequences
+
+##### Creating a Multi-Segment HVO Sequence
+
+###### A. Append Two/More HVO Sequences
+Two hvo_sequences can be concatenated using the '+' operator. If the attributes of the two sequences are different, 
+the resulting sequence will have all the segments of both the sequences. If the attributes are the same, the resulting
+sequence will have only one segment with the combined data of both the sequences.
+
+The following code snippet shows how to concatenate two sequences
+
+```python
+hvo_seq3 = hvo_seq1 + hvo_seq2
+```
+
+> **Note:** The appending **always** starts on the next available beat of the first sequence
+
+> **Note:** The appending only works if the **drum_mapping** and **beat_division_factors** are the **same for both** the sequences 
+
+###### B. Register Tempo and Time Signature Changes
+Another way to create multi-segment sequences is to change the tempo and/or time signature of the sequence somewhere 
+in the middle.
+
+> **Note:** If a Tempo or Time Signature change is registered at a location other than the start of a beat, the 
+> change will be forced to the **closest** beat location
+
+```python
+from hvo_sequence import HVO_Sequence
+from hvo_sequence import ROLAND_REDUCED_MAPPING
+hvo_seq_a = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING, beat_division_factors=[12])
+hvo_seq_a.add_time_signature(0, 4, 4)
+hvo_seq_a.add_tempo(0, 50)
+hvo_seq_a.add_time_signature(10, 3, 4)     # will be registered at 12 (closest beat)
+hvo_seq_a.add_tempo(16, 60)         # will be registered at 12 (closest beat)
+hvo_seq_a.add_tempo(17, 60)         # WON'T be registered as same as previous
+
+# splot into segments
+hvo_seq_a.consistent_segment_hvo_sequences
+```
+
+> **Note:** All HVO_Sequence functionalities work the same for multi-segment sequences. The only difference is that the
+> distances and the features in section [3.2](#3.2) can not be computed for multi-segment sequences.
+
+> **Note:** A multi-segment sequence can be converted to multiple single-segment sequences using the
+> **consistent_segment_hvo_sequences** property
+> ```python
+> hvo_seq_segments, start_times = hvo_seq_a.consistent_segment_hvo_sequences
+> 
+> hvo_seq_segments:
+>       [<hvo_sequence.hvo_seq.HVO_Sequence at 0x135674cd0>, <hvo_sequence.hvo_seq.HVO_Sequence at 0x112edb2e0>]
+> 
+> start_times:
+>       [0, 12]
+> ```
+
+Some examples for dealing with multi-segment sequences can be found [here](../../demos/HVO_Sequence/HVO_Operations.py) 
+and [here](../../demos/HVO_Sequence/multi_segment_hvo.py)
