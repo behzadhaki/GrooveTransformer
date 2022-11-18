@@ -2,6 +2,27 @@
 # List of Contents
 ### Guides for using the repository can be found here
 
+# Chapter 0 
+### [A. ENVIRONMENT SETUP](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md)
+1. [Required Packages](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#1-required-packages-)
+2. [CPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#2-cpu-installation--)
+   1. [venv Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#21--venv-installation-)
+   2. [Anaconda Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#22-anaconda-installation-)
+3. [GPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#3-gpu-installation-)
+   1. [Local GPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#31-gpu-installation-on-local-machines-)
+   2. [HPC Cluster GPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#32-installation-on-hpc-clusters-)
+      1. [Anaconda Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#321-anaconda)
+ 
+### [B. HPC Cluster Guide](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md)
+1. [Getting Started](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#1-getting-started-)
+   1. [Accounts](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#11-accounts-)
+   2. [Accessing the Clusters](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#12-accessing-the-clusters-)
+2. [Using the Clusters](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#2-using-the-clusters-)
+    1. [Resources](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#21-resources-)
+    2. [Interactive Sessions](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#22-interactive-sessions-)
+    3. [Submitting Jobs](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#23-submitting-jobs-)
+    4. [Available Software](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#24-available-software-)
+    5. [Monitoring or Cancelling Jobs](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#25-monitoring-or-canceling-jobs-)
 
 # Chapter 1 
 ### [A. Data Representation & Datasets](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/chapter1A_Data/README.md) 
