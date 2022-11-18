@@ -8,9 +8,7 @@
    1. [Network Architecture](#2_i)
    2. [loss functions](#2_ii)
    2. [Training Parameters](#2_ii)
-
-
-2. [MonotonicGrooveVAE.GrooveTransformerEncoderVAE](#3)
+3. [MonotonicGrooveVAE.GrooveTransformerEncoderVAE](#3)
    1. [Instantiation](#3_i)
    2. [Storing](#3_ii)
    3. [Loading](#3_iii)
@@ -206,6 +204,7 @@ If you use this model, please cite the following ...:
   year={}
 }
 ```
+## 3. MonotonicGrooveVAE.GrooveTransformerEncoderVAE <a name="3"></a>
 
 ### 3.i Instantiation <a name="3i"></a>
 A Variational Monotonic groove transformer consisting of the 
