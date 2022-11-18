@@ -56,7 +56,7 @@ hvo_seq.to_html_plot(
 # -----------           Synthesize/Export           --------------
 # ----------------------------------------------------------------
 # Export to midi
-hvo_seq.save_hvo_to_midi(filename="misc/test.mid")
+hvo_seq.save_hvo_to_midi(filename="demos/HVO_Sequence/misc/test.mid")
 
 # Export to note_sequece
 hvo_seq.to_note_sequence(midi_track_n=10)
@@ -65,7 +65,7 @@ hvo_seq.to_note_sequence(midi_track_n=10)
 audio = hvo_seq.synthesize(sr=44100, sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
 
 # Synthesize to audio and auto save
-hvo_seq.save_audio(filename="misc/temp.wav", sr=44100,
+hvo_seq.save_audio(filename="demos/HVO_Sequence/misc/temp.wav", sr=44100,
                    sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2")
 
 
@@ -77,3 +77,4 @@ hvo_seq = midi_to_hvo_sequence(
     filename='misc/test.mid',
     drum_mapping=ROLAND_REDUCED_MAPPING,
     beat_division_factors=[4])
+

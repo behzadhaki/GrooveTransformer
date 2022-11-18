@@ -362,6 +362,13 @@ class GridMaker:
         self.__is_downbeat_grid_line = []
         self.__total_seconds_prepared = -1
 
+    def __eq__(self, other):
+        return all([
+            self.__beat_division_factors == other.__beat_division_factors,
+            self.tempos == other.tempos,
+            self.time_signatures == other.time_signatures
+        ])
+
     @property
     def beat_division_factors(self):
         return self.__beat_division_factors
@@ -575,8 +582,6 @@ class GridMaker:
             for bdf in self.__beat_division_factors:
                 locs.extend([round(i*secs_per_beat/bdf, 3) for i in range(int(bdf))])
             self.__segment_single_beat_grid_locations_in_sec.append(sorted(set(locs)))
-
-
 
     def is_ready(self):
         return all([self.__time_signatures is not None, self.__tempos is not None])
