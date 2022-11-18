@@ -1,4 +1,4 @@
-## Chapter 1 - Data Representation & Datasets 
+## Chapter 1A - Data Representation & Datasets 
 
 ----
 
@@ -78,7 +78,8 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 The following code snippet demonstrates the basic usage of the `HVO_Sequence` class. This is 
 a brief summary of how to use the `HVO_Sequence` class to create, modify, analyze a score. 
 
-**For a detailed guide on how to use the `HVO_Sequence` class, please refer to the [documentation](../HVO_Sequence/README.md)**
+> **Note:** **For a detailed guide on how to use the `HVO_Sequence` class, please refer to the 
+> [documentation](../Chapter1B_HVO_Sequence/README.md)**
 
 
 ```python
