@@ -1,4 +1,4 @@
-# Chapter 2 - Models: Instantiating, Storing, Loading, Generating
+# Chapter 2A - Groove Transformer
 
 ----
 
