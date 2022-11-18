@@ -117,7 +117,7 @@ to each other.
 ### 1.5 HVO_Sequence <a name="1.5"></a>
 The actual grid relative score representation is stored as a 3-section **numpy array**. Each section, corresponds 
 to hits, velocities and offsets. If you are not familiar with this representation, you can read more about it in section
-2.1 of [chapter 1](../chapter1_Data/README.md). However, to summarize, in this representation,
+2.1 of [chapter 1](../chapter1A_Data/README.md). However, to summarize, in this representation,
 each drum score is directly represented by three stacked T × M
 matrices, where T corresponds to the number of time-steps, in this case,
 32 (2 bars with 16 sub-divisions each), and M corresponds to the number
