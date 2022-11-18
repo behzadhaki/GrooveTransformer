@@ -322,6 +322,7 @@ These plots can be generated using the script [here](../../data/src/visualize_da
 
  <img src="figures/2Bar 4-4 Beats GMD_performer_genre_counts.png" width="800">
 
+Many more analysis of the dataset can be found [here](./figures/)
 
 ---
 
