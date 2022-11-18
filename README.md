@@ -2,7 +2,7 @@
 # List of Contents
 ### Guides for using the repository can be found here
 
-# Chapter 0 
+# [Chapter 0]() 
 ### [A. ENVIRONMENT SETUP](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md)
 1. [Required Packages](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#1-required-packages-)
 2. [CPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#2-cpu-installation--)
@@ -24,7 +24,7 @@
     4. [Available Software](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#24-available-software-)
     5. [Monitoring or Cancelling Jobs](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#25-monitoring-or-canceling-jobs-)
 
-# Chapter 1 
+# [Chapter 1]() 
 ### [A. Data Representation & Datasets](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/chapter1A_Data/README.md) 
 
 1. [Introduction](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter1A_Data/README.md#1-introduction-)
