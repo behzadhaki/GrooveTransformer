@@ -40,11 +40,8 @@ parser.add_argument("--num_decoder_layers", help="Number of decoder layers", def
 parser.add_argument("--dropout", help="Dropout", default=0.4)
 parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
 parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
-parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)          # FIXME: check the model tester, if this is different from the encoder, it will fail
-parser.add_argument("--device", help="Device to use", default="cpu")
-# parser.add_argument("--o_activation", help="Offset activation function - either 'sigmoid' or 'tanh'",
-#                     default="tanh")   # FIXME: if tanh with BCE, then it would be wrong
-#                                       #           as offset loss with BCE assumes sigmoid, and MSE assumes tanh
+parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)
+# parser.add_argument("--device", help="Device to use", default="if_cuda", choices=["cpu", "if_cuda"])
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
                     default='bce', choices=['bce', 'dice'])
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
@@ -108,7 +105,6 @@ else:
         latent_dim=args.latent_dim,
         max_len_enc=args.max_len_enc,
         max_len_dec=args.max_len_dec,
-        device=args.device,
         o_activation="tanh" if isinstance(args.offset_loss_function, torch.nn.MSELoss) else "sigmoid",
         hit_loss_function=args.hit_loss_function,
         velocity_loss_function=args.velocity_loss_function,
@@ -121,6 +117,7 @@ else:
         is_testing=args.is_testing,
         dataset_json_dir=args.dataset_json_dir,
         dataset_json_fname=args.dataset_json_fname,
+        device="cuda" if torch.cuda.is_available() else "cpu"
     )
 
 
@@ -151,7 +148,7 @@ if __name__ == "__main__":
 
     # Load Training and Testing Datasets and Wrap them in torch.utils.data.Dataloader
     # ----------------------------------------------------------------------------------------------------------
-    # only 1% of the dataset is used for testing
+    # only 1% of the dataset is used if we are testing the script (is_testing==True)
     training_dataset = MonotonicGrooveDataset(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="train",
