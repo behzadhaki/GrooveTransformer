@@ -310,6 +310,7 @@ pip install torch==1.12.0+cu102 --extra-index-url https://download.pytorch.org/w
 pip3 install ffmpeg==1.4
 pip3 install holoviews==1.15.1
 pip3 install wandb==0.13.3
+pip3 install scipy==1.9.1
 
 # 3. MIDI/AUDIO Features (If needed)
 #    -------------------------------
