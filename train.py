@@ -72,7 +72,7 @@ parser.add_argument("--save_model", help="Save model", default=True)
 parser.add_argument("--save_model_dir", help="Path to save the model", default="misc/VAE")
 parser.add_argument("--save_model_frequency", help="Save model every n epochs", default=100)
 
-parser.add_argument("--generate_audio_samples", help="Generate audio samples", default=True)
+parser.add_argument("--piano_roll_samples", help="Generate audio samples", default=True)
 parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=40)
 
 # --------------------------------------------------------------------
@@ -241,7 +241,7 @@ if __name__ == "__main__":
 
         # Generate PianoRolls and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
-        if args.generate_audio_samples:
+        if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
                 media = vae_test_utils.get_logging_media_for_vae_model_wandb(
                     groove_transformer_vae=groove_transformer_vae,
