@@ -15,7 +15,7 @@
 This guide is intended to help you get started with the HPC clusters. It is not intended to be a comprehensive guide, 
 but rather a quick reference to get you started. For the cluster documentation, please refer to [here](https://guiesbibtic.upf.edu/recerca/hpc).) 
 
-> **Note:** If you have any questions, please contact the cluster administrators by
+> **Note** If you have any questions, please contact the cluster administrators by
 > making a [CAU ticket](https://cau.upf.edu/) for `Library and IT / Supercomputació`.
 
 <img src="assets/cau.png" width="300" >
@@ -27,7 +27,7 @@ To access the HPC clusters, you need to have a **RESEARCH ID**. This ID is **dif
 By default, Master's and PhD students at the UPF have  access to the HPC clusters. 
 Alternatively, you should contact your supervisor to get access to the clusters.
 
-> **Note:** The  **RESEARCH IDs** are commonly formatted as **`[first character of first name][last name]`** (e.g. `jdoe` for John Doe). 
+> **Note** The  **RESEARCH IDs** are commonly formatted as **`[first character of first name][last name]`** (e.g. `jdoe` for John Doe). 
 > You need a password set up to access the clusters using your ID. You can set up your password by providing you username
 > using this [link](https://login.rp.upf.edu/?action=sendtoken) (to change password, use this [link](https://login.rp.upf.edu/)).
 > If these links are inactive, navigate to `Tools > Change Password` on the [guide](https://guiesbibtic.upf.edu/recerca/hpc)
@@ -40,7 +40,7 @@ To access the cluster you need to first be connected to the `UPF VPN` network. Y
 connect to the VPN using `Forticlient` 
 (instructions [here](https://www.upf.edu/en/web/biblioteca-informatica/serveis-pdi/-/asset_publisher/g2SvxJwKuVBy/content/id/114979410/maximized).)
 
-> **Note:** Remember that to access the **VPN** you should connect to the UPF network using your **UPF account** (**uXXXXXXX**).
+> **Note** Remember that to access the **VPN** you should connect to the UPF network using your **UPF account** (**uXXXXXXX**).
 > However, for connecting to the cluster, you should use your **RESEARCH ID**. These two accounts are different and 
 > don't share the same password necessarily.
 
@@ -69,7 +69,7 @@ The HPC clusters are composed of two sets of nodes: `Login` and `Compute`. When 
 you will be connected to a `Login` node. The `Login` nodes are used to submit jobs to the `Compute` nodes or request
 interactive access to the `Compute` nodes. The compute nodes are used to run the jobs submitted by the users. 
 
-> **Warning:** The `Login` nodes are not meant to run jobs. You **SHOULD NOT** do any computation on the `Login` nodes.
+> **Warning** The `Login` nodes are not meant to run jobs. You **SHOULD NOT** do any computation on the `Login` nodes.
 
 <img src="assets/cluster_arch1.png" width="300" >
 
@@ -138,7 +138,7 @@ To learn more about interactive sessions, refer to the
 To submit a job, you need to create a `batch script` that contains the commands you want to run. The job script
 should be saved in a file with the `.sh` extension. 
 
-> **Note:** A batch script is a file that contains a series of commands that are executed one after the other.
+> **Note** A batch script is a file that contains a series of commands that are executed one after the other.
 > In order to run a batch script, you need to create an empty `[file_name].sh` file, and then copy the contents of the
 > batch script into the `file.sh` file. Finally, you can sumbit the batch script to the cluster using the
 > `sbatch file.sh` command.

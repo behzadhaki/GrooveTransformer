@@ -9,7 +9,7 @@
    2. [HPC Cluster GPU Installation](#3.2)
       1. [Anaconda Installation](#3.2.1)
 
-> **Note:** If you want to set up on the clusters, first refer to the **`CLUSTER GUIDE`** available [HERE](HPC_Cluster_Guide.md) 
+> **Note** If you want to set up on the clusters, first refer to the **`CLUSTER GUIDE`** available [HERE](HPC_Cluster_Guide.md) 
 
 # 1. Required Packages <a name="1"></a>
 The repository was last tested with 
@@ -39,7 +39,7 @@ tqdm==4.64.1
 wandb==0.13.3
 ```
 
-> **Note:** In order to be able to use pyFluidSynth, you need to install fluidsynth software
+> **Note** In order to be able to use pyFluidSynth, you need to install fluidsynth software
 > on your machine. pyFluidSynth needs fluidsynth to be installed on your machine in order to
 > work. You can install fluidsynth using the following command:
 > On Mac, you can do this by running 
@@ -53,7 +53,7 @@ wandb==0.13.3
 > In this repo, the fluidsynth package is used to generate audio from a number of different symbolic
 > representations such as `MIDI`, `Note_Sequence`, and `HVO_Sequence`. 
 
-> **Warning:** If you decide to install fluidsynth using the conda-forge channel, we recommend that you 
+> **Warning** If you decide to install fluidsynth using the conda-forge channel, we recommend that you 
 > prepare your conda environment first using the guides in section [2.2](#2.2) or [3.1](#2.3)
 
 ### 2. CPU Installation  <a name="2"></a>
@@ -148,7 +148,7 @@ If you haven't used the clusters before, you can find a guide on how to use them
 
 ###### Local Installation of Miniconda3 on the Cluster
 
-> **Note:** To install Miniconda3, first login to the cluster. 
+> **Note** To install Miniconda3, first login to the cluster. 
 > After logging into the login nodes (no need to connect to computational nodes yet), run the following commands
 > ```terminal  
 >  mkdir ~/miniconda_envs
@@ -157,7 +157,7 @@ If you haven't used the clusters before, you can find a guide on how to use them
 >  bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda_envs/anaconda3
 >  ```
 
-> **Note:** Everytime you want to use the conda environment, you need to activate it first locate the path
+> **Note** Everytime you want to use the conda environment, you need to activate it first locate the path
 > to the conda executable and activate the environment. For example
 > ```terminal
 >   export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
@@ -179,7 +179,7 @@ Once finished, check that the environment has been created by running the follow
 conda info --envs
 ```
 
-> **Warning:** Open your `.bashrc` file and add make sure no conda commands are being executed when you open a new terminal.
+> **Warning** Open your `.bashrc` file and add make sure no conda commands are being executed when you open a new terminal.
 > If you have any conda commands in your `.bashrc` file (should be at the very bottom), remove them.
 > You can use `vim .bashrc`, then press `i` to enter insert mode, 
 > then use the arrow keys to navigate to the bottom of the file. Once done, press `esc` to exit insert mode,
@@ -224,7 +224,7 @@ then once it is finished, run the [second script](#step2condaCreate) in another 
 
 Alternatively, you can run the entire installation in one session using the [full batch script](#fullBatch).
 
-> **Note:** A batch script is a file that contains a series of commands that are executed one after the other.
+> **Note** A batch script is a file that contains a series of commands that are executed one after the other.
 > In order to run a batch script, you need to create an empty `[file_name].sh` file, and then copy the contents of the
 > batch script into the `file.sh` file. Finally, you can sumbit the batch script to the cluster using the
 > `sbatch file.sh` command.
@@ -403,7 +403,7 @@ pip3 install pyFluidSynth
 <!---
 ##### 3.2.2 Anaconda (using lmod softwares available on the cluster) <a name="3.2.2"></a>
 
->  **Warning:** You can prepare the environment using `Anaconda`. This can be done either using an 
+>  **Warning** You can prepare the environment using `Anaconda`. This can be done either using an 
 > [interactive session](https://guiesbibtic.upf.edu/recerca/hpc/interactive-jobs), or by submitting a 
 > [remote job](https://guiesbibtic.upf.edu/recerca/hpc/basic-jobs) using `sbatch` command. 
 > That said, the installation may take a long time, as a result, we highly suggest preparing the environment 
@@ -453,7 +453,7 @@ pip install tqdm==4.64.1
 pip install wandb==0.13.3
 ```
 
-> **Note:** If you don't have previously created a conda environment, you need to uncomment the 
+> **Note** If you don't have previously created a conda environment, you need to uncomment the 
 > `conda create --name GrooveTransformer python=3.9` line, or simply create the environment using the following
 > set of commands in an interactive session prior to submitting the above shell file remotely
 > ```shell
@@ -472,10 +472,10 @@ pip install wandb==0.13.3
 >
 > ```
 
-> **Warning:** It is possible that the Anaconda3/2020.02 module is updated and this version is no longer
+> **Warning** It is possible that the Anaconda3/2020.02 module is updated and this version is no longer
 > available. In such case, run `module avail` or  `module spider Anaconda` to see which versions are available.
 > 
-> **Note:** Make sure you have sourced `/etc/profile.d/lmod.sh` and  `/etc/profile.d/zz_hpcnow-arch.sh` to be able 
+> **Note** Make sure you have sourced `/etc/profile.d/lmod.sh` and  `/etc/profile.d/zz_hpcnow-arch.sh` to be able 
 > to use the `module` command. 
 
 
