@@ -17,7 +17,6 @@ import os
 from tqdm import tqdm
 import copy
 import pandas as pd
-from sklearn.metrics import precision_score, accuracy_score, recall_score, f1_score, matthews_corrcoef
 from scipy.io.wavfile import write
 
 from bokeh.models.widgets import Panel, Tabs
@@ -493,42 +492,7 @@ class Evaluator:
     #  Evaluation of Hits
     # ==================================================================================================================
     def get_pos_neg_hit_scores(self, hit_weight=1, return_as_pandas_df=False):
-        if self._prediction_hvos_array is not None:
-            hit_scores_dict =  {
-
-                'Relative - Accuracy': [
-                    accuracy_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                                   sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)],
-                'Relative - Precision': [
-                    precision_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                                    sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)],
-                'Relative - Recall': [
-                    recall_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                                 sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)],
-                'Relative - F1_Score': [
-                    f1_score(true_values[:, :self.num_voices].flatten(), predictions[:, :self.num_voices].flatten(),
-                             sample_weight=((hit_weight - 1) * predictions[:, :self.num_voices].flatten() + 1))
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)],
-                'Relative - MCC (Hit/Silence Classification)': [
-                    matthews_corrcoef(true_values[:, :self.num_voices].flatten(),
-                                      predictions[:, :self.num_voices].flatten())
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)],
-                'Relative - MCC (Correct Number of Instruments at each step)': [
-                    matthews_corrcoef(true_values[:, :self.num_voices].sum(axis=1).flatten(),
-                                      predictions[:, :self.num_voices].sum(axis=1).flatten())
-                    for (true_values, predictions) in zip(self._gt_hvos_array,
-                                                          self._prediction_hvos_array)]
-            }
-        else:
-            hit_scores_dict = dict()
+        hit_scores_dict = dict()
 
         Actual_P_array = []
         Total_predicted_array = []
@@ -541,6 +505,10 @@ class Evaluator:
         FP_over_N = []
         FN_over_P = []
         DICE = []
+        Accuracy_array = []
+        Precision_array = []
+        Recall_array = []
+        F1_Score_array = []
 
         n_samples = len(self._gt_hvos_array)
         prediction_hvos_array = self._prediction_hvos_array if self._prediction_hvos_array is not None else [None] * n_samples
@@ -551,12 +519,14 @@ class Evaluator:
             Actual_P = np.count_nonzero(true_values)
             Actual_N = true_values.size - Actual_P
 
-
             Actual_P_array.append(Actual_P)
+
             if predictions is not None:
+                Total_predicted_array.append((predictions == 1).sum())
                 TP = ((predictions == 1) & (true_values == 1)).sum()
                 FP = ((predictions == 1) & (true_values == 0)).sum()
                 FN = ((predictions == 0) & (true_values == 1)).sum()
+                TN = ((predictions == 0) & (true_values == 0)).sum()
 
                 # https://en.wikipedia.org/wiki/Precision_and_recall
                 PPV_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
@@ -568,11 +538,18 @@ class Evaluator:
                 FP_over_N.append(FP / Actual_N)
                 FN_over_P.append(FN / Actual_P)
                 DICE.append(2 * TP / (2 * TP + FP + FN) if (2 * TP + FP + FN) > 0 else 0)
-                Total_predicted_array.append((predictions == 1).sum())
+                Accuracy_array.append((TP + TN) / (Actual_P + Actual_N))
+                Precision_array.append(TP / (TP + FP) if (TP + FP) > 0 else 0)
+                Recall_array.append(TP / Actual_P)
+                F1_Score_array.append(2 * TP / (2 * TP + FP + FN) if (2 * TP + FP + FN) > 0 else 0)
 
         if predictions is not None:
             hit_scores_dict.update({
                 "Relative - DICE": DICE,
+                "Relative - Accuracy": Accuracy_array,
+                "Relative - Precision": Precision_array,
+                "Relative - Recall": Recall_array,
+                "Relative - F1_Score": F1_Score_array,
                 "Relative - TPR": TPR_array,
                 "Relative - FPR": FPR_array,
                 "Relative - PPV": PPV_array,
