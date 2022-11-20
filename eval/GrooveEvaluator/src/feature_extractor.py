@@ -1,6 +1,5 @@
 import numpy as np
 from tqdm import tqdm
-from sklearn.neighbors import KernelDensity
 from eval.GrooveEvaluator.src.settings import FEATURES_TO_EXTRACT
 
 from scipy.ndimage.filters import gaussian_filter
@@ -561,26 +560,6 @@ class Interset_Distance_Calculator:
                     self.__inter_distances_per_feat.update({feature: distance_matrix_for_feature})
 
         return self.__inter_distances_per_feat
-
-
-def convert_distances_dict_to_gaussian_pdfs(distances_dict):
-    distances_pdfs = dict()
-    X_plot = np.linspace(-5, 10, 1000)
-    for feature in distances_dict.keys():
-        distances_in_feat = distances_dict[feature]
-
-        if np.count_nonzero(distances_in_feat) > 0:
-            # Find kernel bandwidth using Scott's Rule of Thumb
-            # https://en.wikipedia.org/wiki/Histogram#Scott's_normal_reference_rule
-            bandwidth = 3.49 * distances_in_feat.std() / (distances_in_feat.shape[0]) ** (1.0 / 3.0)
-            kde = KernelDensity(kernel='gaussian', bandwidth=bandwidth).fit(distances_in_feat)
-            log_dens = kde.score_samples(X_plot)
-
-
-            hist, bin_edges = np.histogram(
-                distances_for_feat, bins="scott",
-                density=True
-            )
 
 
 def convert_distances_dict_to_pdf_histograms_dict (distances_dict):
