@@ -407,7 +407,7 @@ class HVO_Sequence(object):
         Returns two HVO_Sequence objects, one (or more if list) with the specified voice(s) removed,
         and one with only the specified voice(s)
 
-        **NOTE: THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
+        **Note THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
         """
         if voice_idx is None:
             logger.warning("Pass a voice index or a list of voice indexes to be reset")
@@ -440,7 +440,7 @@ class HVO_Sequence(object):
         removed. Returns two HVO_Sequence objects, one with the specified event(s) removed, and one with only
         containing the removed event(s)
 
-        **NOTE: THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
+        **Note THIS METHOD DOES NOT MODIFY THE ORIGINAL HVO_SEQUENCE**
         """
         hvo_reset = self.copy()     # non_empty copying so that offset and velocity info is kept
         hvo_reset_comp = self.copy()

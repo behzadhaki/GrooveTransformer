@@ -23,7 +23,7 @@ organized into the following categories:
 The beat division factors are the number of subdivisions of a beat that are used to represent
 the sequence. 
 
-> **Note:** Regardless of the meter type (simple or compound), in this representation
+> **Note** Regardless of the meter type (simple or compound), in this representation
 > the a `beat` is always assumed to be a subdivision of a whole note determined by the 
 > numerator of the time signature.
 
@@ -38,7 +38,7 @@ and beat division factors of [4], or [3], or [3, 4], the grid will look like thi
 
 <img src="assets/beat_div_factors.png" width="300">
 
-> **Note:** The total number of grid lines per each beat is equal to sum of the values minus
+> **Note** The total number of grid lines per each beat is equal to sum of the values minus
 > the number of the values in the list plus 1. 
 > For example, for bdf = [3, 4], total number of grid lines per beat is 
 >
@@ -143,7 +143,7 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 
 # 2. Simple Usage <a name="2"></a>
 
-> **Note:** All the code examples in this section are available  [here](../../demos/HVO_Sequence/demo.py)
+> **Note** All the code examples in this section are available  [here](../../demos/HVO_Sequence/demo.py)
 
 Here is a piano roll visualization of a simple drum sequence created using the script shown below:
 
@@ -334,15 +334,15 @@ The following code snippet shows how to concatenate two sequences
 hvo_seq3 = hvo_seq1 + hvo_seq2
 ```
 
-> **Note:** The appending **always** starts on the next available beat of the first sequence
+> **Note** The appending **always** starts on the next available beat of the first sequence
 
-> **Note:** The appending only works if the **drum_mapping** and **beat_division_factors** are the **same for both** the sequences 
+> **Note** The appending only works if the **drum_mapping** and **beat_division_factors** are the **same for both** the sequences 
 
 ###### B. Register Tempo and Time Signature Changes
 Another way to create multi-segment sequences is to change the tempo and/or time signature of the sequence somewhere 
 in the middle.
 
-> **Note:** If a Tempo or Time Signature change is registered at a location other than the start of a beat, the 
+> **Note** If a Tempo or Time Signature change is registered at a location other than the start of a beat, the 
 > change will be forced to the **closest** beat location
 
 ```python
@@ -359,10 +359,10 @@ hvo_seq_a.add_tempo(17, 60)         # WON'T be registered as same as previous
 hvo_seq_a.consistent_segment_hvo_sequences
 ```
 
-> **Note:** All HVO_Sequence functionalities work the same for multi-segment sequences. The only difference is that the
+> **Note** All HVO_Sequence functionalities work the same for multi-segment sequences. The only difference is that the
 > distances and the features in section [3.2](#3.2) can not be computed for multi-segment sequences.
 
-> **Note:** A multi-segment sequence can be converted to multiple single-segment sequences using the
+> **Note** A multi-segment sequence can be converted to multiple single-segment sequences using the
 > **consistent_segment_hvo_sequences** property
 > ```python
 > hvo_seq_segments, start_times = hvo_seq_a.consistent_segment_hvo_sequences

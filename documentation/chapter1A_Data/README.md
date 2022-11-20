@@ -71,14 +71,14 @@ representation (with 4 voices and 4 timesteps) is shown in the following image
 
 ### 2.2 Example Code <a name="2_2"></a>
 
-> **Note:** All the code examples in this section are available  [here](../../demos/HVO_Sequence/demo.py)
+> **Note** All the code examples in this section are available  [here](../../demos/HVO_Sequence/demo.py)
 
 
 #### **create a score** <a name="createHVO"></a>
 The following code snippet demonstrates the basic usage of the `HVO_Sequence` class. This is 
 a brief summary of how to use the `HVO_Sequence` class to create, modify, analyze a score. 
 
-> **Note:** **For a detailed guide on how to use the `HVO_Sequence` class, please refer to the 
+> **Note** **For a detailed guide on how to use the `HVO_Sequence` class, please refer to the 
 > [documentation](../Chapter1B_HVO_Sequence/README.md)**
 
 
@@ -328,7 +328,7 @@ Many more analysis of the dataset can be found [here](./figures/)
 
 #### 3.1.1 Load dataset as a dictionary <a name="3_1_1"></a>       
 
-> **Note:** All the code examples in this section are available [here](../../demos/data/demo.py)
+> **Note** All the code examples in this section are available [here](../../demos/data/demo.py)
 
 
 ```python
@@ -352,7 +352,7 @@ gmd_dict['train'].keys()
 
 #### 3.1.2 Extract `HVO_Sequence` objects from dataset dictionaries above  <a name="3_1_2"></a>
 
-> **Note:** All the code examples in this section are available [here](../../demos/data/demo.py)
+> **Note** All the code examples in this section are available [here](../../demos/data/demo.py)
 
 
 ```python
@@ -379,7 +379,7 @@ The resulting `hvo_dict` is a dictionary of the following format
 
 #### 3.1.3 Load GMD Dataset in `HVO_Sequence` format using a single command !!!  <a name="3_1_3"></a>
 
-> **Note:** All the code examples in this section are available [here](../../demos/data/demo.py)
+> **Note** All the code examples in this section are available [here](../../demos/data/demo.py)
 
 
 ```python
