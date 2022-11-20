@@ -9,8 +9,12 @@ except ImportError:
     print("Note Sequence not found. Please install it with `pip install note-seq`.")
     _HAS_NOTE_SEQ = False
 
-import librosa
-import librosa.display
+try:
+    import librosa
+    import librosa.display
+    _HAS_LIBROSA = True
+except ImportError:
+    _HAS_LIBROSA = False
 
 try:
     import matplotlib.pyplot as plt
@@ -46,7 +50,7 @@ from bokeh.palettes import viridis
 
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("HVO_Sequence.hvo_seq.py")
 
 try:
     import fluidsynth
@@ -1505,6 +1509,9 @@ class HVO_Sequence(object):
         @param colorbar:                    if True, display colorbar
         @return:                            STFT ndarray
         """
+        if not _HAS_LIBROSA:
+            logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+            return None
 
         if self.is_ready_for_use() is False:
             return None
@@ -1575,6 +1582,10 @@ class HVO_Sequence(object):
         @param colorbar:                    if True, display colorbar
         @return:                            mel spectrogram ndarray
         """
+
+        if not _HAS_LIBROSA:
+            logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+            return None
 
         if self.is_ready_for_use() is False:
             return None
