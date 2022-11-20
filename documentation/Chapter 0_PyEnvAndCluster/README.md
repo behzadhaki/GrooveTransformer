@@ -140,7 +140,248 @@ found [here](https://pytorch.org/get-started/locally/).
 The installations here are specific to the [`UPF DTIC HPC`](https://guiesbibtic.upf.edu/recerca/hpc) clusters. 
 If you haven't used the clusters before, you can find a guide on how to use them [here](HPC_Cluster_Guide.md).
 
-###### 3.2.1 Anaconda
+
+
+
+
+##### 3.2.1 [`Miniconda`](with local conda installation) <a name="3.2.1"></a>
+
+###### Local Installation of Miniconda3 on the Cluster
+
+> **Note:** To install Miniconda3, first login to the cluster. 
+> After logging into the login nodes (no need to connect to computational nodes yet), run the following commands
+> ```terminal  
+>  mkdir ~/miniconda_envs
+>  cd ~/miniconda_envs
+>  wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+>  bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda_envs/anaconda3
+>  ```
+
+> **Note:** Everytime you want to use the conda environment, you need to activate it first locate the path
+> to the conda executable and activate the environment. For example
+> ```terminal
+>   export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+> ```
+> This will allow your terminal to be able to find the conda executable.  
+
+###### Creating a Miniconda Environment
+Assuming that you have already installed Miniconda3, and located the path to the conda executable using the
+`export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"` command, you can create a conda environment using the following command:
+
+```terminal
+cd ~/miniconda_envs
+conda create -y -n GrooveTransformer python=3.9 anaconda 
+```
+
+Once finished, check that the environment has been created by running the following command:
+
+```terminal
+conda info --envs
+```
+
+> **Warning:** Open your `.bashrc` file and add make sure no conda commands are being executed when you open a new terminal.
+> If you have any conda commands in your `.bashrc` file (should be at the very bottom), remove them.
+> You can use `vim .bashrc`, then press `i` to enter insert mode, 
+> then use the arrow keys to navigate to the bottom of the file. Once done, press `esc` to exit insert mode,
+> then type `:wq` to save and quit.
+
+###### Activating the Miniconda Environment 
+In order to activate the environment, you need to locate the path to the conda environment as well as 
+the path to the conda executable. 
+
+```terminal
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+export PATH="$HOME/miniconda_envs/anaconda3/envs/GrooveTransformer:$PATH"
+source activate GrooveTransformer
+```
+
+
+
+###### Installing the Required Packages
+Once the environment is activated, you can install the required packages using the following command:
+
+```terminal
+pip install torch==1.12.0+cu102 --extra-index-url https://download.pytorch.org/whl/cu102
+pip3 install ffmpeg==1.4
+pip3 install holoviews==1.15.1
+pip3 install note-seq==0.0.5
+pip3 install wandb==0.13.3
+
+# conda install -c conda-forge fluidsynth                     # Only if you want to synthesize hvo_sequences                     
+# pip3 install pyFluidSynth                                    # Only if you want to synthesize hvo_sequences
+```
+
+
+###### Batch Script for Miniconda Installation, Environment Creation, and Package Installation
+
+The following batch scripts can be used to install Miniconda3, create a conda environment, 
+and install the required packages. 
+
+The installation can take a long time, so it is recommended to run 
+the installation in 3 separate sessions, that is to say, run the [first script](#step1MinInstall) in one session,
+then once it is finished, run the [second script](#step2condaCreate) in another session, and finally run the
+[third script](#step3PipInstall) in a third session.
+
+Alternatively, you can run the entire installation in one session using the [full batch script](#fullBatch).
+
+
+- ##### Step1: Miniconda3 Installation <a name="step1MinInstall"></a>
+```bash
+#!/bin/bash
+#SBATCH -J env_setup
+#SBATCH -p high
+#SBATCH -N 1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8g
+#SBATCH --time=24:00:00
+#SBATCH -o %N.%J.env_setup.out
+#SBATCH -e %N.%J.env_setup.er
+
+# Step 1. Intalling Miniconda
+# ----------------------------------------------------
+mkdir ~/miniconda_envs
+cd ~/miniconda_envs
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda_envs/anaconda3
+```
+
+- ##### Step2: Environment Creation <a name="step2condaCreate"></a>
+```bash
+#!/bin/bash
+#SBATCH -J env_setup
+#SBATCH -p high
+#SBATCH -N 1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8g
+#SBATCH --time=24:00:00
+#SBATCH -o %N.%J.env_setup.out
+#SBATCH -e %N.%J.env_setup.er
+
+# Step 2. Create a new Conda Env
+# ----------------------------------------------------
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+cd ~/miniconda_envs
+conda create -y -n GrooveTransformer python=3.9
+```
+
+- ##### Step3: Package Installation <a name="step3PipInstall"></a>
+```bash
+#!/bin/bash
+#SBATCH -J env_setup
+#SBATCH -p high
+#SBATCH -N 1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8g
+#SBATCH --time=24:00:00
+#SBATCH -o %N.%J.env_setup.out
+#SBATCH -e %N.%J.env_setup.er
+
+# Step 3.  Install Required Packages
+# ----------------------------------------------------
+# 1. Activate Environment
+# ---------------------
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+export PATH="$HOME/miniconda_envs/anaconda3/envs/GrooveTransformer:$PATH"
+source activate GrooveTransformer
+
+# 2. Essential Packages
+#    ------------------
+pip install torch==1.12.0+cu102 --extra-index-url https://download.pytorch.org/whl/cu102
+pip3 install ffmpeg==1.4
+pip3 install holoviews==1.15.1
+pip3 install wandb==0.13.3
+
+# 3. MIDI/AUDIO Features (If needed)
+#    -------------------------------
+pip3 install note-seq==0.0.5
+conda install -c conda-forge fluidsynth
+pip3 install pyFluidSynth
+```
+
+- #### **Full Batch Script**  <a name="fullBatch"></a>
+
+------
+
+```bash
+#!/bin/bash
+#SBATCH -J env_setup
+#SBATCH -p high
+#SBATCH -N 1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8g
+#SBATCH --time=24:00:00
+#SBATCH -o %N.%J.env_setup.out
+#SBATCH -e %N.%J.env_setup.er
+
+# Step 1. Intalling Miniconda
+# ----------------------------------------------------
+mkdir ~/miniconda_envs
+cd ~/miniconda_envs
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda_envs/anaconda3
+
+# Step 2. Create a new Conda Env
+# ----------------------------------------------------
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+cd ~/miniconda_envs
+conda create -y -n GrooveTransformer python=3.9
+
+
+# Step 3.  Install Required Packages
+# ----------------------------------------------------
+# 1. Activate Environment
+# ---------------------
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+export PATH="$HOME/miniconda_envs/anaconda3/envs/GrooveTransformer:$PATH"
+source activate GrooveTransformer
+
+# 2. Essential Packages
+#    ------------------
+pip install torch==1.12.0+cu102 --extra-index-url https://download.pytorch.org/whl/cu102
+pip3 install ffmpeg==1.4
+pip3 install holoviews==1.15.1
+pip3 install wandb==0.13.3
+
+# 3. MIDI/AUDIO Features (If needed)
+#    -------------------------------
+pip3 install note-seq==0.0.5
+conda install -c conda-forge fluidsynth
+pip3 install pyFluidSynth
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!---
+##### 3.2.2 Anaconda (using lmod softwares available on the cluster) <a name="3.2.2"></a>
 
 >  **Warning:** You can prepare the environment using `Anaconda`. This can be done either using an 
 > [interactive session](https://guiesbibtic.upf.edu/recerca/hpc/interactive-jobs), or by submitting a 
@@ -170,7 +411,7 @@ module load Anaconda3/2020.02
 # UNCOMMENT THE FOLLOWING LINE IF YOU WANT TO CREATE A THE ENVIRONMENT for THE FIRST TIME
 # conda create --name GrooveTransformer python=3.9
 
-conda activate GrooveTransformer
+activate GrooveTransformer
 
 conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=10.2 -c pytorch
 pip install bokeh==2.4.3
@@ -216,3 +457,51 @@ pip install wandb==0.13.3
 > 
 > **Note:** Make sure you have sourced `/etc/profile.d/lmod.sh` and  `/etc/profile.d/zz_hpcnow-arch.sh` to be able 
 > to use the `module` command. 
+
+
+
+
+
+
+##### 3.2.3 venv <a name="3.2.3"></a>
+Login to a computation node [**interactively using srun**](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md#22-interactive-sessions-)
+```commandline
+srun ....
+```
+Create a folder called venv in your $HOME$ directory, then create a 
+```commandline
+cd ~
+mkdir venv
+cd venv
+python3 -m venv GrooveTransformer
+```
+Then activate the virtual environment and install the required packages:
+```commandline
+cd ..
+source ~/venv/GrooveTransformer/bin/activate
+```
+
+Following the activation of the virtual environment, you can install the required packages using the following commands:
+
+```commandline
+pip3 install --upgrade pip
+pip install torch==1.10.2+cu102 --extra-index-url https://download.pytorch.org/whl/cu113
+pip3 install bokeh==2.3.3
+pip3 install colorcet==3.0.0
+pip3 install fluidsynth==0.2
+pip3 install holoviews==1.15.1
+pip3 install librosa==0.9.2
+pip3 install matplotlib==3.6.0
+pip3 install note_seq==0.0.5
+pip3 install numpy==1.23.3
+pip3 install pandas==1.5.0
+pip3 install pretty_midi==0.2.9
+pip3 install pyFluidSynth==1.3.1
+pip3 install PyYAML==6.0
+pip3 install scikit_learn==1.1.3
+pip3 install scipy==1.9.1
+pip3 install soundfile==0.11.0
+pip3 install tqdm==4.64.1
+pip3 install wandb==0.13.3
+```
+--->
