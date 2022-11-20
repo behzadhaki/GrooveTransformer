@@ -135,8 +135,31 @@ To learn more about interactive sessions, refer to the
 
 ### 2.3. Submitting Jobs <a name="2.3"></a>
 
-To submit a job, you need to create a `job script` that contains the commands you want to run. The job script
-should be saved in a file with the `.sh` extension. An example of a job script is shown below:
+To submit a job, you need to create a `batch script` that contains the commands you want to run. The job script
+should be saved in a file with the `.sh` extension. 
+
+> **Note:** A batch script is a file that contains a series of commands that are executed one after the other.
+> In order to run a batch script, you need to create an empty `[file_name].sh` file, and then copy the contents of the
+> batch script into the `file.sh` file. Finally, you can sumbit the batch script to the cluster using the
+> `sbatch file.sh` command.
+> 
+> To summarize,
+> ```shell
+> touch install_conda.sh
+> 
+> vim install_conda.sh
+>    
+>  # in vim: 
+>     # 1.   press i to enter insert mode
+>     # 2.   copy the contents of the batch script into the file
+>     # 3.   press esc to exit insert mode
+>     # 4.   type :wq to save and quit
+> 
+> sbatch install_conda.sh
+> 
+>```
+
+An example of a batch script is shown below:
 
 ```bash
 #!/bin/bash
@@ -161,6 +184,8 @@ python run_some_code.py
 
 For more information about the job script, refer to the 
 [**Basic Jobs**](https://guiesbibtic.upf.edu/recerca/hpc/basic-jobs) section of the HPC documentation.
+
+
 
 ### 2.4 Available Software <a name="2.4"></a>
 Many packages and applications are pre-compiled for use on the cluster. 

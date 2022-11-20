@@ -224,6 +224,26 @@ then once it is finished, run the [second script](#step2condaCreate) in another 
 
 Alternatively, you can run the entire installation in one session using the [full batch script](#fullBatch).
 
+> **Note:** A batch script is a file that contains a series of commands that are executed one after the other.
+> In order to run a batch script, you need to create an empty `[file_name].sh` file, and then copy the contents of the
+> batch script into the `file.sh` file. Finally, you can sumbit the batch script to the cluster using the
+> `sbatch file.sh` command.
+> 
+> To summarize,
+> ```shell
+> touch install_conda.sh
+> 
+> vim install_conda.sh
+>    
+>  # in vim: 
+>     # 1.   press i to enter insert mode
+>     # 2.   copy the contents of the batch script into the file
+>     # 3.   press esc to exit insert mode
+>     # 4.   type :wq to save and quit
+> 
+> sbatch install_conda.sh
+> 
+>```
 
 - ##### Step1: Miniconda3 Installation <a name="step1MinInstall"></a>
 ```bash
