@@ -28,20 +28,30 @@ parser.add_argument("--wandb_project", help="WANDB Project Name", default="Small
 
 # model parameters
 parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=32)
-parser.add_argument("--d_model_dec", help="Dimension of the decoder model", default=256)
+parser.add_argument("--d_model_dec_ratio", help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
+
 parser.add_argument("--embedding_size_src", help="Dimension of the source embedding", default=27)
 parser.add_argument("--embedding_size_tgt", help="Dimension of the target embedding", default=27)
+
 parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
-parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=8)
-parser.add_argument("--dim_feedforward_enc", help="Dimension of the feedforward layer for the encoder", default=64)
-parser.add_argument("--dim_feedforward_dec", help="Dimension of the feedforward layer for the decoder", default=512)
-parser.add_argument("--num_encoder_layers", help="Number of encoder layers", default=3)
-parser.add_argument("--num_decoder_layers", help="Number of decoder layers", default=6)
-parser.add_argument("--dropout", help="Dropout", default=0.4)
-parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
+parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
+
+parser.add_argument("--d_ff_enc_to_dmodel", help="ration of the dimension of enc feed-frwrd layer relative to "
+                                                 "enc dmodel", default=1)
+
+parser.add_argument("--d_ff_dec_to_dmodel", help="ration of the dimension of dec feed-frwrd layer relative to "
+                                                 "decoder dmodel", default=1)
+
+parser.add_argument("--n_enc_lyrs", help="Number of encoder layers", default=3)
+parser.add_argument("--n_dec_lyrs_ratio", help="Number of decoder layers as a ratio of "
+                                               "n_enc_lyrs as a ratio of d_ff_enc", default=1)
+
 parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)
-# parser.add_argument("--device", help="Device to use", default="if_cuda", choices=["cpu", "if_cuda"])
+
+parser.add_argument("--dropout", help="Dropout", default=0.4)
+parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
+
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
                     default='bce', choices=['bce', 'dice'])
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
@@ -90,17 +100,21 @@ if args.config is not None:
     with open(args.config, "r") as f:
         hparams = yaml.safe_load(f)
 else:
+    d_model_dec = int(float(args.d_model_enc) * float(args.d_model_dec_ratio))
+    dim_feedforward_enc = int(float(args.d_ff_enc_to_dmodel)*float(args.d_model_enc))
+    dim_feedforward_dec = int(float(args.d_ff_dec_to_dmodel) * d_model_dec)
+    num_decoder_layers = int(float(args.n_enc_lyrs) * float(args.n_dec_lyrs_ratio))
     hparams = dict(
         d_model_enc=args.d_model_enc,
-        d_model_dec=args.d_model_dec,
+        d_model_dec=d_model_dec,
+        dim_feedforward_enc=dim_feedforward_enc,
+        dim_feedforward_dec=dim_feedforward_dec,
+        num_encoder_layers=int(args.n_enc_lyrs),
+        num_decoder_layers=num_decoder_layers,
         embedding_size_src=args.embedding_size_src,
         embedding_size_tgt=args.embedding_size_tgt,
         nhead_enc=args.nhead_enc,
         nhead_dec=args.nhead_dec,
-        dim_feedforward_enc=args.dim_feedforward_enc,
-        dim_feedforward_dec=args.dim_feedforward_dec,
-        num_encoder_layers=args.num_encoder_layers,
-        num_decoder_layers=args.num_decoder_layers,
         dropout=args.dropout,
         latent_dim=args.latent_dim,
         max_len_enc=args.max_len_enc,

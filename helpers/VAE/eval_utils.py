@@ -8,16 +8,21 @@ from logging import getLogger
 logger = getLogger("helpers.VAE.eval_utils")
 logger.setLevel("DEBUG")
 
-def get_logging_media_for_vae_model_wandb(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
-                            down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
-                            divide_by_genre=True, **kwargs):
+
+def get_logging_media_for_vae_model_wandb(
+        groove_transformer_vae, device, dataset_setting_json_path, subset_name,
+        down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
+        divide_by_genre=True, **kwargs):
     """
     Prepare the media for logging in wandb. Can be easily used with an evaluator template
     (A template can be created using the code in eval/GrooveEvaluator/templates/main.py)
-
-    :param evaluator: either a path to an evaluator template or an evaluator object
-    :param groove_transformer_vae:  a GrooveTransformerEncoderVAE model
-    :param device:                  the device to run the model on
+    :param groove_transformer_vae: The model to be evaluated
+    :param device: The device to be used for evaluation
+    :param dataset_setting_json_path: The path to the dataset setting json file
+    :param subset_name: The name of the subset to be evaluated
+    :param down_sampled_ratio: The ratio of the subset to be evaluated
+    :param cached_folder: The folder to be used for caching the evaluator template
+    :param divide_by_genre: Whether to divide the subset by genre or not
     :param kwargs:                  additional arguments: need_hit_scores, need_velocity_distributions,
                                     need_offset_distributions, need_rhythmic_distances, need_heatmap
     :return:                        a ready to use dictionary to be logged using wandb.log()
