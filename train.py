@@ -171,13 +171,15 @@ if __name__ == "__main__":
     # Load Training and Testing Datasets and Wrap them in torch.utils.data.Dataloader
     # ----------------------------------------------------------------------------------------------------------
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
+    should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
     training_dataset = MonotonicGrooveDataset(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="train",
         max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
         collapse_tapped_sequence=False,
-        down_sampled_ratio=0.1 if args.is_testing is True else None)
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        move_all_to_gpu=should_place_all_data_on_cuda)
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
     test_dataset = MonotonicGrooveDataset(
@@ -186,7 +188,8 @@ if __name__ == "__main__":
         max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
         collapse_tapped_sequence=False,
-        down_sampled_ratio=0.1 if args.is_testing is True else None)
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        move_all_to_gpu=should_place_all_data_on_cuda)
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
     # Initialize the model
