@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger("eval.GrooveEvaluator.templates.main")
 logger.setLevel("DEBUG")
 
+
 def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=None,
                     cached_folder="eval/GrooveEvaluator/templates/", divide_by_genre=True):
     """
@@ -89,8 +90,8 @@ def load_evaluator_template(dataset_setting_json_path, subset_name,
 
     _identifier = f"_{down_sampled_ratio}_ratio_of_{dataset_name}_{subset_name}" \
         if down_sampled_ratio is not None else f"complete_set_of_{dataset_name}_{subset_name}"
-    path = os.path.join(cached_folder, f"{_identifier}_Evaluator.Eval.bz2")
-    logger.info(f"------------- Looking for eval in {path}")
+    path = os.path.join(cached_folder, f"{_identifier}_evaluator.Eval.bz2")
+
     if os.path.exists(path):
         logger.info(f"Loading cached evaluator template from {path}")
         return load_evaluator(path)
