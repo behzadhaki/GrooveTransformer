@@ -99,9 +99,9 @@ class MonotonicGrooveDataset(Dataset):
                 if np.any(hvo_seq.hits):
                     # Ensure all have a length of max_len
                     self.hvo_sequences.append(hvo_seq)
+                    self.outputs.append(hvo_seq.hvo)
                     flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
                     self.inputs.append(flat_seq)
-                    self.outputs.append(hvo_seq.hvo)
 
         if load_as_tensor:
             self.inputs = torch.tensor(np.array(self.inputs), dtype=torch.float32)
