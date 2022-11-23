@@ -27,6 +27,7 @@ parser.add_argument(
 parser.add_argument("--wandb_project", help="WANDB Project Name", default="SmallSweeps_MGT_VAE")
 
 # model parameters
+# d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=32)
 parser.add_argument("--d_model_dec_ratio", help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
 
@@ -36,12 +37,14 @@ parser.add_argument("--embedding_size_tgt", help="Dimension of the target embedd
 parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
 parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
 
+# d_ff_enc_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_enc_to_dmodel", help="ration of the dimension of enc feed-frwrd layer relative to "
                                                  "enc dmodel", default=1)
-
+# d_ff_dec_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_dec_to_dmodel", help="ration of the dimension of dec feed-frwrd layer relative to "
                                                  "decoder dmodel", default=1)
 
+# n_dec_lyrs_ratio denotes the ratio of the dec relative to n_enc_lyrs
 parser.add_argument("--n_enc_lyrs", help="Number of encoder layers", default=3)
 parser.add_argument("--n_dec_lyrs_ratio", help="Number of decoder layers as a ratio of "
                                                "n_enc_lyrs as a ratio of d_ff_enc", default=1)
