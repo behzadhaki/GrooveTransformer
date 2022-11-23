@@ -60,7 +60,7 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
                  collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
-                 down_sampled_ratio=None):
+                 down_sampled_ratio=None, move_all_to_gpu=False):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -106,6 +106,10 @@ class MonotonicGrooveDataset(Dataset):
         if load_as_tensor:
             self.inputs = torch.tensor(np.array(self.inputs), dtype=torch.float32)
             self.outputs = torch.tensor(np.array(self.outputs), dtype=torch.float32)
+
+        if move_all_to_gpu and torch.cuda.is_available():
+            self.inputs = self.inputs.to('cuda')
+            self.outputs = self.outputs.to('cuda')
 
         dataLoaderLogger.info(f"Loaded {len(self.inputs)} sequences")
 
