@@ -197,6 +197,7 @@ if __name__ == "__main__":
     groove_transformer_vae_cpu = GrooveTransformerEncoderVAE(config)
 
     groove_transformer_vae = groove_transformer_vae_cpu.to(config.device)
+    wandb.watch(groove_transformer_vae, log="all", log_freq=1)
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
@@ -240,7 +241,6 @@ if __name__ == "__main__":
             loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
             device=config.device
         )
-        wandb.watch(groove_transformer_vae, log="gradients", log_freq=1)
         wandb.log(train_log_metrics, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
