@@ -126,7 +126,8 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
 
 def calculate_kld_loss(mu, log_var):
     """calculate the KLD loss for the given mu and log_var values against a standard normal distribution"""
-    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
+    #return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
+    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp()))
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
