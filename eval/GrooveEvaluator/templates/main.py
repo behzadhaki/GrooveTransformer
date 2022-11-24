@@ -74,7 +74,7 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
 
 def load_evaluator_template(dataset_setting_json_path, subset_name,
                             down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
-                            divide_by_genre=True, **kwargs):
+                            divide_by_genre=True, disable_logging=True):
     """
     Load a template for the given dataset and subset. If the template does not exist, it will be created and
     automatically saved in the cached_folder.
@@ -93,7 +93,8 @@ def load_evaluator_template(dataset_setting_json_path, subset_name,
     path = os.path.join(cached_folder, f"{_identifier}_evaluator.Eval.bz2")
 
     if os.path.exists(path):
-        logger.info(f"Loading cached evaluator template from {path}")
+        if not disable_logging:
+            logger.info(f"Loading template from {path}")
         return load_evaluator(path)
     else:
 

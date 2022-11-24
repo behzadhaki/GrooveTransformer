@@ -91,7 +91,7 @@ parser.add_argument("--save_model_dir", help="Path to save the model", default="
 parser.add_argument("--save_model_frequency", help="Save model every n epochs", default=100)
 
 parser.add_argument("--piano_roll_samples", help="Generate audio samples", default=True)
-parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=40)
+parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=10)
 
 # --------------------------------------------------------------------
 # Dummy arguments for running the script in pycharm's python console

@@ -6,8 +6,8 @@ import wandb
 import re
 import numpy as np
 from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
-from logging import getLogger
 
+from logging import getLogger
 logger = getLogger("VAE_LOSS_CALCULATOR")
 logger.setLevel("DEBUG")
 
