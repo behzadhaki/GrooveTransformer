@@ -166,7 +166,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
         inputs = inputs.to(device) if inputs.device.type!= device else inputs
-        outputs = outputs.to(device) if inputs.device.type!= device else inputs
+        outputs = outputs.to(device) if outputs.device.type!= device else outputs
 
         # Forward pass
         # ---------------------------------------------------------------------------------------

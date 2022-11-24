@@ -127,7 +127,6 @@ else:
         latent_dim=args.latent_dim,
         max_len_enc=args.max_len_enc,
         max_len_dec=args.max_len_dec,
-        o_activation="tanh" if isinstance(args.offset_loss_function, torch.nn.MSELoss) else "sigmoid",
         hit_loss_function=args.hit_loss_function,
         velocity_loss_function=args.velocity_loss_function,
         offset_loss_function=args.offset_loss_function,
@@ -240,7 +239,7 @@ if __name__ == "__main__":
             loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
             device=config.device
         )
-
+        wandb.watch(groove_transformer_vae, log="gradients", log_freq=1)
         wandb.log(train_log_metrics, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
