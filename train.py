@@ -56,7 +56,7 @@ parser.add_argument("--dropout", help="Dropout", default=0.4)
 parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
 
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
-                    default='bce', choices=['bce', 'dice'])
+                    default='dice', choices=['bce', 'dice'])
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", help="offset_loss_function - either 'bce' or 'mse' loss",
