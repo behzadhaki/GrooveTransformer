@@ -53,7 +53,7 @@ parser.add_argument("--max_len_enc", help="Maximum length of the encoder", defau
 parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)
 
 parser.add_argument("--dropout", help="Dropout", default=0.4)
-parser.add_argument("--latent_dim", help="Dimension of the latent space", default=32)
+parser.add_argument("--latent_dim", help="Dimension of the latent space at EACH TIME STEP", default=2)
 
 parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
                     default='dice', choices=['bce', 'dice'])
@@ -71,7 +71,7 @@ parser.add_argument("--batch_size", help="Batch size", default=64)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
 
 # FIXME: Default should be False before merging
-parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=True)
 
 # FIXME set to false if errors regarding memory
 parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=True)

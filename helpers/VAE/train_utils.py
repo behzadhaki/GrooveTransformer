@@ -132,6 +132,8 @@ def calculate_kld_loss(mu, log_var):
     :param log_var: (torch.Tensor)  the log variance values of the latent space
     :return:    kld_loss (batch_size, )  the kld loss value per each batch element
     """
+    mu = mu.view(mu.shape[0], -1)
+    log_var = log_var.view(log_var.shape[0], -1)
     return -0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1)
 
 
