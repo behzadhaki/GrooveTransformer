@@ -160,14 +160,14 @@ class LatentLayer(torch.nn.Module):
     """ Latent variable reparameterization layer
 
    :param input: (Tensor) Input tensor to REPARAMETERIZE [B x max_len_enc x d_model_enc]
-   :return: mu, log_var, z (Tensor, Tensor, Tensor) each of shape [B x max_len_enc x d_model_enc]
+   :return: mu, log_var, z (Tensor) [B x max_len_enc x d_model_enc]
    """
 
     def __init__(self, max_len, d_model, latent_dim):
         super(LatentLayer, self).__init__()
 
-        self.fc_mu = torch.nn.Linear(d_model, latent_dim)
-        self.fc_var = torch.nn.Linear(d_model, latent_dim)
+        self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
+        self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
 
     def forward(self, src):
         """ converts the input into a latent space representation
@@ -175,11 +175,11 @@ class LatentLayer(torch.nn.Module):
         :param src: (Tensor) Input tensor to REPARAMETERIZE [N x max_encoder_len x d_model]
         :return:  mu , logvar, z (each with dimensions [N, latent_dim_size])
         """
-
+        result = torch.flatten(src, start_dim=1)
         # Split the result into mu and var components
         # of the latent Gaussian distribution
-        mu = self.fc_mu(src)
-        log_var = self.fc_var(src)
+        mu = self.fc_mu(result)
+        log_var = self.fc_var(result)
 
         std = torch.exp(0.5 * log_var)
         eps = torch.randn_like(std)
@@ -191,28 +191,28 @@ class LatentLayer(torch.nn.Module):
 # --------------------------------------------------------------------------------
 # ------------       RE-CONSTRUCTION DECODER INPUT             -------------------
 # --------------------------------------------------------------------------------
-# class DecoderInput(torch.nn.Module):
-#     """ reshape the input tensor to fix dimensions with decoder
-#
-#    :param input: (Tensor) Input tensor distribution [Nx(latent_dim)]
-#    :return: (Tensor) [N x max_len x d_model]
-#    """
-#
-#     def __init__(self, max_len, latent_dim, d_model):
-#         super(DecoderInput, self).__init__()
-#
-#         self.max_len = max_len
-#         self.d_model = d_model
-#
-#         self.updims = torch.nn.Linear(latent_dim, int(max_len * d_model))
-#
-#     def forward(self, src):
-#
-#         uptensor = self.updims(src)
-#
-#         result = uptensor.view(-1, self.max_len, self.d_model)
-#
-#         return result
+class DecoderInput(torch.nn.Module):
+    """ reshape the input tensor to fix dimensions with decoder
+
+   :param input: (Tensor) Input tensor distribution [Nx(latent_dim)]
+   :return: (Tensor) [N x max_len x d_model]
+   """
+
+    def __init__(self, max_len, latent_dim, d_model):
+        super(DecoderInput, self).__init__()
+
+        self.max_len = max_len
+        self.d_model = d_model
+
+        self.updims = torch.nn.Linear(latent_dim, int(max_len * d_model))
+
+    def forward(self, src):
+
+        uptensor = self.updims(src)
+
+        result = uptensor.view(-1, self.max_len, self.d_model)
+
+        return result
 
 
 class VAE_Decoder(torch.nn.Module):
@@ -238,7 +238,7 @@ class VAE_Decoder(torch.nn.Module):
 
         self.latent_dim = latent_dim
         self.d_model = d_model
-        self.num_decoder_layers = num_decoder_layers
+        self.num_decoder_layers =    num_decoder_layers
         self.nhead = nhead
         self.dim_feedforward = dim_feedforward
         self.output_max_len = output_max_len
@@ -246,7 +246,10 @@ class VAE_Decoder(torch.nn.Module):
         self.dropout = dropout
         self.o_activation = o_activation
 
-        self.DecoderInput = torch.nn.Linear(latent_dim, d_model)
+        self.DecoderInput = DecoderInput(
+            max_len=self.output_max_len,
+            latent_dim=self.latent_dim,
+            d_model=self.d_model)
 
         self.Decoder = Encoder(
             d_model=self.d_model,
@@ -266,7 +269,6 @@ class VAE_Decoder(torch.nn.Module):
             :return: (Tensor) h_logits, v_logits, o_logits (each with dimension [N x max_len x num_voices])
         """
         pre_out = self.DecoderInput(latent_z)
-
         decoder_ = self.Decoder(pre_out)
         h_logits, v_logits, o_logits = self.OutputLayer(decoder_)
 
