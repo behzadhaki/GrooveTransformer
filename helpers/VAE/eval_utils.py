@@ -11,7 +11,8 @@ logger.setLevel("DEBUG")
 
 def get_logging_media_for_vae_model_wandb(
         groove_transformer_vae, device, dataset_setting_json_path, subset_name,
-        down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
+        down_sampled_ratio, collapse_tapped_sequence,
+        cached_folder="eval/GrooveEvaluator/templates/",
         divide_by_genre=True, **kwargs):
     """
     Prepare the media for logging in wandb. Can be easily used with an evaluator template
@@ -21,6 +22,7 @@ def get_logging_media_for_vae_model_wandb(
     :param dataset_setting_json_path: The path to the dataset setting json file
     :param subset_name: The name of the subset to be evaluated
     :param down_sampled_ratio: The ratio of the subset to be evaluated
+    :param collapse_tapped_sequence: Whether to collapse the tapped sequence or not (input will have 1 voice only)
     :param cached_folder: The folder to be used for caching the evaluator template
     :param divide_by_genre: Whether to divide the subset by genre or not
     :param kwargs:                  additional arguments: need_hit_scores, need_velocity_distributions,
@@ -62,7 +64,8 @@ def get_logging_media_for_vae_model_wandb(
     # ------------------------------------------------------------------------------------------
     hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
     in_groove = torch.tensor(
-        np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
+        np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
+                  for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
         device)
     hvos_array, _, _, _ = groove_transformer_vae.predict(in_groove, return_concatenated=True)
     evaluator.add_predictions(hvos_array.detach().cpu().numpy())
@@ -85,7 +88,8 @@ def get_logging_media_for_vae_model_wandb(
 
 
 def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
-                            down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
+                            down_sampled_ratio, collapse_tapped_sequence,
+                                 cached_folder="eval/GrooveEvaluator/templates/",
                             divide_by_genre=True):
 
     # logger.info("Generating the hit scores for subset: {}".format(subset_name))
@@ -107,7 +111,8 @@ def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting
     hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
 
     in_groove = torch.tensor(
-        np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_seqs]), dtype=torch.float32)
+        np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
+                  for hvo_seq in hvo_seqs]), dtype=torch.float32)
     predictions = []
 
     # batchify the input

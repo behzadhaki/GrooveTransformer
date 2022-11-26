@@ -138,7 +138,7 @@ def calculate_kld_loss(mu, log_var):
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None):
+               offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None, starting_step=None):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -155,6 +155,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (torch.device)  the device to use for the model
     :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
+    :param starting_step:   (int)  the starting step for the optimizer
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
                 metrics = {
@@ -163,6 +164,8 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
                     "loss_v": np.mean(loss_v),
                     "loss_o": np.mean(loss_o),
                     "loss_KL": np.mean(loss_KL)}
+
+                (int)  the current step of the optimizer (if provided)
     """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
@@ -170,11 +173,17 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs, outputs, indices) in enumerate(dataloader_):
+    for batch_count, (inputs_, outputs_, indices) in enumerate(dataloader_):
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
-        inputs = inputs.to(device) if inputs.device.type!= device else inputs
-        outputs = outputs.to(device) if outputs.device.type!= device else outputs
+        # print(f"inputs_.device: {inputs_.device}, outputs_.device: {outputs_.device}")
+        # print(f"inputs_.shape: {inputs_.shape}")
+        # print(f"outputs_.shape: {outputs_.shape}")
+        inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
+        outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
+        # print(f"inputs.device: {inputs.device}, outputs.device: {outputs.device}")
+        # print(f"inputs.shape: {inputs.shape}")
+        # print(f"outputs.shape: {outputs.shape}")
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
@@ -217,6 +226,11 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         loss_KL.append(batch_loss_KL.mean().item())
         loss_total.append(batch_loss_total.item())
 
+        # Increment the step counter
+        # ---------------------------------------------------------------------------------------
+        if starting_step is not None:
+            starting_step += 1
+
     # empty gpu cache if cuda
     if device != 'cpu':
         torch.cuda.empty_cache()
@@ -228,11 +242,14 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         "loss_o": np.mean(loss_o),
         "loss_KL": np.mean(loss_KL)}
 
-    return metrics
+    if starting_step is not None:
+        return metrics, starting_step
+    else:
+        return metrics
 
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device):
+               offset_loss_fn, loss_hit_penalty_multiplier, device, starting_step):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -246,6 +263,7 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     :param offset_loss_fn:      (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
     :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (str)  the device to use for the model
+    :param starting_step:   (int)  the starting step for the optimizer
 
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
@@ -262,7 +280,7 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         groove_transformer_vae.train()
 
     # Run the batch loop
-    metrics = batch_loop(
+    metrics, starting_step = batch_loop(
         dataloader_=train_dataloader,
         groove_transformer_vae=groove_transformer_vae,
         hit_loss_fn=hit_loss_fn,
@@ -270,10 +288,11 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         offset_loss_fn=offset_loss_fn,
         loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
         device=device,
-        optimizer=optimizer)
+        optimizer=optimizer,
+        starting_step=starting_step)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
-    return metrics
+    return metrics, starting_step
 
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
