@@ -26,7 +26,7 @@ parser.add_argument(
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored",
     default=None,
 )
-parser.add_argument("--wandb_project", help="WANDB Project Name", default="SmallSweeps_MGT_VAE")
+parser.add_argument("--wandb_project", help="WANDB Project Name", default="exp2_loss_backward_per_voice")
 
 # model parameters
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         config=hparams,                         # either from config file or CLI specified hyperparameters
         project=hparams["wandb_project"],          # name of the project
         anonymous="allow",
-        entity="behzadhaki",                          # saves in the mmil_vae_g2d team account
+        entity="mmil_vae_g2d",                          # saves in the mmil_vae_g2d team account
         settings=wandb.Settings(code_dir="train.py")    # for code saving
     )
 
