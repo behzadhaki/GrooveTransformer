@@ -57,8 +57,8 @@ parser.add_argument("--max_len_dec", help="Maximum length of the decoder", defau
 parser.add_argument("--dropout", help="Dropout", default=0.4)
 parser.add_argument("--latent_dim", help="Overall Dimension of the latent space", default=64)
 
-parser.add_argument("--hit_loss_function", help="hit_loss_function - either 'bce' or 'dice' loss",
-                    default='dice', choices=['bce', 'dice'])
+parser.add_argument("--hit_loss_function", help="hit_loss_function - only bce supported for now", default="bce")
+
 parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", help="offset_loss_function - either 'bce' or 'mse' loss",
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         config=hparams,                         # either from config file or CLI specified hyperparameters
         project=hparams["wandb_project"],          # name of the project
         anonymous="allow",
-        entity="mmil_vae_g2d",                          # saves in the mmil_vae_g2d team account
+        entity="behzadhaki",                          # saves in the mmil_vae_g2d team account
         settings=wandb.Settings(code_dir="train.py")    # for code saving
     )
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     if config.hit_loss_function == "bce":
         hit_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
     else:
-        hit_loss_fn = "dice"
+        raise NotImplementedError(f"hit_loss_function {config.hit_loss_function} not implemented")
 
     if config.velocity_loss_function == "bce":
         velocity_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')

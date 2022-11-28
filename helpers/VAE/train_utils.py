@@ -11,64 +11,25 @@ from logging import getLogger
 logger = getLogger("VAE_LOSS_CALCULATOR")
 logger.setLevel("DEBUG")
 
-def dice_fn(hit_logits, hit_targets):
-    """
-    Dice loss function for binary segmentation problems. This function is used to calculate the loss for the hits.
-
-    **This code was taken from https://gist.github.com/weiliu620/52d140b22685cf9552da4899e2160183**
-
-    :param pred: Predicted output of the model
-    :param target: Target output of the model
-    :return: Dice loss value (1 - dice coefficient) where dice coefficient is calculated as 2*TP/(2*TP + FP + FN)
-
-    :param pred:    (torch.Tensor)  predicted output of the model -->
-    :param target:  (torch.Tensor)  target output of the model
-    :return:    Dice loss per each batch element (torch.Tensor) shape: (batch_size, )
-    """
-    hit_probs = torch.sigmoid(hit_logits)
-
-    smooth = 0
-    # have to use contiguous since they may from a torch.view op
-    flat_probs = torch.flatten(hit_probs.contiguous(), start_dim=1)             # batch, time_steps * voices
-    flat_targets = torch.flatten(hit_targets.contiguous(), start_dim=1)         # batch, time_steps * voices
-    intersection = (flat_probs * flat_targets).sum(dim=1)                       # batch, 1
-
-    A_sum = torch.sum(flat_probs * flat_probs, dim=1)                          # batch, 1
-    B_sum = torch.sum(flat_targets * flat_targets, dim=1)                      # batch, 1
-
-    # calculate dice coefficient for each batch
-    dice_coeff = (2. * intersection + smooth) / (A_sum + B_sum + smooth)        # batch, 1
-
-    return 1 - dice_coeff
-
-
 def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=None):
     """
     Calculate the hit loss for the given hit logits and hit targets.
     The loss is calculated either using BCE or Dice loss function.
     :param hit_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
     :param hit_targets:     (torch.Tensor)  target output of the model
-    :param hit_loss_function:     (str)  either "bce" or "dice"
+    :param hit_loss_function:     (torch.nn.BCEWithLogitsLoss)
     :param hit_loss_penalty_tensor: (default None)
                                     (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
                                     containing the hit loss penalty values per each location in the sequences.
                                     **Only used when hit_loss_function is "bce"**
-    :return:    hit_loss (batch_size, )  the hit loss value per each batch element
+    :return:    hit_loss (time_steps, n_voices)  the hit loss value per each step and voice (averaged over the batch)
     """
     if hit_loss_penalty_tensor is None:
         hit_loss_penalty_tensor = torch.ones_like(hit_targets)
 
-    if hit_loss_function == "dice":
-        assert hit_loss_function in ['dice']
-        # logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
-        hit_loss = dice_fn(hit_logits, hit_targets)
-    else:
-        assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
-        loss_h = hit_loss_function(hit_logits, hit_targets) * hit_loss_penalty_tensor  # batch, time steps, voices
-        bce_h_sum_voices = torch.mean(loss_h, dim=2)  # batch, time_steps
-        hit_loss = bce_h_sum_voices.mean(dim=1)  # batch, 1
-
-    return hit_loss
+    assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
+    loss_h = hit_loss_function(hit_logits, hit_targets) * hit_loss_penalty_tensor  # batch, time steps, voices
+    return loss_h.mean(dim=0)    # time_steps, n_voices
 
 
 def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
@@ -90,7 +51,7 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss
     else:
         raise NotImplementedError(f"the vel_loss_function {vel_loss_function} is not implemented")
 
-    return torch.mean(loss_v, dim=2).mean(dim=1)
+    return loss_v.mean(dim=0)    # time_steps, n_voices
 
 
 def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, hit_loss_penalty_mat):
@@ -107,7 +68,8 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     :param hit_loss_penalty_mat: (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
                                     containing the hit loss penalty values per each location in the sequences.
                                     **Used regardless of the offset_loss_function**
-    :return:    offset_loss (batch_size, )  the offset loss value per each batch element
+    :return:    offset_loss (time_steps, n_voices)  the offset loss value per each step and voice
+                        (averaged over the batch)
 
     """
 
@@ -123,18 +85,20 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     else:
         raise NotImplementedError(f"the offset_loss_function {offset_loss_function} is not implemented")
 
-    return torch.mean(loss_o, dim=2).mean(dim=1)
+    return loss_o.mean(dim=0)    # time_steps, n_voices
 
 
 def calculate_kld_loss(mu, log_var):
     """calculate the KLD loss for the given mu and log_var values against a standard normal distribution
     :param mu:  (torch.Tensor)  the mean values of the latent space
     :param log_var: (torch.Tensor)  the log variance values of the latent space
-    :return:    kld_loss (batch_size, )  the kld loss value per each batch element
+    :return:    kld_loss (time_steps, n_voices)  the kld loss value per each step and voice (averaged over the batch)
     """
     mu = mu.view(mu.shape[0], -1)
     log_var = log_var.view(log_var.shape[0], -1)
-    return -0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1)
+    kld_loss = -0.5 * (1 + log_var - mu.pow(2) - log_var.exp())
+
+    return kld_loss.mean(dim=0)     # time_steps, n_voices
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
@@ -209,22 +173,34 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
         batch_loss_KL = calculate_kld_loss(mu, log_var)
 
-        batch_loss_total = (batch_loss_h + batch_loss_v + batch_loss_o + batch_loss_KL).mean()
+        # print (f"batch_loss_h.shape: {batch_loss_h.shape}, batch_loss_v.shape: {batch_loss_v.shape}, "
+        #        f"batch_loss_o.shape: {batch_loss_o.shape}, batch_loss_KL.shape: {batch_loss_KL.shape}")
 
-        # Backward pass
+        batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)# + batch_loss_KL)
+
+        # Backward pass on VOICE at a time!!!!
         # ---------------------------------------------------------------------------------------
-        if optimizer is not None:
-            optimizer.zero_grad()
-            batch_loss_total.backward()
-            optimizer.step()
+        for voice in range(batch_loss_recon.shape[1]):
+            # Backward pass
+            # -----------------------------------------------------------------
+            if optimizer is not None:
+                optimizer.zero_grad()
+                batch_loss_recon[:, voice].mean().backward(retain_graph=True)
 
         # Update the per batch loss trackers
-        # ---------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------
         loss_h.append(batch_loss_h.mean().item())
         loss_v.append(batch_loss_v.mean().item())
         loss_o.append(batch_loss_o.mean().item())
+        loss_total.append(batch_loss_recon.mean().item())
         loss_KL.append(batch_loss_KL.mean().item())
-        loss_total.append(batch_loss_total.item())
+        loss_total.append(batch_loss_KL.mean().item()+batch_loss_recon.mean().item())
+
+        if optimizer is not None:
+            batch_loss_KL.mean().backward()
+            optimizer.step()
+
+
 
         # Increment the step counter
         # ---------------------------------------------------------------------------------------
