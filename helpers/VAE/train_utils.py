@@ -181,6 +181,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # Backward pass on VOICE at a time!!!!
         # ---------------------------------------------------------------------------------------
         for voice in range(batch_loss_recon.shape[1]):
+
             # Backward pass
             # -----------------------------------------------------------------
             if optimizer is not None:
@@ -199,8 +200,6 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         if optimizer is not None:
             batch_loss_KL.mean().backward()
             optimizer.step()
-
-
 
         # Increment the step counter
         # ---------------------------------------------------------------------------------------
