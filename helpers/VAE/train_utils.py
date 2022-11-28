@@ -178,6 +178,9 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
         batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)# + batch_loss_KL)
 
+        if optimizer is not None:
+            optimizer.zero_grad()
+
         # Backward pass on VOICE at a time!!!!
         # ---------------------------------------------------------------------------------------
         for voice in range(batch_loss_recon.shape[1]):
@@ -185,7 +188,6 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
             # Backward pass
             # -----------------------------------------------------------------
             if optimizer is not None:
-                optimizer.zero_grad()
                 batch_loss_recon[:, voice].mean().backward(retain_graph=True)
 
         # Update the per batch loss trackers
