@@ -76,8 +76,7 @@ parser.add_argument("--lr", help="Learning rate", default=1e-4)
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)
 
 # FIXME set to false if errors regarding memory
-parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=True)
-
+parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=False)
 
 
 parser.add_argument("--optimizer", help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
