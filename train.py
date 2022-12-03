@@ -158,8 +158,8 @@ else:
         dataset_json_dir=args.dataset_json_dir,
         dataset_json_fname=args.dataset_json_fname,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        genre_loss_balancing_beta=args.genre_loss_balancing_beta,
-        voice_loss_balancing_beta=args.voice_loss_balancing_beta,
+        genre_loss_balancing_beta=float(args.genre_loss_balancing_beta),
+        voice_loss_balancing_beta=float(args.voice_loss_balancing_beta),
     )
 
 
