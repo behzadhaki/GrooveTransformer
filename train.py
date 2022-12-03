@@ -67,13 +67,14 @@ parser.add_argument("--offset_loss_function", help="offset_loss_function - eithe
 # HParams for the model, to use if no config file is provided
 parser.add_argument("--loss_hit_penalty_multiplier",
                     help="loss values corresponding to correctly predicted silences will be weighted with this factor",
-                    default=0.5)
+                    default=1)
+
 parser.add_argument("--epochs", help="Number of epochs", default=100)
 parser.add_argument("--batch_size", help="Batch size", default=64)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
 
 # FIXME: Default should be False before merging
-parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=True)
 
 # FIXME set to false if errors regarding memory
 parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=False)
@@ -101,6 +102,9 @@ parser.add_argument("--calculate_hit_scores_on_train",
 parser.add_argument("--calculate_hit_scores_on_test",
                     help="Evaluates the quality of the hit models on test/evaluation set",
                     default=True)
+
+parser.add_argument("--genre_loss_balancing_beta", help="genre balancing factor", default=0.0)
+parser.add_argument("--voice_loss_balancing_beta", help="voice balancing factor", default=0.0)
 
 parser.add_argument("--save_model", help="Save model", default=True)
 parser.add_argument("--save_model_dir", help="Path to save the model", default="misc/VAE")
@@ -153,7 +157,9 @@ else:
         is_testing=args.is_testing,
         dataset_json_dir=args.dataset_json_dir,
         dataset_json_fname=args.dataset_json_fname,
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        genre_loss_balancing_beta=args.genre_loss_balancing_beta,
+        voice_loss_balancing_beta=args.voice_loss_balancing_beta,
     )
 
 
@@ -193,7 +199,9 @@ if __name__ == "__main__":
         tapped_voice_idx=2,
         collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda)
+        move_all_to_gpu=should_place_all_data_on_cuda,
+        genre_loss_balancing_beta=hparams["genre_loss_balancing_beta"],
+        voice_loss_balancing_beta=hparams["voice_loss_balancing_beta"],)
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
     test_dataset = MonotonicGrooveDataset(
@@ -203,7 +211,9 @@ if __name__ == "__main__":
         tapped_voice_idx=2,
         collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda)
+        move_all_to_gpu=should_place_all_data_on_cuda,
+        genre_loss_balancing_beta=hparams["genre_loss_balancing_beta"],
+        voice_loss_balancing_beta=hparams["voice_loss_balancing_beta"],)
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
     # Initialize the model
@@ -215,7 +225,6 @@ if __name__ == "__main__":
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
-
     if config.hit_loss_function == "bce":
         hit_loss_fn = torch.nn.BCEWithLogitsLoss(reduction='none')
     else:
@@ -240,6 +249,10 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------------------------------------------------
     metrics = dict()
     step_ = 0
+
+    genre_balancing_loss_weighting_factor = training_dataset.genre_balancing_loss_weighting_factor
+    voice_balancing_loss_weighting_factor = training_dataset.voice_balancing_loss_weighting_factor
+
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
 
@@ -258,7 +271,8 @@ if __name__ == "__main__":
             offset_loss_fn=offset_loss_fn,
             loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
             device=config.device,
-            starting_step=step_)
+            starting_step=step_,
+            voice_balancing_loss_weighting_factor=voice_balancing_loss_weighting_factor)
 
         wandb.log(train_log_metrics, commit=False)
 
@@ -278,8 +292,8 @@ if __name__ == "__main__":
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
             loss_hit_penalty_multiplier=config.loss_hit_penalty_multiplier,
-            device=config.device
-        )
+            device=config.device,
+            voice_balancing_loss_weighting_factor=voice_balancing_loss_weighting_factor)
 
         wandb.log(test_log_metrics, commit=False)
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "

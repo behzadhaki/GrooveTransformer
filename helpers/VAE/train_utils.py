@@ -29,7 +29,7 @@ def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_pena
 
     assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
     loss_h = hit_loss_function(hit_logits, hit_targets) * hit_loss_penalty_tensor  # batch, time steps, voices
-    return loss_h.mean(dim=0)    # time_steps, n_voices
+    return loss_h
 
 
 def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
@@ -51,7 +51,7 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss
     else:
         raise NotImplementedError(f"the vel_loss_function {vel_loss_function} is not implemented")
 
-    return loss_v.mean(dim=0)    # time_steps, n_voices
+    return loss_v
 
 
 def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, hit_loss_penalty_mat):
@@ -85,7 +85,7 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     else:
         raise NotImplementedError(f"the offset_loss_function {offset_loss_function} is not implemented")
 
-    return loss_o.mean(dim=0)    # time_steps, n_voices
+    return loss_o
 
 
 def calculate_kld_loss(mu, log_var):
@@ -98,11 +98,12 @@ def calculate_kld_loss(mu, log_var):
     log_var = log_var.view(log_var.shape[0], -1)
     kld_loss = -0.5 * (1 + log_var - mu.pow(2) - log_var.exp())
 
-    return kld_loss.mean(dim=0)     # time_steps, n_voices
+    return kld_loss
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None, starting_step=None):
+               offset_loss_fn, loss_hit_penalty_multiplier, device, voice_balancing_loss_weighting_factor,
+               optimizer=None, starting_step=None):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -118,6 +119,10 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     :param offset_loss_fn:  (str)  either "mse" or "bce"
     :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (torch.device)  the device to use for the model
+    :param voice_balancing_loss_weighting_factor (tensor)  the weighting factor for the balancing the loss
+            using the relative voice frequencies
+            References:
+                                     https://arxiv.org/pdf/1901.05555.pdf
     :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
     :param starting_step:   (int)  the starting step for the optimizer
     :return:    (dict)  a dictionary containing the loss values for the current batch
@@ -137,17 +142,17 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_, indices) in enumerate(dataloader_):
+    for batch_count, (inputs_, outputs_, genre_balancing_loss_weighting_factor_,
+                      indices) in enumerate(dataloader_):
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
-        # print(f"inputs_.device: {inputs_.device}, outputs_.device: {outputs_.device}")
-        # print(f"inputs_.shape: {inputs_.shape}")
-        # print(f"outputs_.shape: {outputs_.shape}")
-        inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
-        outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
-        # print(f"inputs.device: {inputs.device}, outputs.device: {outputs.device}")
-        # print(f"inputs.shape: {inputs.shape}")
-        # print(f"outputs.shape: {outputs.shape}")
+        inputs = inputs_.to(device) if inputs_.device.type != device else inputs_
+        outputs = outputs_.to(device) if outputs_.device.type != device else outputs_
+        genre_balancing_loss_weighting_factor = genre_balancing_loss_weighting_factor_.to(device)\
+            if genre_balancing_loss_weighting_factor_.device.type != device else genre_balancing_loss_weighting_factor_
+        genre_balancing_loss_weighting_factor = genre_balancing_loss_weighting_factor.view(-1, 1, 1)
+        voice_balancing_loss_weighting_factor = voice_balancing_loss_weighting_factor.to(device)\
+            if voice_balancing_loss_weighting_factor.device.type != device else voice_balancing_loss_weighting_factor
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
@@ -161,47 +166,40 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # ---------------------------------------------------------------------------------------
         batch_loss_h = calculate_hit_loss(
             hit_logits=h_logits, hit_targets=h_targets,
-            hit_loss_function=hit_loss_fn, hit_loss_penalty_tensor=hit_loss_penalty_mat)
+            hit_loss_function=hit_loss_fn, hit_loss_penalty_tensor=hit_loss_penalty_mat) * \
+                       voice_balancing_loss_weighting_factor
+        batch_loss_h = (genre_balancing_loss_weighting_factor*batch_loss_h).mean()
 
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets,
-            vel_loss_function=velocity_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+            vel_loss_function=velocity_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat) * \
+                          voice_balancing_loss_weighting_factor
+        batch_loss_v = (genre_balancing_loss_weighting_factor*batch_loss_v).mean()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets,
-            offset_loss_function=offset_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+            offset_loss_function=offset_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat) * \
+                            voice_balancing_loss_weighting_factor
+        batch_loss_o = (genre_balancing_loss_weighting_factor*batch_loss_o).mean()
 
-        batch_loss_KL = calculate_kld_loss(mu, log_var)
+        batch_loss_KL = (calculate_kld_loss(mu, log_var)* genre_balancing_loss_weighting_factor).mean()
 
-        # print (f"batch_loss_h.shape: {batch_loss_h.shape}, batch_loss_v.shape: {batch_loss_v.shape}, "
-        #        f"batch_loss_o.shape: {batch_loss_o.shape}, batch_loss_KL.shape: {batch_loss_KL.shape}")
 
-        batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)# + batch_loss_KL)
+        batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
+        batch_loss_total = (batch_loss_recon + batch_loss_KL)
 
         if optimizer is not None:
             optimizer.zero_grad()
-
-        # Backward pass on VOICE at a time!!!!
-        # ---------------------------------------------------------------------------------------
-        for voice in range(batch_loss_recon.shape[1]):
-
-            # Backward pass
-            # -----------------------------------------------------------------
-            if optimizer is not None:
-                batch_loss_recon[:, voice].mean().backward(retain_graph=True)
+            batch_loss_total.mean().backward()
 
         # Update the per batch loss trackers
         # -----------------------------------------------------------------
-        loss_h.append(batch_loss_h.mean().item())
-        loss_v.append(batch_loss_v.mean().item())
-        loss_o.append(batch_loss_o.mean().item())
-        loss_total.append(batch_loss_recon.mean().item())
-        loss_KL.append(batch_loss_KL.mean().item())
-        loss_total.append(batch_loss_KL.mean().item()+batch_loss_recon.mean().item())
-
-        if optimizer is not None:
-            batch_loss_KL.mean().backward()
-            optimizer.step()
+        loss_h.append(batch_loss_h.item())
+        loss_v.append(batch_loss_v.item())
+        loss_o.append(batch_loss_o.item())
+        loss_total.append(batch_loss_recon.item())
+        loss_KL.append(batch_loss_KL.item())
+        loss_total.append(batch_loss_total.item())
 
         # Increment the step counter
         # ---------------------------------------------------------------------------------------
@@ -226,7 +224,8 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device, starting_step):
+               offset_loss_fn, loss_hit_penalty_multiplier, device, starting_step,
+               voice_balancing_loss_weighting_factor):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -266,14 +265,16 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
         device=device,
         optimizer=optimizer,
-        starting_step=starting_step)
+        starting_step=starting_step,
+        voice_balancing_loss_weighting_factor=voice_balancing_loss_weighting_factor)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device):
+              offset_loss_fn, loss_hit_penalty_multiplier, device,
+              voice_balancing_loss_weighting_factor):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -310,7 +311,8 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
             offset_loss_fn=offset_loss_fn,
             loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
             device=device,
-            optimizer=None)
+            optimizer=None,
+            voice_balancing_loss_weighting_factor=voice_balancing_loss_weighting_factor)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics

@@ -12,6 +12,19 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 dataLoaderLogger = logging.getLogger("data.Base.dataLoaders")
 
+try:
+    import pandas as pd
+    from bokeh.palettes import Category20c
+    from bokeh.plotting import figure, show, output_file, gridplot
+    from bokeh.transform import cumsum
+    import holoviews as hv
+    from holoviews import opts
+    hv.extension('bokeh')
+    _CAN_PLOT = True
+except ImportError:
+    dataLoaderLogger.warning("Cannot import plotting libraries. Dataset Statistics Can't be Plotted.")
+    _CAN_PLOT = False
+
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
@@ -60,7 +73,8 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
                  collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
-                 down_sampled_ratio=None, move_all_to_gpu=False):
+                 down_sampled_ratio=None, move_all_to_gpu=False, genre_loss_balancing_beta=0,
+                 voice_loss_balancing_beta=0):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -70,6 +84,16 @@ class MonotonicGrooveDataset(Dataset):
         :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
         :param load_as_tensor:      [bool] loads the data as a tensor of torch.float32 instead of a numpy array
         :param sort_by_metadata_key: [str] sorts the data by the metadata key provided (e.g. "tempo")
+        :param genre_loss_balancing_beta: [float] beta parameter for balancing the loss according to the genre
+                (see:
+                            References:
+                                     https://arxiv.org/pdf/1901.05555.pdf
+                )
+        :param voice_loss_balancing_beta [float] beta parameter for balancing the loss according to the voice
+                (see:
+                            References:
+                                        https://arxiv.org/pdf/1901.05555.pdf
+                )
         """
 
         # Get processed inputs, outputs and hvo sequences
@@ -103,10 +127,38 @@ class MonotonicGrooveDataset(Dataset):
                     flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
                     self.inputs.append(flat_seq)
 
-        if load_as_tensor:
-            self.inputs = torch.tensor(np.array(self.inputs), dtype=torch.float32)
-            self.outputs = torch.tensor(np.array(self.outputs), dtype=torch.float32)
+        # calculate the class balanced weights
+        genres_count_dict = self.get_genre_distributions_dict()
+        self.genre_balancing_loss_weighting_factor = []
+        for hvo_seq in self.hvo_sequences:
+            genre = hvo_seq.metadata["style_primary"]
+            self.genre_balancing_loss_weighting_factor.append(
+                (1 - genre_loss_balancing_beta) / (1 - genre_loss_balancing_beta ** genres_count_dict[genre]))
 
+
+        # calculate the voice balanced weights
+        # There are n_voices available, to balance them, we calculate the effective weight loss for each voice
+        # by using the formula:
+        #   w_voice_i = (1 - beta) / (1 - beta**(num_examples with this voice existing)) ))
+        voice_counts_dict=self.get_voice_counts()
+        self.voice_balancing_loss_weighting_factor = []
+        for voice in range(self.hvo_sequences[0].hits.shape[1]):
+            self.voice_balancing_loss_weighting_factor.append(
+                (1 - voice_loss_balancing_beta) / (1 - voice_loss_balancing_beta ** voice_counts_dict[voice]))
+
+        # convert to tensors if required
+        self.inputs = torch.tensor(np.array(self.inputs), dtype=torch.float32) \
+            if load_as_tensor else np.array(self.inputs)
+        self.outputs = torch.tensor(np.array(self.outputs), dtype=torch.float32) \
+            if load_as_tensor else np.array(self.outputs)
+        self.genre_balancing_loss_weighting_factor = \
+            torch.tensor(np.array(self.genre_balancing_loss_weighting_factor), dtype=torch.float32) \
+                if load_as_tensor else np.array(self.genre_balancing_loss_weighting_factor)
+        self.voice_balancing_loss_weighting_factor = \
+            torch.tensor(np.array(self.voice_balancing_loss_weighting_factor), dtype=torch.float32) \
+                if load_as_tensor else np.array(self.voice_balancing_loss_weighting_factor)
+
+        # move to gpu if required
         if move_all_to_gpu and torch.cuda.is_available():
             self.inputs = self.inputs.to('cuda')
             self.outputs = self.outputs.to('cuda')
@@ -117,7 +169,7 @@ class MonotonicGrooveDataset(Dataset):
         return len(self.hvo_sequences)
 
     def __getitem__(self, idx):
-        return self.inputs[idx], self.outputs[idx], idx
+        return self.inputs[idx], self.outputs[idx], self.genre_balancing_loss_weighting_factor[idx], idx
 
     def get_hvo_sequences_at(self, idx):
         return self.hvo_sequences[idx]
@@ -127,6 +179,92 @@ class MonotonicGrooveDataset(Dataset):
 
     def get_outputs_at(self, idx):
         return self.outputs[idx]
+
+    def get_global_hit_count_ratios(self):
+        return self.outputs[:, :, :(self.outputs.shape[-1]//3)].sum(dim=0) / self.outputs.shape[0]
+
+    def visualize_global_hit_count_ratios_heatmap(self, show_fig=True):
+        if not _CAN_PLOT:
+            return None
+        hit_ratios = self.get_global_hit_count_ratios().round(decimals=3)
+        voice_tags = list(self.hvo_sequences[0].drum_mapping.keys())
+        aggregate_data = []
+        for t_ in range(hit_ratios.shape[0]):
+            for voice_ in range(hit_ratios.shape[1]):
+                aggregate_data.append((t_, voice_tags[voice_], hit_ratios[t_, voice_].item()))
+
+        output_file("global_hit_count_ratios.html")
+        hm_sessions = hv.HeatMap(aggregate_data)
+        hm_sessions = hm_sessions * hv.Labels(hm_sessions).opts(padding=0, text_color='white', text_font_size='6pt')
+        fig_sessions = hv.render(hm_sessions, backend='bokeh')
+        fig_sessions.plot_height = 400
+        fig_sessions.plot_width = 1200
+        fig_sessions.title = f"Hit Count Ratios (Total Hits at each location divided by total number of sequences)"
+        fig_sessions.xaxis.axis_label = ""
+        fig_sessions.yaxis.axis_label = ""
+        fig_sessions.xaxis.major_label_orientation = 45
+        fig_sessions.xaxis.major_label_text_font_size = "6pt"
+        fig_sessions.yaxis.major_label_text_font_size = "6pt"
+
+        if show_fig:
+            show(fig_sessions)
+
+        return fig_sessions
+
+    def visualize_genre_distributions(self, show_fig=True, show_inverted_weights=True):
+        output_file("genre_distributions.html")
+        def get_hist(hist_dict, title):
+            p = figure(title="Genre Distributions", toolbar_location="below")
+            xtick_locs = np.arange(0.5, len(hist_dict), 1)
+            hist = np.array(list(hist_dict.values()))
+            p.quad(top=hist, bottom=0, left=xtick_locs - 0.3, right=xtick_locs + 0.3, line_color="white")
+            p.xaxis.ticker = xtick_locs
+            p.xaxis.major_label_overrides = {xtick_locs[i]: list(hist_dict.keys())[i] for i in range(len(xtick_locs))}
+            p.xaxis.major_label_orientation = 45
+            return p
+
+        genres = [hvo_seq.metadata["style_primary"] for hvo_seq in self.hvo_sequences]
+        hist_dict = {genre: genres.count(genre)/len(genres) for genre in set(genres)}
+
+        p1 = get_hist(hist_dict, "Genre Distributions")
+
+        if show_inverted_weights:
+            # balance the histogram
+            hist_dict = {genre: 1 - genres.count(genre)/len(genres) for genre in set(genres)}
+            p2 = get_hist(hist_dict, "Inverted Genre Distributions")
+            # align the y-axis
+            p2.y_range = p1.y_range
+            fig = gridplot([[p1], [p2]])
+        else:
+            fig = gridplot([[p1]])
+
+        if show_fig:
+            show(fig)
+
+        return fig
+
+    def get_genre_distributions_dict(self, use_ratios=True):
+        genres = [hvo_seq.metadata["style_primary"] for hvo_seq in self.hvo_sequences]
+        hist_dict = {genre: genres.count(genre) for genre in set(genres)}
+        if use_ratios:
+            min_val = min(hist_dict.values())
+            hist_dict = {genre: hist_dict[genre]/min_val for genre in hist_dict}
+        return hist_dict
+
+    def get_voice_counts(self, use_ratios=True):
+        voice_count_dict = {
+            voice_idx: 0 for voice_idx in range(self.hvo_sequences[0].hits.shape[-1])
+        }
+        for hvo_seq in self.hvo_sequences:
+            for voice_idx in range(hvo_seq.hits.shape[-1]):
+                if hvo_seq.hits[:, voice_idx].sum()>0:
+                    voice_count_dict[voice_idx] += 1
+        if use_ratios:
+            min_val = min(voice_count_dict.values())
+            voice_count_dict = {voice_idx: voice_count_dict[voice_idx]/min_val for voice_idx in voice_count_dict}
+
+        return voice_count_dict
+
 
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset
@@ -268,8 +406,6 @@ def load_down_sampled_gmd_hvo_sequences(
         ifile.close()
         dataLoaderLogger.info(f"Loaded {len(set_data_)} {subset_tag} samples from {dir__}")
         return set_data_
-
-
 
 
 if __name__ == "__main__":
