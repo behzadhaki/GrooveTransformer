@@ -169,6 +169,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         if optimizer is not None:
             optimizer.zero_grad()
             batch_loss_total.backward()
+            optimizer.step()
 
         # Update the per batch loss trackers
         # -----------------------------------------------------------------
