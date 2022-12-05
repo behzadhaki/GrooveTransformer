@@ -126,7 +126,7 @@ class MonotonicGrooveDataset(Dataset):
         # ------------------------------------------------------------------------------------------
         # get the effective number of hits per step and voice
         hits = self.outputs[:, :, :self.outputs.shape[-1] // 3]
-        total_hits = hits.sum(0)
+        total_hits = hits.sum(0) + 1e-6
         effective_num_hits = 1.0 - np.power(hit_loss_balancing_beta, total_hits)
         hit_balancing_weights = (1.0 - hit_loss_balancing_beta) / effective_num_hits
         # normalize

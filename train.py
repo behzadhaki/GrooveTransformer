@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=bool,
-                    default=False)
+                    default=True)
 
 # ----------------------- WANDB Settings -----------------------
 parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)
@@ -196,9 +196,7 @@ if __name__ == "__main__":
         tapped_voice_idx=2,
         collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda,
-        hit_loss_balancing_beta=args.hit_loss_balancing_beta,
-        genre_loss_balancing_beta=args.genre_loss_balancing_beta
+        move_all_to_gpu=should_place_all_data_on_cuda
     )
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)

@@ -304,7 +304,9 @@ if __name__ == "__main__":
         tapped_voice_idx=2,
         collapse_tapped_sequence=False,
         load_as_tensor=True,
-        sort_by_metadata_key="loop_id")
+        sort_by_metadata_key="loop_id",
+        hit_loss_balancing_beta=0.99,
+        genre_loss_balancing_beta=0.99)
 
     # Balancing losses based on the imbalance in hit counts at
     #       any given time step and at a specific voice
