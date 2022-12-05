@@ -62,7 +62,7 @@ parser.add_argument("--offset_loss_function", help="offset_loss_function - eithe
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", help="Dropout", default=0.4)
-parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=False)
+parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=True)
 parser.add_argument("--epochs", help="Number of epochs", default=100)
 parser.add_argument("--batch_size", help="Batch size", default=64)
 parser.add_argument("--lr", help="Learning rate", default=1e-4)
