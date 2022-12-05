@@ -19,83 +19,84 @@ logger.setLevel(DEBUG)
 parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
-parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=bool,
+                    default=False)
 
 # ----------------------- WANDB Settings -----------------------
-parser.add_argument("--wandb", help="log to wandb", default=True)
+parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)
 # wandb parameters
 parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
-parser.add_argument("--wandb_project", help="WANDB Project Name", default="voice_distribution_and_genre_distribution_imbalance")
+parser.add_argument("--wandb_project", type=str, help="WANDB Project Name", default="voice_distribution_and_genre_distribution_imbalance")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
-parser.add_argument("--d_model_enc", help="Dimension of the encoder model", default=32)
-parser.add_argument("--d_model_dec_ratio", help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
-parser.add_argument("--embedding_size_src", help="Dimension of the source embedding", default=3)
-parser.add_argument("--embedding_size_tgt", help="Dimension of the target embedding", default=27)
-parser.add_argument("--nhead_enc", help="Number of attention heads for the encoder", default=2)
-parser.add_argument("--nhead_dec", help="Number of attention heads for the decoder", default=2)
+parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
+parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
+parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
+parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
+parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
+parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
 # d_ff_enc_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
-parser.add_argument("--d_ff_enc_to_dmodel", help="ration of the dimension of enc feed-frwrd layer relative to "
+parser.add_argument("--d_ff_enc_to_dmodel", type=float, help="ration of the dimension of enc feed-frwrd layer relative to "
                                                  "enc dmodel", default=1)
 # d_ff_dec_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
-parser.add_argument("--d_ff_dec_to_dmodel", help="ration of the dimension of dec feed-frwrd layer relative to "
-                                                 "decoder dmodel", default=1)
+parser.add_argument("--d_ff_dec_to_dmodel", type=float,
+                    help="ration of the dimension of dec feed-frwrd layer relative to decoder dmodel", default=1)
 # n_dec_lyrs_ratio denotes the ratio of the dec relative to n_enc_lyrs
-parser.add_argument("--n_enc_lyrs", help="Number of encoder layers", default=3)
-parser.add_argument("--n_dec_lyrs_ratio", help="Number of decoder layers as a ratio of "
+parser.add_argument("--n_enc_lyrs", type=int, help="Number of encoder layers", default=3)
+parser.add_argument("--n_dec_lyrs_ratio", type=float, help="Number of decoder layers as a ratio of "
                                                "n_enc_lyrs as a ratio of d_ff_enc", default=1)
-parser.add_argument("--max_len_enc", help="Maximum length of the encoder", default=32)
-parser.add_argument("--max_len_dec", help="Maximum length of the decoder", default=32)
-parser.add_argument("--latent_dim", help="Overall Dimension of the latent space", default=16)
+parser.add_argument("--max_len_enc", type=int, help="Maximum length of the encoder", default=32)
+parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decoder", default=32)
+parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=16)
 
 # ----------------------- Loss Parameters -----------------------
-parser.add_argument("--hit_loss_balancing_beta", help="beta parameter for hit loss balancing", default=0.0)
-parser.add_argument("--genre_loss_balancing_beta", help="beta parameter for genre loss balancing", default=0.0)
-parser.add_argument("--hit_loss_function", help="hit_loss_function - only bce supported for now", default="bce")
-parser.add_argument("--velocity_loss_function", help="velocity_loss_function - either 'bce' or 'mse' loss",
+parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta parameter for hit loss balancing", default=0.0)
+parser.add_argument("--genre_loss_balancing_beta", type=float, help="beta parameter for genre loss balancing", default=0.0)
+parser.add_argument("--hit_loss_function", type=str, help="hit_loss_function - only bce supported for now", default="bce")
+parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
-parser.add_argument("--offset_loss_function", help="offset_loss_function - either 'bce' or 'mse' loss",
+parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
 
 # ----------------------- Training Parameters -----------------------
-parser.add_argument("--dropout", help="Dropout", default=0.4)
-parser.add_argument("--force_data_on_cuda", help="places all training data on cude", default=True)
-parser.add_argument("--epochs", help="Number of epochs", default=100)
-parser.add_argument("--batch_size", help="Batch size", default=64)
-parser.add_argument("--lr", help="Learning rate", default=1e-4)
-parser.add_argument("--optimizer", help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
+parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
+parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
+parser.add_argument("--epochs", type=int, help="Number of epochs", default=100)
+parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
+parser.add_argument("--lr", type=float, help="Learning rate", default=1e-4)
+parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
                     choices=['sgd', 'adam'])
 
 # ----------------------- Data Parameters -----------------------
-parser.add_argument("--dataset_json_dir",
+parser.add_argument("--dataset_json_dir", type=str,
                     help="Path to the folder hosting the dataset json file",
                     default="data/dataset_json_settings")
-parser.add_argument("--dataset_json_fname",
+parser.add_argument("--dataset_json_fname", type=str,
                     help="filename of the data (USE 4_4_Beats_gmd.jsom for only beat sections,"
                          " and 4_4_BeatsAndFills_gmd.json for beats and fill samples combined",
                     default="4_4_Beats_gmd.json")
-parser.add_argument("--evaluate_on_subset",
+parser.add_argument("--evaluate_on_subset", type=str,
                     help="Using test or evaluation subset for evaluating the model", default="test",
                     choices=['test', 'evaluation'] )
 
 # ----------------------- Evaluation Params -----------------------
-parser.add_argument("--calculate_hit_scores_on_train",
+parser.add_argument("--calculate_hit_scores_on_train", type=bool,
                     help="Evaluates the quality of the hit models on training set",
                     default=True)
-parser.add_argument("--calculate_hit_scores_on_test",
+parser.add_argument("--calculate_hit_scores_on_test", type=bool,
                     help="Evaluates the quality of the hit models on test/evaluation set",
                     default=True)
-parser.add_argument("--piano_roll_samples", help="Generate audio samples", default=True)
-parser.add_argument("--piano_roll_frequency", help="Frequency of piano roll generation", default=20)
-parser.add_argument("--hit_score_frequency", help="Frequency of hit score generation", default=10)
+parser.add_argument("--piano_roll_samples", type=bool, help="Generate audio samples", default=True)
+parser.add_argument("--piano_roll_frequency", type=int, help="Frequency of piano roll generation", default=20)
+parser.add_argument("--hit_score_frequency", type=int, help="Frequency of hit score generation", default=10)
 
 # ----------------------- Misc Params -----------------------
-parser.add_argument("--save_model", help="Save model", default=True)
-parser.add_argument("--save_model_dir", help="Path to save the model", default="misc/VAE")
-parser.add_argument("--save_model_frequency", help="Save model every n epochs", default=100)
+parser.add_argument("--save_model", type=bool, help="Save model", default=True)
+parser.add_argument("--save_model_dir", type=str, help="Path to save the model", default="misc/VAE")
+parser.add_argument("--save_model_frequency", type=int, help="Save model every n epochs", default=100)
 
 
 args, unknown = parser.parse_known_args()
