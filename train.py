@@ -19,7 +19,7 @@ logger.setLevel(DEBUG)
 parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
-parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=True)
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", default=False)
 
 # ----------------------- WANDB Settings -----------------------
 parser.add_argument("--wandb", help="log to wandb", default=True)
@@ -27,7 +27,7 @@ parser.add_argument("--wandb", help="log to wandb", default=True)
 parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
-parser.add_argument("--wandb_project", help="WANDB Project Name", default="exp2_loss_backward_per_voice")
+parser.add_argument("--wandb_project", help="WANDB Project Name", default="voice_distribution_and_genre_distribution_imbalance")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
