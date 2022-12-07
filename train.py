@@ -255,7 +255,7 @@ if __name__ == "__main__":
         return L
 
 
-    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=2, ratio=0.5)
+    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=1, ratio=0.25)
 
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
