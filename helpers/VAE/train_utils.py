@@ -148,18 +148,18 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # ---------------------------------------------------------------------------------------
         batch_loss_h = calculate_hit_loss(
             hit_logits = h_logits, hit_targets=h_targets, hit_loss_function=hit_loss_fn)
-        batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+        batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).sum()
 
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
-        batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+        batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).sum()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
-        batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+        batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).sum()
 
         batch_loss_KL = calculate_kld_loss(mu, log_var)
-        batch_loss_KL = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)).mean()
+        batch_loss_KL = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)).sum()
 
         batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
         batch_loss_total = (batch_loss_recon + batch_loss_KL)
