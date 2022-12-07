@@ -92,6 +92,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
 
         self.InputLayerEncoder.init_weights()
         self.Decoder.OutputLayer.init_weights()
+        self.LatentEncoder.init_weights()
 
     def encode(self, src):
         """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space

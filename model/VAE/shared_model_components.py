@@ -169,6 +169,12 @@ class LatentLayer(torch.nn.Module):
         self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
         self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
 
+    def init_weights(self, initrange=0.1):
+        self.fc_mu.bias.data.zero_()
+        self.fc_mu.weight.data.uniform_(-initrange, initrange)
+        self.fc_var.bias.data.zero_()
+        self.fc_var.weight.data.uniform_(-initrange, initrange)
+
     def forward(self, src):
         """ converts the input into a latent space representation
 
@@ -205,6 +211,10 @@ class DecoderInput(torch.nn.Module):
         self.d_model = d_model
 
         self.updims = torch.nn.Linear(latent_dim, int(max_len * d_model))
+
+    def init_weights(self, initrange=0.1):
+        self.updims.bias.data.zero_()
+        self.updims.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, src):
 
@@ -261,6 +271,8 @@ class VAE_Decoder(torch.nn.Module):
         self.OutputLayer = OutputLayer(
             embedding_size=self.output_embedding_size,
             d_model=self.d_model)
+
+        self.DecoderInput.init_weights()
 
     def forward(self, latent_z):
         """Converts the latent vector into hit, vel, offset logits (i.e. Values **PRIOR** to activation).
