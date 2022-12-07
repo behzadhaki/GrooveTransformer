@@ -91,7 +91,7 @@ def calculate_kld_loss(mu, log_var):
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, optimizer=None, starting_step=None):
+               offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -108,6 +108,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     :param device:  (torch.device)  the device to use for the model
     :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
     :param starting_step:   (int)  the starting step for the optimizer
+    :param kl_beta: (float)  the beta value for the KLD loss
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
                 metrics = {
@@ -158,7 +159,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
         batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
 
-        batch_loss_KL = calculate_kld_loss(mu, log_var)
+        batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)
         batch_loss_KL = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)).mean()
 
         batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
@@ -205,7 +206,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, starting_step):
+               offset_loss_fn, device, starting_step, kl_beta=1):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -220,6 +221,7 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (str)  the device to use for the model
     :param starting_step:   (int)  the starting step for the optimizer
+    :param kl_beta: (float)  the beta value for the KL loss
 
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
@@ -244,14 +246,15 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         offset_loss_fn=offset_loss_fn,
         device=device,
         optimizer=optimizer,
-        starting_step=starting_step)
+        starting_step=starting_step,
+        kl_beta=kl_beta)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device):
+               offset_loss_fn, device, kl_beta=1):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -287,7 +290,8 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
             device=device,
-            optimizer=None)
+            optimizer=None,
+            kl_beta=kl_beta)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics

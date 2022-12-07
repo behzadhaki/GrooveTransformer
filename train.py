@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
 import argparse
+import numpy as np
 
 logger = getLogger("train.py")
 logger.setLevel(DEBUG)
@@ -235,6 +236,27 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------------------------------------------------
     metrics = dict()
     step_ = 0
+
+
+    def frange_cycle_sigmoid(start, stop, n_epoch, n_cycle=4, ratio=0.5):
+        L = np.ones(n_epoch)
+        period = n_epoch / n_cycle
+        step = (stop - start) / (period * ratio)  # step is in [0,1]
+
+        # transform into [-6, 6] for plots: v*12.-6.
+
+        for c in range(n_cycle):
+
+            v, i = start, 0
+            while v <= stop:
+                L[int(i + c * period)] = 1.0 / (1.0 + np.exp(- (v * 12. - 6.)))
+                v += step
+                i += 1
+        return L
+
+
+    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=2, ratio=0.5)
+
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
 
@@ -252,9 +274,11 @@ if __name__ == "__main__":
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
             device=config.device,
-            starting_step=step_)
+            starting_step=step_,
+            kl_beta=beta_np_cyc[epoch])
 
         wandb.log(train_log_metrics, commit=False)
+        wandb.log({"kl_beta": beta_np_cyc[epoch]}, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
         # After each epoch, evaluate the model on the test set
@@ -271,8 +295,8 @@ if __name__ == "__main__":
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
-            device=config.device
-        )
+            device=config.device,
+            kl_beta=beta_np_cyc[epoch])
 
         wandb.log(test_log_metrics, commit=False)
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
