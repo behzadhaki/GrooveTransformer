@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=bool,
-                    default=False)
+                    default=True)
 
 # ----------------------- WANDB Settings -----------------------
 parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)

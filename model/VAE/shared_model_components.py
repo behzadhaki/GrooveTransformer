@@ -132,8 +132,12 @@ class OutputLayer(torch.nn.Module):
         self.embedding_size = embedding_size
         self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
 
-    def init_weights(self, initrange=0.1):
-        self.Linear.bias.data.zero_()
+    def init_weights(self, initrange=0.1, offset_activation='tanh'):
+        if offset_activation == 'tanh':
+            self.Linear.bias.data.zero_()
+        else:
+            print(f'Offset activation is {offset_activation}, bias is initialized to 0.5')
+            self.Linear.bias.data.fill_(0.5)
         self.Linear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, decoder_out):
@@ -272,8 +276,6 @@ class VAE_Decoder(torch.nn.Module):
             embedding_size=self.output_embedding_size,
             d_model=self.d_model)
 
-        self.DecoderInput.init_weights()
-
     def forward(self, latent_z):
         """Converts the latent vector into hit, vel, offset logits (i.e. Values **PRIOR** to activation).
 
@@ -312,4 +314,3 @@ class VAE_Decoder(torch.nn.Module):
                 raise ValueError(f"{self.o_activation} for offsets is not supported")
 
         return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
-

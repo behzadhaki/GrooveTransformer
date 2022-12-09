@@ -90,9 +90,12 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             dropout=self.dropout,
             o_activation=self.o_activation)
 
+        # Initialize weights and biases
+        # If tanh is used for offset activation, initialize the output layer's bias to 0.5
         self.InputLayerEncoder.init_weights()
-        self.Decoder.OutputLayer.init_weights()
         self.LatentEncoder.init_weights()
+        self.Decoder.DecoderInput.init_weights()
+        self.Decoder.OutputLayer.init_weights(offset_activation=self.o_activation)
 
     def encode(self, src):
         """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space
