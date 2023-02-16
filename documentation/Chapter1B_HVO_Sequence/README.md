@@ -1,5 +1,5 @@
 ## Chapter 1B - HVO Sequence: A Grid-relative Piano Roll Representation for Drum Sequences  
-
+ 
 
 
 # Table of Contents
