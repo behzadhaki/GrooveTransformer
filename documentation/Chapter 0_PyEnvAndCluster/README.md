@@ -37,6 +37,7 @@ scipy==1.9.1
 soundfile==0.11.0
 tqdm==4.64.1
 wandb==0.13.3
+umap-learn
 ```
 
 > **Note** In order to be able to use pyFluidSynth, you need to install fluidsynth software
@@ -91,6 +92,7 @@ pip install scipy==1.9.1
 pip install soundfile==0.11.0
 pip install tqdm==4.64.1
 pip install wandb==0.13.3
+pip install umap-learn
 ```
 
 #### 2.2 [`Anaconda`](https://www.anaconda.com/) Installation <a name="2.2"></a>
@@ -118,6 +120,7 @@ pip install scipy==1.9.1
 pip install soundfile==0.11.0
 pip install tqdm==4.64.1
 pip install wandb==0.13.3
+conda install -c conda-forge umap-learn
 ```
 
 ### 3. GPU Installation <a name="3"></a>
