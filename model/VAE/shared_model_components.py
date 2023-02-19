@@ -191,13 +191,17 @@ class LatentLayer(torch.nn.Module):
         mu = self.fc_mu(result)
         log_var = self.fc_var(result)
 
+        # Reparameterize
+        z = self.reparametrize(mu, log_var)
+
+        return mu, log_var, z
+
+    def reparametrize(self, mu, log_var):
         std = torch.exp(0.5 * log_var)
         eps = torch.randn_like(std)
         z = eps * std + mu
 
-        return mu, log_var, z
-
-
+        return z
 # --------------------------------------------------------------------------------
 # ------------       RE-CONSTRUCTION DECODER INPUT             -------------------
 # --------------------------------------------------------------------------------
@@ -314,3 +318,48 @@ class VAE_Decoder(torch.nn.Module):
                 raise ValueError(f"{self.o_activation} for offsets is not supported")
 
         return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
+
+    def sample(self, latent_z, voice_thresholds, voice_max_count_allowed,
+               return_concatenated=False, sampling_mode=0):
+        """Converts the latent vector into hit, vel, offset values
+
+        :param latent_z: (Tensor) [N x latent_dim]
+        :param voice_thresholds: (list) Thresholds for hit prediction
+        :param voice_max_count_allowed: (list) Maximum number of hits to allow for each voice
+        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
+        :param sampling_mode: (int) 0 for top-k sampling,
+                                    1 for bernoulli sampling
+        """
+        self.eval()
+        with torch.no_grad():
+            h_logits, v_logits, o_logits = self.forward(latent_z)
+            _h = torch.sigmoid(h_logits)
+            h = torch.zeros_like(_h)
+
+            v = torch.sigmoid(v_logits)
+
+            if self.o_activation == "tanh":
+                o = torch.tanh(o_logits) * 0.5
+            elif self.o_activation == "sigmoid":
+                o = torch.sigmoid(o_logits) - 0.5
+            else:
+                raise ValueError(f"{self.o_activation} for offsets is not supported")
+
+            if sampling_mode == 0:
+                for ix, (thres, max_count) in enumerate(zip(voice_thresholds, voice_max_count_allowed)):
+                    max_indices = torch.topk(_h[:, :, ix], max_count).indices[0]
+                    h[:, max_indices, ix] = _h[:, max_indices, ix]
+                    h[:, :, ix] = torch.where(h[:, :, ix] > thres, 1, 0)
+            elif sampling_mode == 1:
+                for ix, (thres, max_count) in enumerate(zip(voice_thresholds, voice_max_count_allowed)):
+                    # sample using probability distribution of hits (_h)
+                    voice_probs = _h[:, :, ix]
+                    sampled_indices = torch.bernoulli(voice_probs)
+                    max_indices = torch.topk(sampled_indices*voice_probs, max_count).indices[0]
+                    h[:, max_indices, ix] = 1
+
+            # sample using probability distribution of velocities (v)
+            if return_concatenated:
+                return torch.concat((h, v, o), -1)
+            else:
+                return h, v, o
