@@ -32,6 +32,11 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
     for dataset_tag in dataset_tags:
         dataLoaderLogger.info(f"Loading {dataset_tag} dataset")
         raw_data_pickle_path = dataset_setting_json["raw_data_pickle_path"][dataset_tag]
+        for path_prepend in ["./", "../", "../../"]:
+            if os.path.exists(path_prepend + raw_data_pickle_path):
+                raw_data_pickle_path = path_prepend + raw_data_pickle_path
+                break
+
         assert os.path.exists(raw_data_pickle_path), "path to gmd dict pickle is incorrect --- " \
                                                 "look into data/gmd/resources/storedDicts/groove-*.bz2pickle"
         dir__ = get_data_directory_using_filters(dataset_tag, dataset_setting_json_path)
