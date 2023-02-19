@@ -61,6 +61,7 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
+parser.add_argument("--beta_annealing_ratio", type=float, help="ratio overal epochs to anneal beta", default=0.25)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
@@ -137,6 +138,7 @@ else:
         offset_loss_function=args.offset_loss_function,
         hit_loss_balancing_beta=float(args.hit_loss_balancing_beta),
         genre_loss_balancing_beta=float(args.genre_loss_balancing_beta),
+        beta_annealing_ratio=float(args.beta_annealing_ratio),
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
@@ -255,7 +257,8 @@ if __name__ == "__main__":
         return L
 
 
-    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=1, ratio=0.25)
+    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=1,
+                                       ratio=config.beta_annealing_ratio)
 
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
