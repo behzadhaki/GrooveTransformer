@@ -62,6 +62,7 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--beta_annealing_ratio", type=float, help="ratio overal epochs to anneal beta", default=0.25)
+parser.add_argument("--beta_annealing_cycles", type=int, help="ratio overal epochs to anneal beta", default=1)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
@@ -139,6 +140,7 @@ else:
         hit_loss_balancing_beta=float(args.hit_loss_balancing_beta),
         genre_loss_balancing_beta=float(args.genre_loss_balancing_beta),
         beta_annealing_ratio=float(args.beta_annealing_ratio),
+        beta_annealing_cycles=args.beta_annealing_cycles,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
@@ -257,7 +259,8 @@ if __name__ == "__main__":
         return L
 
 
-    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs, n_cycle=1,
+    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs,
+                                       n_cycle=config.beta_annealing_cycles,
                                        ratio=config.beta_annealing_ratio)
 
     for epoch in range(config.epochs):
