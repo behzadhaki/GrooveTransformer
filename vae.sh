@@ -1,16 +1,25 @@
 #!/bin/bash
 #SBATCH -J sweep_small
-#SBATCH -p medium
+#SBATCH -p high
 #SBATCH -N 1
-#SBATCH --gres=gpu:tesla:1
-#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:quadro:1
+#SBATCH --cpus-per-task=10
 #SBATCH --mem=16g
-#SBATCH -o /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.out
-#SBATCH -e /homedtic/hperez/GrooveTransformer/error/%N.%J.VAE_test_loader.err
+#SBATCH --time=24:00:00
+#SBATCH -o %N.%J.VAE_test_loader.out
+#SBATCH -e %N.%J.VAE_test_loader.err
 
-export PATH="$HOME/GrooveTransformer/VarGrvTrnsfmr/bin:$PATH"
+# Necessary to access existing modules on the cluster
 
+export PATH="$HOME/miniconda_envs/anaconda3/bin:$PATH"
+export PATH="$HOME/miniconda_envs/anaconda3/envs/GrooveTransformer:$PATH"
+source activate GrooveTransformer
+
+# Login to WANDB
 cd GrooveTransformer
-source VarGrvTrnsfmr/bin/activate
-wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/bib6bpsb
-#python sweep_tester_VAE.py
+
+export WANDB_API_KEY="API_KEY"
+python -m wandb login
+
+wandb agent mmil_vae_g2d/SmallSweeps_MGT_VAE/b339vcez
+# python train.py

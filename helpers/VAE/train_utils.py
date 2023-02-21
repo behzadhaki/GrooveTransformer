@@ -6,92 +6,46 @@ import wandb
 import re
 import numpy as np
 from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder, GrooveTransformer
-from logging import getLogger
 
+from logging import getLogger
 logger = getLogger("VAE_LOSS_CALCULATOR")
 logger.setLevel("DEBUG")
 
 
-def dice_fn(hit_logits, hit_targets):
-    """
-    Dice loss function for binary segmentation problems. This function is used to calculate the loss for the hits.
-
-    **This code was taken from https://gist.github.com/weiliu620/52d140b22685cf9552da4899e2160183**
-
-    :param pred: Predicted output of the model
-    :param target: Target output of the model
-    :return: Dice loss value (1 - dice coefficient) where dice coefficient is calculated as 2*TP/(2*TP + FP + FN)
-
-    :param pred:    (torch.Tensor)  predicted output of the model -->
-    :param target:  (torch.Tensor)  target output of the model
-    :return:
-    """
-    hit_probs = torch.sigmoid(hit_logits)
-
-    smooth = 1.
-    # have to use contiguous since they may from a torch.view op
-    flat_probs = hit_probs.contiguous().view(-1)
-    flat_targets = hit_targets.contiguous().view(-1)
-    intersection = (flat_probs * flat_targets).sum()
-
-    A_sum = torch.sum(flat_probs * flat_probs)
-    B_sum = torch.sum(flat_targets * flat_targets)
-
-    return 1 - ((2. * intersection + smooth) / (A_sum + B_sum + smooth))
-
-
-def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function, hit_loss_penalty_tensor=None):
+def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function):
     """
     Calculate the hit loss for the given hit logits and hit targets.
     The loss is calculated either using BCE or Dice loss function.
     :param hit_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
     :param hit_targets:     (torch.Tensor)  target output of the model
-    :param hit_loss_function:     (str)  either "bce" or "dice"
-    :param hit_loss_penalty_tensor: (default None)
-                                    (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
-                                    containing the hit loss penalty values per each location in the sequences.
-                                    **Only used when hit_loss_function is "bce"**
-    :return:    hit_loss (float)  the hit loss value
+    :param hit_loss_function:     (torch.nn.BCEWithLogitsLoss)
+    :return:    hit_loss (batch, time_steps, n_voices)  the hit loss value per each step and voice (unreduced)
     """
-    if hit_loss_penalty_tensor is None:
-        hit_loss_penalty_tensor = torch.ones_like(hit_targets)
-
-    if hit_loss_function == "dice":
-        assert hit_loss_function in ['dice']
-        # logger.warning(f"the hit_loss_penalty value is ignored for {hit_loss_function} loss function")
-        hit_loss = dice_fn(hit_logits, hit_targets)
-    else:
-        assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
-        loss_h = hit_loss_function(hit_logits, hit_targets) * hit_loss_penalty_tensor  # batch, time steps, voices
-        bce_h_sum_voices = torch.sum(loss_h, dim=2)  # batch, time_steps
-        hit_loss = bce_h_sum_voices.mean()
-
-    return hit_loss
+    assert isinstance(hit_loss_function, torch.nn.BCEWithLogitsLoss)
+    loss_h = hit_loss_function(hit_logits, hit_targets)           # batch, time steps, voices
+    return loss_h       # batch_size,  time_steps, n_voices
 
 
-def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, hit_loss_penalty_mat):
+def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function):
     """
     Calculate the velocity loss for the velocity targets and the **Pre-Activation** output of the model.
     The loss is calculated using either MSE or BCE loss function.
     :param vel_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
     :param vel_targets:     (torch.Tensor)  target output of the model
     :param vel_loss_function:     (str)  either "mse" or "bce"
-    :param hit_loss_penalty_mat: (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
-                                    containing the hit loss penalty values per each location in the sequences.
-                                    **Used regardless of the vel_loss_function**
-    :return:    vel_loss (float)  the velocity loss value
+    :return:    vel_loss (batch_size, time_steps, n_voices)  the velocity loss value per each step and voice (unreduced)
     """
     if isinstance(vel_loss_function, torch.nn.MSELoss):
-        loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets) * hit_loss_penalty_mat
+        loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets)
     elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):
-        loss_v = vel_loss_function(vel_logits, vel_targets) * hit_loss_penalty_mat
+        loss_v = vel_loss_function(vel_logits, vel_targets)
     else:
         raise NotImplementedError(f"the vel_loss_function {vel_loss_function} is not implemented")
 
-    return torch.sum(loss_v, dim=2).mean()
+    return loss_v       # batch_size,  time_steps, n_voices
 
 
-def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, hit_loss_penalty_mat):
+def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function):
     """
     Calculate the offset loss for the offset targets and the **Pre-Activation** output of the model.
     The loss is calculated using either MSE or BCE loss function.
@@ -102,10 +56,8 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
     :param offset_logits:  (torch.Tensor)  predicted output of the model (**Pre-ACTIVATION**)
     :param offset_targets:     (torch.Tensor)  target output of the model
     :param offset_loss_function:     (str)  either "mse" or "bce"
-    :param hit_loss_penalty_mat: (torch.Tensor)  tensor of shape (batch_size, seq_len, num_voices),
-                                    containing the hit loss penalty values per each location in the sequences.
-                                    **Used regardless of the offset_loss_function**
-    :return:    offset_loss (float)  the offset loss value
+    :return:    offset_loss (batch_size, time_steps, n_voices)  the offset loss value per each step
+                    and voice (unreduced)
 
     """
 
@@ -113,24 +65,33 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, h
         # the offset logits after the tanh activation are in the range of -1 to 1 . Therefore, we need to
         # scale the offset targets to the same range. This is done by multiplying the offset values after
         # the tanh activation by 0.5
-        loss_o = offset_loss_function(torch.tanh(offset_logits)*0.5, offset_targets) * hit_loss_penalty_mat
+        loss_o = offset_loss_function(torch.tanh(offset_logits)*0.5, offset_targets)
     elif isinstance(offset_loss_function, torch.nn.BCEWithLogitsLoss):
         # here the offsets MUST be in the range of [0, 1]. Our existing targets are from [-0.5, 0.5].
         # So we need to shift them to [0, 1] range by adding 0.5
-        loss_o = offset_loss_function(offset_logits, offset_targets+0.5) * hit_loss_penalty_mat
+        loss_o = offset_loss_function(offset_logits, offset_targets+0.5)
     else:
         raise NotImplementedError(f"the offset_loss_function {offset_loss_function} is not implemented")
 
-    return torch.sum(loss_o, dim=2).mean()
+    return loss_o           # batch_size,  time_steps, n_voices
 
 
 def calculate_kld_loss(mu, log_var):
-    """calculate the KLD loss for the given mu and log_var values against a standard normal distribution"""
-    return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2. - log_var.exp(), dim=1), dim=0)
+    """ calculate the KLD loss for the given mu and log_var values against a standard normal distribution
+    :param mu:  (torch.Tensor)  the mean values of the latent space
+    :param log_var: (torch.Tensor)  the log variance values of the latent space
+    :return:    kld_loss (torch.Tensor)  the KLD loss value (unreduced) shape: (batch_size,  time_steps, n_voices)
+
+    """
+    mu = mu.view(mu.shape[0], -1)
+    log_var = log_var.view(log_var.shape[0], -1)
+    kld_loss = -0.5 * (1 + log_var - mu.pow(2) - log_var.exp())
+
+    return kld_loss     # batch_size,  time_steps, n_voices
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device, optimizer=None):
+               offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -144,9 +105,10 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     :param hit_loss_fn:     (str)  either "dice" or "bce"
     :param velocity_loss_fn:    (str)  either "mse" or "bce"
     :param offset_loss_fn:  (str)  either "mse" or "bce"
-    :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (torch.device)  the device to use for the model
     :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
+    :param starting_step:   (int)  the starting step for the optimizer
+    :param kl_beta: (float)  the beta value for the KLD loss
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
                 metrics = {
@@ -155,18 +117,26 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
                     "loss_v": np.mean(loss_v),
                     "loss_o": np.mean(loss_o),
                     "loss_KL": np.mean(loss_KL)}
+
+                (int)  the current step of the optimizer (if provided)
     """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
-    loss_total, loss_h, loss_v, loss_o, loss_KL = [], [], [], [], []
+    loss_total, loss_recon, loss_h, loss_v, loss_o, loss_KL = [], [], [], [], [], []
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs, outputs, indices) in enumerate(dataloader_):
+    for batch_count, (inputs_, outputs_,
+                      hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
+                      indices) in enumerate(dataloader_):
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
-        inputs = inputs.to(device)
-        outputs = outputs.to(device)
+        inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
+        outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
+        hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
+            if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
+        genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
+            if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
@@ -174,27 +144,28 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
         # Prepare targets for loss calculation
         h_targets, v_targets, o_targets = torch.split(outputs, int(outputs.shape[2] / 3), 2)
-        hit_loss_penalty_mat = torch.where(h_targets == 1, float(1), float(loss_hit_penalty_multiplier))
 
         # Compute losses
         # ---------------------------------------------------------------------------------------
         batch_loss_h = calculate_hit_loss(
-            hit_logits=h_logits, hit_targets=h_targets,
-            hit_loss_function=hit_loss_fn, hit_loss_penalty_tensor=hit_loss_penalty_mat)
+            hit_logits = h_logits, hit_targets=h_targets, hit_loss_function=hit_loss_fn)
+        batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
 
         batch_loss_v = calculate_velocity_loss(
-            vel_logits=v_logits, vel_targets=v_targets,
-            vel_loss_function=velocity_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+            vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
+        batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
 
         batch_loss_o = calculate_offset_loss(
-            offset_logits=o_logits, offset_targets=o_targets,
-            offset_loss_function=offset_loss_fn, hit_loss_penalty_mat=hit_loss_penalty_mat)
+            offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
+        batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
 
-        batch_loss_KL = calculate_kld_loss(mu, log_var)
+        batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)
+        batch_loss_KL = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)).mean()
 
-        batch_loss_total = batch_loss_h + batch_loss_v + batch_loss_o + batch_loss_KL
+        batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
+        batch_loss_total = (batch_loss_recon + batch_loss_KL)
 
-        # Backward pass
+        # Backpropagation and optimization step (if training)
         # ---------------------------------------------------------------------------------------
         if optimizer is not None:
             optimizer.zero_grad()
@@ -202,12 +173,18 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
             optimizer.step()
 
         # Update the per batch loss trackers
-        # ---------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------
         loss_h.append(batch_loss_h.item())
         loss_v.append(batch_loss_v.item())
         loss_o.append(batch_loss_o.item())
-        loss_KL.append(batch_loss_KL.item())
         loss_total.append(batch_loss_total.item())
+        loss_recon.append(batch_loss_recon.item())
+        loss_KL.append(batch_loss_KL.item())
+
+        # Increment the step counter
+        # ---------------------------------------------------------------------------------------
+        if starting_step is not None:
+            starting_step += 1
 
     # empty gpu cache if cuda
     if device != 'cpu':
@@ -218,13 +195,18 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         "loss_h": np.mean(loss_h),
         "loss_v": np.mean(loss_v),
         "loss_o": np.mean(loss_o),
-        "loss_KL": np.mean(loss_KL)}
+        "loss_KL": np.mean(loss_KL),
+        "loss_recon": np.mean(loss_recon)
+    }
 
-    return metrics
+    if starting_step is not None:
+        return metrics, starting_step
+    else:
+        return metrics
 
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device):
+               offset_loss_fn, device, starting_step, kl_beta=1):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -238,6 +220,8 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     :param offset_loss_fn:      (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
     :param loss_hit_penalty_multiplier:  (float)  the hit loss penalty multiplier
     :param device:  (str)  the device to use for the model
+    :param starting_step:   (int)  the starting step for the optimizer
+    :param kl_beta: (float)  the beta value for the KL loss
 
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
@@ -254,22 +238,23 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         groove_transformer_vae.train()
 
     # Run the batch loop
-    metrics = batch_loop(
+    metrics, starting_step = batch_loop(
         dataloader_=train_dataloader,
         groove_transformer_vae=groove_transformer_vae,
         hit_loss_fn=hit_loss_fn,
         velocity_loss_fn=velocity_loss_fn,
         offset_loss_fn=offset_loss_fn,
-        loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
         device=device,
-        optimizer=optimizer)
+        optimizer=optimizer,
+        starting_step=starting_step,
+        kl_beta=kl_beta)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
-    return metrics
+    return metrics, starting_step
 
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, loss_hit_penalty_multiplier, device):
+               offset_loss_fn, device, kl_beta=1):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -304,9 +289,65 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
-            loss_hit_penalty_multiplier=loss_hit_penalty_multiplier,
             device=device,
-            optimizer=None)
+            optimizer=None,
+            kl_beta=kl_beta)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics
+
+
+if __name__ == "__main__":
+    # Load dataset as torch.utils.data.Dataset
+    from data import MonotonicGrooveDataset
+
+    # load dataset as torch.utils.data.Dataset
+    training_dataset = MonotonicGrooveDataset(
+        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+        subset_tag="train",
+        max_len=32,
+        tapped_voice_idx=2,
+        collapse_tapped_sequence=False,
+        load_as_tensor=True,
+        sort_by_metadata_key="loop_id",
+        hit_loss_balancing_beta=0.99,
+        genre_loss_balancing_beta=0.99)
+
+    # Balancing losses based on the imbalance in hit counts at
+    #       any given time step and at a specific voice
+    # ----------------------------------------------------------------------------------------------------
+    # Beta value
+    hit_balancing_beta = 0.99
+
+    # get the effective number of hits per step and voice
+    hits = training_dataset.outputs[:, :, :training_dataset.outputs.shape[-1]//3]
+    total_hits = hits.sum(dim=0)
+    effective_num_hits = 1.0 - np.power(hit_balancing_beta, total_hits)
+    hit_balancing_weights = (1.0 - hit_balancing_beta) / effective_num_hits
+    # normalize
+    num_classes = hit_balancing_weights.shape[0] * hit_balancing_weights.shape[1]
+    hit_balancing_weights = hit_balancing_weights / hit_balancing_weights.sum() * num_classes
+    hit_balancing_weights_per_sample = [hit_balancing_weights for _ in range(len(training_dataset.outputs))]
+
+    # Balancing losses based on the imbalance in styles
+    # ----------------------------------------------------------------------------------------------------
+    genre_balancing_beta = 0.99
+
+    # get the effective number of genres
+    genres_per_sample = [sample.metadata["style_primary"] for sample in training_dataset.hvo_sequences]
+
+    genre_counts = {genre: genres_per_sample.count(genre) for genre in set(genres_per_sample)}
+
+    effective_num_genres = 1.0 - np.power(genre_balancing_beta, list(genre_counts.values()))
+    genre_balancing_weights = (1.0 - genre_balancing_beta) / effective_num_genres
+
+    # normalize
+    genre_balancing_weights = genre_balancing_weights / genre_balancing_weights.sum() * len(genre_counts)
+    genre_balancing_weights = {genre: weight for genre, weight in zip(genre_counts.keys(), genre_balancing_weights)}
+
+    t_steps = training_dataset.outputs.shape[1]
+    n_voices = training_dataset.outputs.shape[2] // 3
+    temp_row = np.ones((t_steps, n_voices))
+    genre_balancing_weights_per_sample = np.array(
+        [temp_row*genre_balancing_weights[sample.metadata["style_primary"]]
+         for sample in training_dataset.hvo_sequences])
