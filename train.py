@@ -62,7 +62,7 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--beta_annealing_ratio", type=float, help="ratio overal epochs to anneal beta", default=0.25)
-parser.add_argument("--beta_annealing_cycles", type=int, help="ratio overal epochs to anneal beta", default=1)
+parser.add_argument("--beta_annealing_cycles", type=int, help="number of KL Annealing Cycles", default=1)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
