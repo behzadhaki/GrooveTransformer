@@ -2,8 +2,19 @@ import numpy as np
 from hvo_sequence.custom_dtypes import Tempo, Time_Signature
 import math
 import scipy.signal
-import librosa
+
+try:
+    import librosa
+    _HAS_LIBROSA = True
+except ImportError:
+    _HAS_LIBROSA = False
+
 import warnings
+from logging import getLogger
+
+logger = getLogger('hvo_sequence/utils')
+logger.setLevel("DEBUG")
+
 
 def find_nearest(array, query):
     """
@@ -578,6 +589,10 @@ def logf_stft(x, n_fft, win_length, hop_length, n_bins_per_octave, n_octaves, f_
     @param sr: float. sample rate
     @return x_cq_spec: logf-stft
     """
+    if not _HAS_LIBROSA:
+        logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+        return None
+
     f_win = scipy.signal.hann(win_length)
     x_spec = librosa.stft(x,
                           n_fft=n_fft,
@@ -609,6 +624,9 @@ def onset_strength_spec(x, n_fft, win_length, hop_length, n_bins_per_octave, n_o
     @return od_fun: multi-band onset strength spectrogram
     @return f_cq: frequency bins of od_fun
     """
+    if not _HAS_LIBROSA:
+        logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+        return None
 
     f_win = scipy.signal.hann(win_length)
     x_spec = librosa.stft(x,
@@ -690,6 +708,10 @@ def detect_onset(onset_strength):
     Detects onset from onset strength envelope
 
     """
+    if not _HAS_LIBROSA:
+        logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+        return None
+
     n_timeframes = onset_strength.shape[0]
     n_bands = onset_strength.shape[1]
 
@@ -712,6 +734,9 @@ def map_onsets_to_grid(grid, onset_strength, onset_detect, hop_length, n_fft, sr
     @return onsets_grid:         Onsets with respect to lines in grid (len_grid x n_bands)
     @return intensity_grid:      Strength values for each detected onset (len_grid x n_bands)
     """
+    if not _HAS_LIBROSA:
+        logger.warning("Librosa is not installed. Please install it to use the logf-stft feature.")
+        return None
 
     if onset_strength.shape != onset_detect.shape:
         warnings.warn(

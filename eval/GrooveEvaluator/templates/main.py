@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger("eval.GrooveEvaluator.templates.main")
 logger.setLevel("DEBUG")
 
+
 def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=None,
                     cached_folder="eval/GrooveEvaluator/templates/", divide_by_genre=True):
     """
@@ -73,7 +74,7 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
 
 def load_evaluator_template(dataset_setting_json_path, subset_name,
                             down_sampled_ratio, cached_folder="eval/GrooveEvaluator/templates/",
-                            divide_by_genre=True, **kwargs):
+                            divide_by_genre=True, disable_logging=True):
     """
     Load a template for the given dataset and subset. If the template does not exist, it will be created and
     automatically saved in the cached_folder.
@@ -89,9 +90,11 @@ def load_evaluator_template(dataset_setting_json_path, subset_name,
 
     _identifier = f"_{down_sampled_ratio}_ratio_of_{dataset_name}_{subset_name}" \
         if down_sampled_ratio is not None else f"complete_set_of_{dataset_name}_{subset_name}"
+    path = os.path.join(cached_folder, f"{_identifier}_evaluator.Eval.bz2")
 
-    path = os.path.join(cached_folder, f"{_identifier}_Evaluator.Eval.bz2")
     if os.path.exists(path):
+        if not disable_logging:
+            logger.info(f"Loading template from {path}")
         return load_evaluator(path)
     else:
 

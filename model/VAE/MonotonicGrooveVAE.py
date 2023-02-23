@@ -90,8 +90,12 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             dropout=self.dropout,
             o_activation=self.o_activation)
 
+        # Initialize weights and biases
+        # If tanh is used for offset activation, initialize the output layer's bias to 0.5
         self.InputLayerEncoder.init_weights()
-        self.Decoder.OutputLayer.init_weights()
+        self.LatentEncoder.init_weights()
+        self.Decoder.DecoderInput.init_weights()
+        self.Decoder.OutputLayer.init_weights(offset_activation=self.o_activation)
 
     def encode(self, src):
         """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space
@@ -102,7 +106,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         :return: mu, log_var, latent_z (each of shape [batch_size, latent_dim])
         """
 
-        def reparametrize(src_):
+        def get_latent_probs_and_reparametrize_to_z(src_):
             x = self.InputLayerEncoder(src_)  # Nx32xd_model
             memory = self.Encoder(x)  # Nx32xd_model
             mu, log_var, latent_z = self.LatentEncoder(memory)
@@ -110,10 +114,28 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
 
         if not self.training:
             with torch.no_grad():
-                return reparametrize(src)
+                return get_latent_probs_and_reparametrize_to_z(src)
         else:
             self.train()
-            return reparametrize(src)
+            return get_latent_probs_and_reparametrize_to_z(src)
+
+    def encode_to_mu_logvar(self, src):
+        def get_mu_var(src_):
+            x = self.InputLayerEncoder(src_)  # Nx32xd_model
+            memory = self.Encoder(x)  # Nx32xd_model
+            mu, log_var, _ = self.LatentEncoder(memory)
+            return mu, log_var
+
+        if not self.training:
+            with torch.no_grad():
+                return get_mu_var(src)
+        else:
+            self.train()
+            return get_mu_var(src)
+
+    def reparametrize(self, mu, log_var):
+        return self.LatentEncoder.reparametrize(mu, log_var)
+
 
     def decode(self, latent_z, threshold=0.5):
         """ Decodes a given latent space of shape (batch_size, latent_dim) into a sequence of shape
@@ -129,6 +151,24 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         else:
             self.train()
             return self.Decoder.decode(latent_z, threshold=threshold)
+
+    def sample(self, latent_z, voice_thresholds, voice_max_count_allowed,
+           return_concatenated=False, sampling_mode=0):
+        """Converts the latent vector into hit, vel, offset values
+
+        :param latent_z: (Tensor) [N x latent_dim]
+        :param voice_thresholds: (list) Thresholds for hit prediction
+        :param voice_max_count_allowed: (list) Maximum number of hits to allow for each voice
+        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
+        :param sampling_mode: (int) 0 for top-k sampling,
+                                    1 for bernoulli sampling
+        """
+        return self.Decoder.sample(
+            latent_z=latent_z,
+            voice_thresholds=voice_thresholds,
+            voice_max_count_allowed=voice_max_count_allowed,
+            return_concatenated=return_concatenated,
+            sampling_mode=sampling_mode)
 
     def forward(self, src):
         """ Converts a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a

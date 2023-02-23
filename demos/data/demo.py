@@ -41,9 +41,16 @@ training_dataset = MonotonicGrooveDataset(
     tapped_voice_idx=2,
     collapse_tapped_sequence=False,
     load_as_tensor=True,
-    sort_by_metadata_key="loop_id"
+    sort_by_metadata_key="loop_id",
+    genre_loss_balancing_beta=0.5,
+    voice_loss_balancing_beta=0.5
 )
 
+training_dataset.__getitem__(0)
+training_dataset.get_voice_counts()
+training_dataset.get_genre_distributions_dict()
+# training_dataset.visualize_global_hit_count_ratios_heatmap()
+#training_dataset.visualize_genre_distributions(show_inverted_weights=True)
 # =================================================================================================
 
 # use the above dataset in the training pipeline, you need to use torch.utils.data.DataLoader
