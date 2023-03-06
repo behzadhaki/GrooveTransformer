@@ -99,7 +99,7 @@ parser.add_argument("--hit_score_frequency", type=int, help="Frequency of hit sc
 # ----------------------- Misc Params -----------------------
 parser.add_argument("--save_model", type=bool, help="Save model", default=True)
 parser.add_argument("--save_model_dir", type=str, help="Path to save the model", default="misc/VAE")
-parser.add_argument("--save_model_frequency", type=int, help="Save model every n epochs", default=100)
+parser.add_argument("--save_model_frequency", type=int, help="Save model every n epochs", default=10)
 
 
 args, unknown = parser.parse_known_args()
