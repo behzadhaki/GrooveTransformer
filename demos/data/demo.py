@@ -43,7 +43,7 @@ training_dataset = MonotonicGrooveDataset(
     load_as_tensor=True,
     sort_by_metadata_key="loop_id",
     genre_loss_balancing_beta=0.5,
-    voice_loss_balancing_beta=0.5
+    hit_loss_balancing_beta=0.5
 )
 
 training_dataset.__getitem__(0)
@@ -63,3 +63,39 @@ for epoch in range(epochs):
     for batch_count, (inputs, outputs, indices) in enumerate(train_dataloader):
         print(f"Epoch {epoch} - Batch #{batch_count} - inputs.shape {inputs.shape} - "
               f"outputs.shape {outputs.shape} - indices.shape {indices.shape} ")
+
+
+# =================================================================================================
+from data import VoiceMaskable_GMD_Dataset
+
+# load dataset as torch.utils.data.Dataset
+training_dataset = VoiceMaskable_GMD_Dataset(
+    dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+    subset_tag="train",
+    max_len=32,
+    mask_voice_indices=[2,3],
+    load_as_tensor=True,
+    sort_by_metadata_key="loop_id",
+    genre_loss_balancing_beta=0.5,
+    hit_loss_balancing_beta=0.5,
+    hit_loss_balancing_beta_using_masked_parts_only=False
+)
+
+idx = 0
+inputs, outputs_complete, outputs_maksed_parts, hit_b, genre_b, indices = training_dataset.__getitem__(idx)
+hvo_seq_gt = training_dataset.get_hvo_sequences_at(idx)
+hvo_seq_gt.to_html_plot(filename="gt.html", save_figure=True)
+
+input_seq = hvo_seq_gt.copy_zero()
+input_seq.hvo = inputs.numpy()
+input_seq.to_html_plot(filename="input.html", save_figure=True)
+
+outputs_complete_seq = hvo_seq_gt.copy_zero()
+outputs_complete_seq.hvo = outputs_complete.numpy()
+outputs_complete_seq.to_html_plot(filename="output_complete.html", save_figure=True)
+
+outputs_maksed_parts_seq = hvo_seq_gt.copy_zero()
+outputs_maksed_parts_seq.hvo = outputs_maksed_parts.numpy()
+outputs_maksed_parts_seq.to_html_plot(filename="output_maksed_parts.html", save_figure=True)
+
+

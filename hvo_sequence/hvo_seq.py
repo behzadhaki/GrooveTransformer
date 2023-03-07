@@ -1044,6 +1044,35 @@ class HVO_Sequence(object):
         else:
             return notes
 
+    def get_per_step_list_of_active_voices(self, use_label_instead_of_midi_number=False, print_mapping=False):
+        """
+        Returns a list of lists, where each list contains the label of the active voices in the corresponding step
+
+        E.g.
+        [ [1, 0, 0, ..., 1], [0, 1, 0, ..., 0], [0, 0, 1, ..., 0], ... ] will returned as
+        [["kick", "ride"], ["snare"], ["hihat"], ...]
+        """
+        voice_mapping = list(self.drum_mapping.keys())
+        midi_labels = [val[0] for val in self.drum_mapping.values()]
+        if print_mapping:
+            print("Voice List : ", voice_mapping)
+            print("Midi Labels : ", midi_labels)
+
+        hits_ = self.get("h")
+        # Get the corresponding voice labels
+        voice_list_representation = []
+        for step_ in range(hits_.shape[0]):
+            step_list = []
+            for voice_ in range(hits_.shape[1]):
+                if hits_[step_][voice_] == 1:
+                    if use_label_instead_of_midi_number:
+                        step_list.append(voice_mapping[voice_])
+                    else:
+                        step_list.append(midi_labels[voice_])
+            voice_list_representation.append(step_list)
+
+        return voice_list_representation
+
     #   ----------------------------------------------------------------------
     #            Calculated properties
     #   Useful properties calculated from ESSENTIAL class variables
@@ -1056,7 +1085,7 @@ class HVO_Sequence(object):
         return len(self.drum_mapping)
 
     #   --------------------------------------------------------------
-    #   Utilities to Copy the object, Reset
+    #   Utilities to Copy the object, or Create Variations
     #   --------------------------------------------------------------
     def copy(self):
         """ Returns a copy of the object"""
@@ -1081,7 +1110,87 @@ class HVO_Sequence(object):
             new.hvo = np.zeros_like(new.__hvo)
         return new
 
-    #   --------------------------------------------------------------
+    def get_masked_variation(self, ratio_of_hits_to_mask=0, mask_creation_mode=0,
+                             metrical_profile=Longuet_Higgins_METRICAL_PROFILE_4_4_16th_NOTE,
+                             return_removed_version=False, voices_to_mask=None):
+        """
+        Masks random events from
+        Args:
+            ratio_of_hits_to_mask: [0, 1] ratio of hits to mask in the sequence (0 means no masking)
+            mask_creation_mode:
+                [0] remove with higher probability proportional to inverse of the metrical level
+                [1] remove with higher probability proportional to the metrical level
+                [2] remove random events (uniformly distributed)
+                [3] remove specific voices --> in this case, voices_to_mask should be provided
+
+            metrical_profile:
+                default (Longuet_Higgins_METRICAL_PROFILE_4_4_16th_NOTE) is a 4/4 16th note grid
+                Length should match the number of steps in the sequence
+            return_removed_version:
+                if True, returns a copy of the object with the masked events removed
+
+        Returns:
+            masked_version, removed_score (if return_removed_version is True)
+            or
+            masked_version (if return_removed_version is False)
+        """
+
+        assert self.grid_maker.time_signatures[0].numerator == 4, "Only 4/4 time signature is supported for now"
+        assert self.grid_maker.time_signatures[0].denominator == 4, "Only 4/4 time signature is supported for now"
+        assert self.grid_maker.beat_division_factors[0] == 4, "16th note grid in 4/4 is supported for now"
+
+        # Create Masks (or probabilities for masking)
+        if mask_creation_mode == 0:
+            num_reps = int(np.ceil(len(metrical_profile) / self.number_of_steps))
+            metrical_profile_ = (metrical_profile * num_reps)[:self.number_of_steps]
+            masking_probs = np.transpose(np.transpose(self.hits) * np.array(
+                [1. / salience for salience in metrical_profile_]))
+            masking_probs = masking_probs / np.sum(masking_probs)
+
+        if mask_creation_mode == 1:
+            num_reps = int(np.ceil(len(metrical_profile) / self.number_of_steps))
+            metrical_profile_ = (metrical_profile * num_reps)[:self.number_of_steps]
+            masking_probs = np.transpose(np.transpose(self.hits) * metrical_profile_)
+            masking_probs = masking_probs / np.sum(masking_probs)
+
+        if mask_creation_mode == 2:
+            masking_probs = self.hits
+            masking_probs = masking_probs / np.sum(masking_probs)
+
+        if mask_creation_mode == 3:
+            assert voices_to_mask is not None, "In mode 3, voices_to_mask should be specified, currently it is None "
+            mask = np.zeros_like(self.hits)
+            mask[:, voices_to_mask] = 1
+
+        # Apply the mask
+        if mask_creation_mode <= 2:     # sample based masking methods (modes 0, 1, 2)
+            total_hits = self.hits.sum()
+            num_hits_to_mask = np.ceil(total_hits * ratio_of_hits_to_mask)
+
+            while True:
+                mask = np.random.multinomial(num_hits_to_mask, masking_probs.flatten())
+                if np.all(mask <= 1):
+                    break
+
+            mask = mask.reshape(self.hits.shape)
+            masked_version = self.copy_zero()
+            masked_version.hvo = self.hvo - self.hvo * np.hstack((mask, mask, mask))
+
+        else:                        # voice based masking methods (mode 3)
+            masked_version = self.copy_zero()
+            masked_version.hvo = self.hvo - self.hvo * np.hstack((mask, mask, mask))
+
+
+        if return_removed_version:
+            removed_score = self.copy_zero()
+            removed_score.hvo = self.hvo * np.hstack((mask, mask, mask))
+            return masked_version, removed_score
+        else:
+            return masked_version
+
+            #   --------------------------------------------------------------
+
+
     #   Utilities to Change Length and Add Notes
     #   --------------------------------------------------------------
     def find_index_for_pitch(self, pitch):
