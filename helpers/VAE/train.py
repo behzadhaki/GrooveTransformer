@@ -4,7 +4,7 @@ import wandb
 import torch
 from model import GrooveTransformerEncoderVAE
 from helpers import vae_train_utils, vae_test_utils
-from data.src.dataLoaders import VoiceMaskable_GMD_Dataset
+from data.src.dataLoaders import MonotonicGrooveDataset
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=bool,
-                    default=True)
+                    default=False)
 
 # ----------------------- WANDB Settings -----------------------
 parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)
@@ -35,7 +35,7 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name", defa
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
 parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
-parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=27)
+parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
 parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
 parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
 parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
@@ -181,30 +181,28 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
     should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
-    training_dataset = VoiceMaskable_GMD_Dataset(
-    dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
-    subset_tag="train",
-    max_len=32,
-    mask_voice_indices=[2,3],
-    load_as_tensor=True,
-    sort_by_metadata_key="loop_id",
-    genre_loss_balancing_beta=0.5,
-    hit_loss_balancing_beta=0.5,
-    hit_loss_balancing_beta_using_masked_parts_only=False
-)
+    training_dataset = MonotonicGrooveDataset(
+        dataset_setting_json_path="../../data/dataset_json_settings/4_4_Beats_gmd.json",
+        subset_tag="train",
+        max_len=int(args.max_len_enc),
+        tapped_voice_idx=2,
+        collapse_tapped_sequence=collapse_tapped_sequence,
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        move_all_to_gpu=should_place_all_data_on_cuda,
+        hit_loss_balancing_beta=args.hit_loss_balancing_beta,
+        genre_loss_balancing_beta=args.genre_loss_balancing_beta
+    )
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
-    test_dataset = VoiceMaskable_GMD_Dataset(
-    dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
-    subset_tag="test",
-    max_len=32,
-    mask_voice_indices=[2,3],
-    load_as_tensor=True,
-    sort_by_metadata_key="loop_id",
-    genre_loss_balancing_beta=0.5,
-    hit_loss_balancing_beta=0.5,
-    hit_loss_balancing_beta_using_masked_parts_only=False
-)
+    test_dataset = MonotonicGrooveDataset(
+        dataset_setting_json_path="../../data/dataset_json_settings/4_4_Beats_gmd.json",
+        subset_tag="test",
+        max_len=int(args.max_len_enc),
+        tapped_voice_idx=2,
+        collapse_tapped_sequence=collapse_tapped_sequence,
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        move_all_to_gpu=should_place_all_data_on_cuda
+    )
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
@@ -314,7 +312,7 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                media = vae_test_utils.get_logging_media_for_vae_infilling_model_wandb(
+                media = vae_test_utils.get_logging_media_for_vae_model_wandb(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
@@ -322,7 +320,6 @@ if __name__ == "__main__":
                     down_sampled_ratio=0.005,
                     collapse_tapped_sequence=collapse_tapped_sequence,
                     cached_folder="eval/GrooveEvaluator/templates",
-                    mask_voice_indices=[2,3],
                     divide_by_genre=True,
                     need_piano_roll=True,
                     need_kl_plot=False,
@@ -335,13 +332,13 @@ if __name__ == "__main__":
         if args.calculate_hit_scores_on_train:
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Train Set...")
-                train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_infilling_model(
+                train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name='train',
                     down_sampled_ratio=0.1,
-                    mask_voice_indices=[2, 3],
+                    collapse_tapped_sequence=collapse_tapped_sequence,
                     cached_folder="eval/GrooveEvaluator/templates",
                     divide_by_genre=False
                 )
@@ -350,13 +347,13 @@ if __name__ == "__main__":
         if args.calculate_hit_scores_on_test:
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Test Set...")
-                test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_infilling_model(
+                test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name=args.evaluate_on_subset,
                     down_sampled_ratio=None,
-                    mask_voice_indices=[2,3],
+                    collapse_tapped_sequence=collapse_tapped_sequence,
                     cached_folder="eval/GrooveEvaluator/templates",
                     divide_by_genre=False
                 )

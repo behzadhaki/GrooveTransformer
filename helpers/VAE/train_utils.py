@@ -126,7 +126,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_,
+    for batch_count, (inputs_, outputs_, _,
                       hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
                       indices) in enumerate(dataloader_):
         # Move data to GPU if available
