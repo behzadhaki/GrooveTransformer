@@ -1,6 +1,7 @@
 import os
 
 import wandb
+
 import torch
 from model import GrooveTransformerEncoderVAE
 from helpers import vae_train_utils, vae_test_utils
@@ -29,7 +30,8 @@ parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)
 parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
-parser.add_argument("--wandb_project", type=str, help="WANDB Project Name", default="voice_distribution_and_genre_distribution_imbalance")
+parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
+                    default="beta_study_and_genre_balancing")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
@@ -167,7 +169,7 @@ if __name__ == "__main__":
         config=hparams,                         # either from config file or CLI specified hyperparameters
         project=hparams["wandb_project"],          # name of the project
         anonymous="allow",
-        entity="mmil_vae_g2d",                          # saves in the mmil_vae_g2d team account
+        entity="nime2022_anon",                          # saves in the mmil_vae_cntd team account
         settings=wandb.Settings(code_dir="train.py")    # for code saving
     )
 
@@ -308,7 +310,7 @@ if __name__ == "__main__":
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
                     f"and test loss of {test_log_metrics['test/loss_total']}")
 
-        # Generate PianoRolls and KL/OA PLots if Needed
+        # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
@@ -324,6 +326,16 @@ if __name__ == "__main__":
                     need_piano_roll=True,
                     need_kl_plot=False,
                     need_audio=False
+                )
+                wandb.log(media, commit=False)
+
+                # umap
+                media = vae_test_utils.generate_umap_for_vae_model_wandb(
+                    groove_transformer_vae=groove_transformer_vae,
+                    device=config.device,
+                    test_dataset=test_dataset,
+                    subset_name='test',
+                    collapse_tapped_sequence=collapse_tapped_sequence,
                 )
                 wandb.log(media, commit=False)
 

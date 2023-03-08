@@ -3,10 +3,44 @@ import torch
 import numpy as np
 from model import GrooveTransformerEncoderVAE
 from eval.GrooveEvaluator import load_evaluator_template
+from eval.UMAP import UMapper
 
 from logging import getLogger
 logger = getLogger("helpers.VAE.eval_utils")
 logger.setLevel("DEBUG")
+
+
+def generate_umap_for_vae_model_wandb(
+        groove_transformer_vae, device, test_dataset, subset_name,
+        collapse_tapped_sequence):
+    """
+    Generate the umap for the given model and dataset setting.
+    Args:
+        :param groove_transformer_vae: The model to be evaluated
+        :param device: The device to be used for evaluation
+        :param dataset_setting_json_path: The path to the dataset setting json file
+        :param subset_name: The name of the subset to be evaluated
+        :param collapse_tapped_sequence: Whether to collapse the tapped sequence or not (input will have 1 voice only)
+
+    Returns:
+        dictionary ready to be logged by wandb {f"{subset_name}_{umap}": wandb.Html}
+    """
+
+    # and model is correct type
+    assert isinstance(groove_transformer_vae, GrooveTransformerEncoderVAE)
+
+    in_groove = torch.tensor(
+        np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
+                  for hvo_seq in test_dataset.hvo_sequences]), dtype=torch.float32).to(
+        device)
+    tags = [hvo_seq.metadata["style_primary"] for hvo_seq in test_dataset.hvo_sequences]
+
+    _, _, _, latents_z = groove_transformer_vae.predict(in_groove, return_concatenated=True)
+
+    umapper = UMapper(subset_name)
+    umapper.fit(latents_z.detach().cpu().numpy(), tags_=tags)
+    p = umapper.plot(show_plot=False, prepare_for_wandb=True)
+    return {f"{subset_name}_umap": p}
 
 
 def get_logging_media_for_vae_model_wandb(
@@ -67,7 +101,7 @@ def get_logging_media_for_vae_model_wandb(
         np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
                   for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
         device)
-    hvos_array, _, _, _ = groove_transformer_vae.predict(in_groove, return_concatenated=True)
+    hvos_array, _, _, latents_z = groove_transformer_vae.predict(in_groove, return_concatenated=True)
     evaluator.add_predictions(hvos_array.detach().cpu().numpy())
 
     # Get the media from the evaluator
