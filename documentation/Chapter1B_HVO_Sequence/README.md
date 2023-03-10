@@ -12,6 +12,7 @@
 2. [Simple Usage](#2)
 3. [Built-in Tools](#3)
 4. [Multi-Segment Scores](#4)
+5. [Splitting Sequences](#5)
 
 
 ## 1. Basic Attributes <a name="1"></a>
@@ -376,3 +377,16 @@ hvo_seq_a.consistent_segment_hvo_sequences
 
 Some examples for dealing with multi-segment sequences can be found [here](../../demos/HVO_Sequence/HVO_Operations.py) 
 and [here](../../demos/HVO_Sequence/multi_segment_hvo.py)
+
+## 5. Splitting Sequences <a name="5"></a>
+Long sequences can be split into smaller sequences using the **split** method. The method takes the following arguments
+
+```python
+segments = hvo_seq.split_into_segments(number_of_bars_per_segment=2,
+                                       segment_shift_in_bars=1, adjust_length=True)
+
+```
+
+- **number_of_bars_per_segment**: number of bars in each segment
+- **segment_shift_in_bars**: number of bars to shift the segment
+- **adjust_length**: if True, the last segment will be adjusted to the number of bars needed for each segment if smaller

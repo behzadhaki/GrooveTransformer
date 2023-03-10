@@ -50,6 +50,7 @@
 2. [Simple Usage](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/Chapter1B_HVO_Sequence#2-simple-usage-)
 3. [Built-in Tools](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/Chapter1B_HVO_Sequence#32-built-in-tools-)
 4. [Multi-Segment Scores](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/Chapter1B_HVO_Sequence#4-multi-segment-hvo-sequences-)
+5. [Splitting Sequences](#5)
 
 [Chapter 2 - Models](https://github.com/behzadhaki/GrooveTransformer/tree/main/documentation/chapter2_Model/A_MonotonicGrooveTransformer/README.md)
 ----

@@ -373,25 +373,51 @@ class HVO_Sequence(object):
 
             # Find the correct metadata for each segment
             metas_to_add = []
-            for m_seg_ix, m_seg in enumerate(starts_ends_metas):
-                m_start = m_seg[0]
-                m_end = m_seg[1]
-                meta = m_seg[2]
-                # check if start time within segment
-                if segments_info["segment_starts"][m_seg_ix] <= meta.time_steps[0]\
-                        <= segments_info["segment_ends"][m_seg_ix]:
-                    metas_to_add.append((m_start-segments_info["segment_starts"][m_seg_ix], meta))
-                # check if left overlapping
-                elif m_start < meta.time_steps[0] < m_end:
-                    metas_to_add.append((0, meta))
-            metas_to_add = sorted(metas_to_add, key=lambda x: x[0])
-            for m_ix, m in enumerate(metas_to_add):
-                if m_ix == 0:
-                    segment.metadata = m[1]
-                else:
-                    segment.metadata.append(m[1], start_at_time_step=m[0])
+            if starts_ends_metas is not None:
+                for m_seg_ix, m_seg in enumerate(starts_ends_metas):
+                    m_start = m_seg[0]
+                    m_end = m_seg[1]
+                    meta = m_seg[2]
+                    # check if start time within segment
+                    if segments_info["segment_starts"][m_seg_ix] <= meta.time_steps[0]\
+                            <= segments_info["segment_ends"][m_seg_ix]:
+                        metas_to_add.append((m_start-segments_info["segment_starts"][m_seg_ix], meta))
+                    # check if left overlapping
+                    elif m_start < meta.time_steps[0] < m_end:
+                        metas_to_add.append((0, meta))
+                metas_to_add = sorted(metas_to_add, key=lambda x: x[0])
+                for m_ix, m in enumerate(metas_to_add):
+                    if m_ix == 0:
+                        segment.metadata = m[1]
+                    else:
+                        segment.metadata.append(m[1], start_at_time_step=m[0])
 
         return segments, segments_info["segment_starts"]
+
+
+    def split_into_segments(self, number_of_bars_per_segment, segment_shift_in_bars, adjust_length):
+        segments = []  # List of HVO_Sequences
+        consistent_segment_hvo_sequences, _ = self.consistent_segment_hvo_sequences
+
+        for hvo_seq_consistent in consistent_segment_hvo_sequences:
+            seg_numerator = hvo_seq_consistent.time_signatures[0].numerator
+            steps_per_bar = len(hvo_seq_consistent.grid_maker.get_grid_lines_for_n_beats(seg_numerator))
+            hvo_seq_ = hvo_seq_consistent.copy()
+
+            while True:
+                # grab number_of_bars_per_segment bars
+                temp_hvo_seq = hvo_seq_.copy_empty()
+                temp_hvo_seq.hvo = hvo_seq_.hvo[:steps_per_bar * number_of_bars_per_segment, :]
+                if adjust_length:
+                    temp_hvo_seq.adjust_length(steps_per_bar * number_of_bars_per_segment)
+                segments.append(temp_hvo_seq)
+
+                # shift by segment_shift_in_bars bars
+                if hvo_seq_.hvo[segment_shift_in_bars:, :].shape[0] > (segment_shift_in_bars * steps_per_bar):
+                    hvo_seq_.hvo = hvo_seq_.hvo[segment_shift_in_bars * steps_per_bar:, :]
+                else:
+                    break
+        return segments
 
     #   --------------------------------------------------------------
     #   Utilities to modify hvo sequence

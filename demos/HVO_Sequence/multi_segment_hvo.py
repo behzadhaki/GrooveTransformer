@@ -9,7 +9,7 @@ figs = []
 # -----------          CREATE TWO HVOs              --------------
 # ----------------------------------------------------------------
 # Sequence A
-beat_div_factors = [3, 4]
+beat_div_factors = [4]
 hvo_seq_a = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING, beat_division_factors=beat_div_factors)
 hvo_seq_a.add_time_signature(0, 4, 4)
 hvo_seq_a.add_tempo(0, 50)
@@ -55,7 +55,7 @@ hvo_seq_a.save_audio(sf_path="hvo_sequence/soundfonts/Standard_Drum_Kit.sf2", fi
 # hvo_seq_a_from_midi.piano_roll("demos/HVO_Sequence/misc/multiSeg/Sequence A_fromMidi.html", save_figure=True)
 
 # Sequence B
-hvo_seq_b = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING, beat_division_factors=beat_div_factors)
+hvo_seq_b = HVO_Sequence(drum_mapping=ROLAND_REDUCED_MAPPING, beat_division_factors=[5])
 hvo_seq_b.add_time_signature(0, 6, 8)
 hvo_seq_b.add_tempo(0, 50)
 hvo_seq_b.add_time_signature(1, 4, 8)
