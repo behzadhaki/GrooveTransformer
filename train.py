@@ -63,8 +63,9 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='bce', choices=['bce', 'mse'])
-parser.add_argument("--beta_annealing_ratio", type=float, help="ratio overal epochs to anneal beta", default=0.25)
-parser.add_argument("--beta_annealing_cycles", type=int, help="number of KL Annealing Cycles", default=1)
+parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float, help="rising ratio in each cycle to anneal beta", default=1)
+parser.add_argument("--beta_annealing_per_cycle_period", type=int, help="Number of epochs for each cycle of Beta annealing", default=100)
+parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle ", default=0)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
@@ -74,6 +75,7 @@ parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
 parser.add_argument("--lr", type=float, help="Learning rate", default=1e-4)
 parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
                     choices=['sgd', 'adam'])
+parser.add_argument("--reduce_loss_by_sum", type=int, help="reduce loss by summing over all dimensions", default=0)
 
 # ----------------------- Data Parameters -----------------------
 parser.add_argument("--dataset_json_dir", type=str,
@@ -141,12 +143,14 @@ else:
         offset_loss_function=args.offset_loss_function,
         hit_loss_balancing_beta=float(args.hit_loss_balancing_beta),
         genre_loss_balancing_beta=float(args.genre_loss_balancing_beta),
-        beta_annealing_ratio=float(args.beta_annealing_ratio),
-        beta_annealing_cycles=args.beta_annealing_cycles,
+        beta_annealing_per_cycle_rising_ratio=float(args.beta_annealing_per_cycle_rising_ratio),
+        beta_annealing_per_cycle_period=args.beta_annealing_per_cycle_period,
+        beta_annealing_start_first_rise_at_epoch=args.beta_annealing_start_first_rise_at_epoch,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
         optimizer=args.optimizer,
+        reduce_loss_by_sum=True if args.reduce_loss_by_sum == 1 else False,
         is_testing=args.is_testing,
         dataset_json_dir=args.dataset_json_dir,
         dataset_json_fname=args.dataset_json_fname,
@@ -243,27 +247,11 @@ if __name__ == "__main__":
     metrics = dict()
     step_ = 0
 
-
-    def frange_cycle_sigmoid(start, stop, n_epoch, n_cycle=4, ratio=0.5):
-        L = np.ones(n_epoch)
-        period = n_epoch / n_cycle
-        step = (stop - start) / (period * ratio)  # step is in [0,1]
-
-        # transform into [-6, 6] for plots: v*12.-6.
-
-        for c in range(n_cycle):
-
-            v, i = start, 0
-            while v <= stop:
-                L[int(i + c * period)] = 1.0 / (1.0 + np.exp(- (v * 12. - 6.)))
-                v += step
-                i += 1
-        return L
-
-
-    beta_np_cyc = frange_cycle_sigmoid(start=0.0, stop=1, n_epoch=config.epochs,
-                                       n_cycle=config.beta_annealing_cycles,
-                                       ratio=config.beta_annealing_ratio)
+    beta_np_cyc = vae_train_utils.generate_beta_curve(
+        n_epochs=config.epochs, 
+        period_epochs=config.beta_annealing_per_cycle_period,
+        rise_ratio=config.beta_annealing_per_cycle_rising_ratio,
+        start_first_rise_at_epoch=config.beta_annealing_start_first_rise_at_epoch)
 
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
@@ -283,7 +271,9 @@ if __name__ == "__main__":
             offset_loss_fn=offset_loss_fn,
             device=config.device,
             starting_step=step_,
-            kl_beta=beta_np_cyc[epoch])
+            kl_beta=beta_np_cyc[epoch],
+            reduce_by_sum=config.reduce_loss_by_sum,
+        )
 
         wandb.log(train_log_metrics, commit=False)
         wandb.log({"kl_beta": beta_np_cyc[epoch]}, commit=False)
@@ -304,7 +294,9 @@ if __name__ == "__main__":
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
             device=config.device,
-            kl_beta=beta_np_cyc[epoch])
+            kl_beta=beta_np_cyc[epoch],
+            reduce_by_sum = config.reduce_loss_by_sum
+        )
 
         wandb.log(test_log_metrics, commit=False)
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
