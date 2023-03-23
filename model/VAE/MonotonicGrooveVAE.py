@@ -236,3 +236,23 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
         torch.save({'model_state_dict': self.state_dict(), 'params': params_dict,
                     'additional_info': additional_info}, save_path)
+
+    # serializes to a torchscript model
+    def serialize(self, save_folder):
+        os.makedirs(save_folder, exist_ok=True)
+
+        # save InputLayerEncoder
+        input_layer_encoder = self.InputLayerEncoder
+        torch.jit.save(torch.jit.script(input_layer_encoder), os.path.join(save_folder, 'InputLayerEncoder.pt'))
+
+        # save Encoder
+        encoder = self.Encoder
+        torch.jit.save(torch.jit.script(encoder), os.path.join(save_folder, 'Encoder.pt'))
+
+        # save LatentLayer
+        latent_layer = self.LatentEncoder
+        torch.jit.save(torch.jit.script(latent_layer), os.path.join(save_folder, 'LatentEncoder.pt'))
+
+        # save Decoder
+        decoder = self.Decoder
+        torch.jit.save(torch.jit.script(decoder), os.path.join(save_folder, 'Decoder.pt'))

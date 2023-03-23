@@ -111,4 +111,3 @@ class UMapper:
         pickle.dump(self, ofile)
         ofile.close()
 
-
