@@ -89,7 +89,7 @@ class CustomEmbeddingLayer(torch.nn.Module):
         hvo_projection = self.Linear(token[:, (self.token_type_loc + 1):])
         hvo_projection = self.ReLU(hvo_projection)
         x = torch.cat((token_type_embedding, hvo_projection), 1)
-        out = self.PositionalEncoding(x)
+        out = self.PositionalEncoding(x) #  move this to encoder
 
         return out
 
