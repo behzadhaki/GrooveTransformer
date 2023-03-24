@@ -70,29 +70,32 @@ class Encoder(torch.nn.Module):
 
 class CustomEmbeddingLayer(torch.nn.Module):
 
-    def __init__(self, token_type_dict, token_type_vocab_size, token_type_embedding_dim, hvo_embedding_size, hvo_projection_size, max_len, dropout):
+    def __init__(self, embedding_size, d_model, dropout, max_len, n_token_types, token_type_loc):
         super(CustomEmbeddingLayer, self).__init__()
-        self.token_type_dict = token_type_dict
-        self.token_embedding = torch.nn.Embedding(token_type_vocab_size, token_type_embedding_dim)
-        self.Linear = torch.nn.Linear(hvo_embedding_size, hvo_projection_size)
+        self.token_embedding = torch.nn.Embedding(n_token_types, d_model, dtype=torch.float32)
+        self.token_type_loc = token_type_loc
+        self.Linear = torch.nn.Linear((embedding_size-1), d_model, bias=True)
         self.ReLU = torch.nn.ReLU()
-        self.d_model = hvo_projection_size
-        self.PositionalEncoding = PositionalEncoding(self.d_model, max_len, dropout)
+        self.PositionalEncoding = PositionalEncoding((d_model*2), max_len, dropout)
+
+    def init_weights(self, initrange=0.1):
+        self.Linear.bias.data.zero_()
+        self.Linear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, token):
-        token_type_tensor = torch.tensor([self.token_type_dict[token.token_type]], dtype=torch.long)
-        token_type_embedding = self.token_embedding(token_type_tensor)
-        print(f"token type embed size: {token_type_embedding.shape}")
-        hvo_projection = self.Linear(torch.from_numpy(token.hvo).float())
+        # [max_len, d_model]
+        token_type = token[:, self.token_type_loc].long()
+        token_type_embedding = self.token_embedding(token_type)
+        hvo_projection = self.Linear(token[:, (self.token_type_loc + 1):])
         hvo_projection = self.ReLU(hvo_projection)
-        print(f"hvo projection size: {hvo_projection.shape}")
-        embedding = torch.cat((token_type_embedding, hvo_projection), 0)
-        print(f"Concat shape: {embedding.shape}")
-        out = self.PositionalEncoding(embedding)
+        x = torch.cat((token_type_embedding, hvo_projection), 1)
+        out = self.PositionalEncoding(x)
+
+        return out
 
 
 class InputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model, dropout, max_len):
+    def __init__(self, embedding_size, d_model, dropout, max_len, n_token_types, token_type_loc):
         super(InputLayer, self).__init__()
 
         self.Linear = torch.nn.Linear(embedding_size, d_model, bias=True)
@@ -112,28 +115,72 @@ class InputLayer(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    tokens = [CustomToken('measure', np.random.rand(9,3))]
 
 
-    custom_dict = {'measure': 0, 'beat': 1, 'delta_30': 2}
+    embed_size = 10  # columns
+    d_model = 32  # columns after processing
+    max_len = 32
 
-    token = tokens[0]
-    idx_token = np.append(custom_dict[token.token_type], token.hvo)
-    # print(idx_token)
-    # print(idx_token.shape)
+    embedding = CustomEmbeddingLayer(embedding_size=embed_size,
+                                     d_model=d_model,
+                                     dropout=0.1,
+                                     max_len=max_len,
+                                     n_token_types=5,
+                                     token_type_loc=0)
 
-    embedding = CustomEmbeddingLayer(token_type_dict=custom_dict,
-                                     token_type_vocab_size=3,
-                                     token_type_embedding_dim=16,
-                                     hvo_embedding_size=3,
-                                     hvo_projection_size=16,
-                                     max_len=16,
-                                     dropout=0)
+    # for testing purposes, the input tensor needs to be shape:
+    # [max_len, embed_size]
+    # embed size = hv size + 1(token)
 
-    x = embedding.forward(token)
+    input_hvo= torch.rand(max_len, (embed_size-1))
+    input_token = torch.full((max_len, 1), 3, dtype=torch.long)
+    data = torch.cat((input_token, input_hvo), dim=1)
+    print(f"Data shape: {data.shape}")
+    output = embedding(data)
+    print(f"Data shape after input layer: {output.shape}")
 
-    # randn = torch.from_numpy(np.random.rand(128,20)).float()
-    # linear = torch.nn.Linear(20, 30)
-    # y = linear(randn)
-    # torchrandn = torch.randn(128,20)
-    # x = linear(torchrandn)
+    """
+    
+    Definitions:
+    Embedding size
+    (input) The # of columns in a single row - in this case, how many voices in the HVO + token type
+    
+    d_model
+    The # of columns AFTER going through linear layer, i.e. layer layer will 
+    expand 9 columns to 128 for each row
+    
+    
+    
+    Discoveries:
+    - Linear will change the second dimension of tensor, but leave first untouched.
+    I.e.
+    Input: (32, 9)
+    Linear: (9, 128)
+    Output: (32, 128)
+    
+    
+    
+    - The 2nd dimension (columns) of the -token embedding- and -hvo linear layer- (d_model) 
+    must be *identical* (in order to pass to cat)..
+    
+    - ..therefor, the output dimension variable of linear layer for hvo must == d_model
+    
+    - First dimension of cat will be the first dimensions of token + hvo added together. 
+    
+    - input args to Positional Encoder must be padded, and the reverse of the concat
+    i.e. if concat is [32, 8] then pos encoder must be [8, 32]
+    
+    - input data will be in batches, so the shape will be:
+    (batch size, max_sequence_length, input_dim)
+    
+    
+    
+    
+    """
+
+
+
+    # linear = torch.nn.Linear(20, 60)
+    # tensor = linear(tensor)
+    # print(tensor.shape)
+
