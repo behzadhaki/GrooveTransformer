@@ -1,11 +1,12 @@
 from data.src.utils import get_data_directory_using_filters, get_drum_mapping_using_label, load_original_gmd_dataset_pickle, extract_hvo_sequences_dict, pickle_hvo_dict
-from hvo_sequence.tokenization import tokenizeConsistentSequence, convertConsistentTokenizedSequenceToHVO
+
 
 import numpy as np
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from math import ceil
+from copy import deepcopy
 import json
 import os
 import pickle
@@ -199,19 +200,37 @@ class MonotonicGrooveDataset(Dataset):
     def get_outputs_at(self, idx):
         return self.outputs[idx]
 
+from hvo_sequence.tokenization import tokenizeConsistentSequence, flattenTokenizedSequence
+
 class MonotonicGrooveTokenizedDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag,
+                 tapped_voice_idx=2, flatten_velocities=False,
                  ticks_per_beat=96, delta_grains=[30, 10, 5, 1],
-                 tapped_voice_idx=2, collapse_tapped_sequence=False):
+                 clip_data=[], measure_data=[], beat_data=["beat"],
+                 ignore_last_silence=False, load_as_tensor=True):
+
+        """
+        This dataset class us designed to load a set of gmd drum patterns as HVO objects,
+        convert them to a custom tokenized method, create a dictionary of token types, and
+        finally convert the tokenized sequences to arrays which are available as inputs and
+        outputs. Inputs are flattened (single voice per hit) whereas outputs have the full
+        range of hits.
+
+        @param dataset_setting_json_path: path to the json file with settings
+        @param subset_tag:
+        @param ticks_per_beat: beat-level resolution (default 96)
+        @param delta_grains: (list of ints) grain-values to use in delta time shift events
+        @param tapped_voice_idx: voice number for mono tapped input (default 2)
+        @param collapse_tapped_sequence: reduce flattened sequence to 1 dimension (default False)
+        """
 
         self.inputs = list()
         self.outputs = list()
+        self.dataset = list()
         self.hvo_sequences = list()
         self.tokenized_sequences = list()
-        self.flattened_tokenized_sequences = list()
+        self.tokenized_flattened_sequences = list()
         self.vocab = dict()
-
-
 
         # load HVO sequences from pickle files
 
@@ -226,20 +245,22 @@ class MonotonicGrooveTokenizedDataset(Dataset):
             if hvo_seq.hits is not None:
                 if np.any(hvo_seq.hits):
                     self.hvo_sequences.append(hvo_seq)
-                    # TODO: Remove Offset data
 
                     tokenized_seq = tokenizeConsistentSequence(hvo_seq,
                                                                delta_grains,
                                                                ticks_per_beat,
-                                                               clip_data=[],
-                                                               measure_data=["measure"],
-                                                               beat_data=["beat"])
+                                                               clip_data=clip_data,
+                                                               measure_data=measure_data,
+                                                               beat_data=beat_data,
+                                                               ignore_last_silence=ignore_last_silence)
+
+                    tokenized_flat_seq = flattenTokenizedSequence(tokenized_seq,
+                                                                  num_voices=9,
+                                                                  flattened_voice_idx=tapped_voice_idx,
+                                                                  flatten_velocities=flatten_velocities)
 
                     self.tokenized_sequences.append(tokenized_seq)
-
-                    # TODO: Add flattened sequence for input
-
-
+                    self.tokenized_flattened_sequences.append(tokenized_flat_seq)
 
         # Create a dictionary of token types
 
@@ -247,21 +268,33 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         unique_token_types = sorted(set(token_types))
         self.vocab = {token_type: i + 1 for i, token_type in enumerate(unique_token_types)}
 
-
-
-
-        # Convert tokenized data into arrays/tensors
-
-        #encoded_data = [np.concatenate((np.array([self.vocab[token_type]]), hvo_seq), axis=0) for token_type, hvo_seq in data]
+        # Convert tokenized data into arrays/tensors using vocab dictionary
 
         for sequence in self.tokenized_sequences:
-            encoded_data = []
-            for token in sequence:
+            encoded_data = np.zeros((len(sequence), 19))
+            for idx, token in enumerate(sequence):
                 token_type = np.array([self.vocab[token[0]]])
                 hvo = token[1][0]
                 data = np.concatenate((token_type, hvo), axis=0)
-                encoded_data.append(data)
+                encoded_data[idx] = data
+
             self.outputs.append(encoded_data)
+
+        for sequence in self.tokenized_flattened_sequences:
+            encoded_data = np.zeros((len(sequence), 19))
+            for idx, token in enumerate(sequence):
+                token_type = np.array([self.vocab[token[0]]])
+                hvo = token[1][0]
+                data = np.concatenate((token_type, hvo), axis=0)
+                encoded_data[idx] = data
+
+            self.inputs.append(encoded_data)
+
+        if load_as_tensor:
+            self.inputs = [torch.from_numpy(arr) for arr in self.inputs]
+            self.outputs = [torch.from_numpy(arr) for arr in self.outputs]
+
+        self.dataset = [(input_tensor, output_tensor) for input_tensor, output_tensor in zip(self.inputs, self.outputs)]
 
     def get_vocab_dictionary(self) -> dict:
         return self.vocab
@@ -270,15 +303,36 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         return len(self.hvo_sequences)
 
     def __getitem__(self, idx):
-        return self.outputs[idx]  # still need inputs (flattened seq)
+        return self.dataset[idx]
 
 
+# Custom collate function for padding
+def custom_collate_fn(batch, max_len=None, padding_token=np.NINF, num_voices=9):
+    # batch = list of tuples of tensors
 
+    inputs = [item[0] for item in batch]
+    outputs = [item[1] for item in batch]
 
+    if max_len is None:
+        # Get the length of the longest sequence in the batch
+        max_len = max([sequence.shape[0] for sequence in outputs])
 
+    num_samples = len(outputs)
+    token_size = num_voices * 2 + 1  # (HV sequence + token type)
 
+    # Pad the sequences to have the same length and convert them to tensors
+    padded_input_batch = torch.full((num_samples, max_len, token_size), padding_token)
+    padded_output_batch = torch.full((num_samples, max_len, token_size), padding_token)
 
+    for idx, sequence in enumerate(inputs):
+        seq_length = sequence.shape[0]
+        padded_input_batch[idx, :seq_length, :] = sequence
 
+    for idx, sequence in enumerate(outputs):
+        seq_length = sequence.shape[0]
+        padded_output_batch[idx, :seq_length, :] = sequence
+
+    return padded_input_batch, padded_output_batch
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset
 # ---------------------------------------------------------------------------------------------- #

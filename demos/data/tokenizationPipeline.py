@@ -50,8 +50,6 @@ if __name__ == "__main__":
 
     test_output = test_dataset.outputs[3]
 
-
-    t = 0
-    while t < 20:
-        print(test_output[t])
-        t += 1
+    print(len(test_dataset.hvo_sequences))
+    print(len(test_dataset.outputs))
+    print(len(test_dataset.inputs))

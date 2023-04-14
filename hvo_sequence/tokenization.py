@@ -14,7 +14,7 @@ def tokenizeDeltas(delta, delta_grains, n_voices):
     while delta > 0:
         for step in sorted(delta_grains, reverse=True):
             if delta >= step:
-                tokens.append((f"delta_{step}", np.zeros((1, int(3 * n_voices)))))
+                tokens.append((f"delta_{step}", np.zeros((1, int(2 * n_voices)))))
                 delta -= step
                 break
 
@@ -76,7 +76,7 @@ def tokenizeSingleBeatRegion(hvo_seq,
 
     prepend_data = getContextualData(hvo_seq, contextual_data)
     for item in prepend_data:
-        tokenized_seq.append((item, np.zeros((1, int(3 * n_voices)))))
+        tokenized_seq.append((item, np.zeros((1, int(2 * n_voices)))))
 
         # Identify indexes with hits
     hits = local_hvo_seq[:, :n_voices]
@@ -96,7 +96,7 @@ def tokenizeSingleBeatRegion(hvo_seq,
         if delta_tokens is not []:
             tokenized_seq.extend(delta_tokens)
         if not is_last_silence:
-            tokenized_seq.append(("hit", local_hvo_seq[hit_locs[ix]:hit_locs[ix] + 1, :]))
+            tokenized_seq.append(("hit", local_hvo_seq[hit_locs[ix]:hit_locs[ix] + 1, :(2 * n_voices)]))
 
     return tokenized_seq
 
@@ -130,7 +130,7 @@ def tokenizeMeasure(hvo_seq,
     tokenized_seq = []
     prepend_data = getContextualData(hvo_seq, measure_data)
     for item in prepend_data:
-        tokenized_seq.append((item, np.zeros((1, int(3 * n_voices)))))
+        tokenized_seq.append((item, np.zeros((1, int(2 * n_voices)))))
 
     position = start_position_ticks
     end_position = position + ticks_per_measure
@@ -190,7 +190,7 @@ def tokenizeConsistentSequence(hvo_seq,
     tokenized_seq = []
     prepend_data = getContextualData(hvo_seq, clip_data)
     for item in prepend_data:
-        tokenized_seq.append((item, np.zeros((1, int(3 * num_voices)))))
+        tokenized_seq.append((item, np.zeros((1, int(2 * num_voices)))))
 
     position = 0
     # Iterate through each measure, using quarter note (floats) as time-value
@@ -207,6 +207,37 @@ def tokenizeConsistentSequence(hvo_seq,
         position += ticks_per_measure
 
     return tokenized_seq
+
+
+
+def flattenTokenizedSequence(tokenized_sequence, num_voices, flattened_voice_idx=2, flatten_velocities=False):
+
+    flattened_sequence = []
+    for sequence in tokenized_sequence:
+
+        token_type = str(sequence[0])
+        if token_type == "hit":
+            original_array = sequence[1][0]
+            flat_array = np.zeros((1, int(2 * num_voices)))
+            flat_array[0][flattened_voice_idx] = 1.
+
+            if not flatten_velocities:
+                max_velocity = np.amax(original_array[num_voices:])
+                flat_array[0][flattened_voice_idx + num_voices] = max_velocity
+                # if max_velocity == 1.:
+                #     print("\n")
+                #     print(original_array[num_voices:])
+                #     print(max_velocity)
+            else:
+                flat_array[0][flattened_voice_idx + num_voices] = 0.8
+
+            flat_tuple = ("hit", flat_array)
+            flattened_sequence.append(flat_tuple)
+
+        else:
+            flattened_sequence.append(sequence)
+
+    return flattened_sequence
 
 
 # ---------------------------------
