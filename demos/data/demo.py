@@ -1,9 +1,10 @@
 
 from data import load_original_gmd_dataset_pickle
 
+
 # Load 2bar gmd dataset as a dictionary
 gmd_dict = load_original_gmd_dataset_pickle(
-    gmd_pickle_path="data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle")
+    gmd_pickle_path="../../data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle")
 
 gmd_dict.keys()          # dict_keys(['train', 'test', 'validation'])
 gmd_dict['train'].keys()        #dict_keys(['drummer', 'session', 'loop_id', 'master_id', 'style_primary', 'style_secondary', 'bpm', 'beat_type', 'time_signature', 'full_midi_filename', 'full_audio_filename', 'midi', 'note_sequence'])

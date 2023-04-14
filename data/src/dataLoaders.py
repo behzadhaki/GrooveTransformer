@@ -1,4 +1,6 @@
 from data.src.utils import get_data_directory_using_filters, get_drum_mapping_using_label, load_original_gmd_dataset_pickle, extract_hvo_sequences_dict, pickle_hvo_dict
+from hvo_sequence.tokenization import tokenizeConsistentSequence, convertConsistentTokenizedSequenceToHVO
+
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -196,6 +198,86 @@ class MonotonicGrooveDataset(Dataset):
 
     def get_outputs_at(self, idx):
         return self.outputs[idx]
+
+class MonotonicGrooveTokenizedDataset(Dataset):
+    def __init__(self, dataset_setting_json_path, subset_tag,
+                 ticks_per_beat=96, delta_grains=[30, 10, 5, 1],
+                 tapped_voice_idx=2, collapse_tapped_sequence=False):
+
+        self.inputs = list()
+        self.outputs = list()
+        self.hvo_sequences = list()
+        self.tokenized_sequences = list()
+        self.flattened_tokenized_sequences = list()
+        self.vocab = dict()
+
+
+
+        # load HVO sequences from pickle files
+
+        subset = load_gmd_hvo_sequences(dataset_setting_json_path,
+                                        subset_tag,
+                                        force_regenerate=False)
+
+        # Tokenize the data
+
+        for idx, hvo_seq in enumerate(tqdm(subset)):
+
+            if hvo_seq.hits is not None:
+                if np.any(hvo_seq.hits):
+                    self.hvo_sequences.append(hvo_seq)
+                    # TODO: Remove Offset data
+
+                    tokenized_seq = tokenizeConsistentSequence(hvo_seq,
+                                                               delta_grains,
+                                                               ticks_per_beat,
+                                                               clip_data=[],
+                                                               measure_data=["measure"],
+                                                               beat_data=["beat"])
+
+                    self.tokenized_sequences.append(tokenized_seq)
+
+                    # TODO: Add flattened sequence for input
+
+
+
+        # Create a dictionary of token types
+
+        token_types = [token[0] for sequence in self.tokenized_sequences for token in sequence]
+        unique_token_types = sorted(set(token_types))
+        self.vocab = {token_type: i + 1 for i, token_type in enumerate(unique_token_types)}
+
+
+
+
+        # Convert tokenized data into arrays/tensors
+
+        #encoded_data = [np.concatenate((np.array([self.vocab[token_type]]), hvo_seq), axis=0) for token_type, hvo_seq in data]
+
+        for sequence in self.tokenized_sequences:
+            encoded_data = []
+            for token in sequence:
+                token_type = np.array([self.vocab[token[0]]])
+                hvo = token[1][0]
+                data = np.concatenate((token_type, hvo), axis=0)
+                encoded_data.append(data)
+            self.outputs.append(encoded_data)
+
+    def get_vocab_dictionary(self) -> dict:
+        return self.vocab
+
+    def __len__(self):
+        return len(self.hvo_sequences)
+
+    def __getitem__(self, idx):
+        return self.outputs[idx]  # still need inputs (flattened seq)
+
+
+
+
+
+
+
 
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset
