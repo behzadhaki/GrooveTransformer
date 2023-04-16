@@ -2,6 +2,8 @@
 from data import load_original_gmd_dataset_pickle
 import os
 from data.src.dataLoaders import MonotonicGrooveTokenizedDataset
+import numpy as np
+from functools import partial
 
 os.chdir("../../")
 
@@ -20,7 +22,13 @@ tokenized_dataset = MonotonicGrooveTokenizedDataset(
 from torch.utils.data import DataLoader
 from data.src.dataLoaders import custom_collate_fn
 
-data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True, collate_fn=custom_collate_fn)
+max_len = 1000
+padding_token = np.NINF
+num_voices = 9
+
+collate_with_args = partial(custom_collate_fn, max_len=max_len, padding_token=padding_token, num_voices=num_voices)
+
+data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True, collate_fn=collate_with_args)
 
 for batch_idx, batch in enumerate(data_loader):
     print(f"\n\nBatch {batch_idx + 1}:")

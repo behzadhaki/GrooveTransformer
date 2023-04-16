@@ -68,11 +68,11 @@ class Encoder(torch.nn.Module):
 
 class EmbeddingLayer(torch.nn.Module):
 
-    def __init__(self, embedding_size, d_model, dropout, max_len, n_token_types, token_type_loc):
+    def __init__(self, embedding_size, d_model, n_token_types, token_type_loc, padding_idx):
         super(EmbeddingLayer, self).__init__()
         assert d_model % 2 == 0, "d_model must be divisible by 2"
 
-        self.token_embedding = torch.nn.Embedding(n_token_types, d_model//2, dtype=torch.float32)
+        self.token_embedding = torch.nn.Embedding(n_token_types, d_model//2, padding_idx=padding_idx, dtype=torch.float32)
         self.token_type_loc = token_type_loc
         self.Linear = torch.nn.Linear((embedding_size-1), d_model//2, bias=True)
         self.ReLU = torch.nn.ReLU()
@@ -81,13 +81,18 @@ class EmbeddingLayer(torch.nn.Module):
         self.Linear.bias.data.zero_()
         self.Linear.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, token):
-        # [max_len, d_model]
-        token_type = token[:, self.token_type_loc].long()
-        token_type_embedding = self.token_embedding(token_type)
-        hvo_projection = self.Linear(token[:, (self.token_type_loc + 1):])
+    def forward(self, input):
+        # [batch_size, max_len, d_model]
+        # Split inputs into token types and HVO sections
+        token_types = input[:, :, self.token_type_loc].long()
+        hvo = input[:, :, (self.token_type_loc + 1):]
+
+        token_type_embedding = self.token_embedding(token_types)
+
+        hvo_projection = self.Linear(hvo)
         hvo_projection = self.ReLU(hvo_projection)
-        out = torch.cat((token_type_embedding, hvo_projection), 1)
+
+        out = torch.cat((token_type_embedding, hvo_projection), 2)
         #out = self.PositionalEncoding(x) #  move this to encoder
 
         return out
