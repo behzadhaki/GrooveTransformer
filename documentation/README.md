@@ -1,9 +1,3 @@
-# Clone Repo
-
-
-   git clone -b dev/i2g/monotonicV1 --single-branch https://github.com/behzadhaki/GrooveTransformer.git
-
-
 # List of Contents
 ### Guides for using the repository can be found here
 
