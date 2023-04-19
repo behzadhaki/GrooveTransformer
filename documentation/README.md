@@ -4,6 +4,7 @@
 
 # Chapter 0 
 ### [A. ENVIRONMENT SETUP](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md)
+0. [Cluster Guide] (https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/HPC_Cluster_Guide.md)
 1. [Required Packages](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#1-required-packages-)
 2. [CPU Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#2-cpu-installation--)
    1. [venv Installation](https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/Chapter%200_PyEnvAndCluster/README.md#21--venv-installation-)
