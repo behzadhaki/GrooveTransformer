@@ -224,10 +224,6 @@ def flattenTokenizedSequence(tokenized_sequence, num_voices, flattened_voice_idx
             if not flatten_velocities:
                 max_velocity = np.amax(original_array[num_voices:])
                 flat_array[0][flattened_voice_idx + num_voices] = max_velocity
-                # if max_velocity == 1.:
-                #     print("\n")
-                #     print(original_array[num_voices:])
-                #     print(max_velocity)
             else:
                 flat_array[0][flattened_voice_idx + num_voices] = 0.8
 
@@ -238,7 +234,6 @@ def flattenTokenizedSequence(tokenized_sequence, num_voices, flattened_voice_idx
             flattened_sequence.append(sequence)
 
     return flattened_sequence
-
 
 # ---------------------------------
 # Reverse Tokenization

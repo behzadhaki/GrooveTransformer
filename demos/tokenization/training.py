@@ -14,20 +14,22 @@ if __name__ == "__main__":
 
     os.chdir("../../")
 
-    d_model = 32  # columns after processing
-    max_len = 4
+    d_model = 32
     n_voices = 9
-    embed_size = (n_voices * 2) + 1  # columns
+    embed_size = (n_voices * 2) + 1  # 19
     max_len = 1000
 
-
-
     # load our data
+
+    """
+    When loading the dataset class, it will load GMD data as HVOs, tokenize it,
+    convert the token types to integers (with a retrievable dictionary), and return in 
+    a format designed for pytorch dataloader (list of tuples of tensors)
+    """
 
     tokenized_dataset = MonotonicGrooveTokenizedDataset(
         dataset_setting_json_path="data/dataset_json_settings/BeatsAndFills_gmd_96.json",
         subset_tag="test")
-
 
     dictionary = tokenized_dataset.get_vocab_dictionary()
     print(dictionary)
@@ -35,23 +37,15 @@ if __name__ == "__main__":
     padding_token = float(n_token_types)
     print(f"num token types: {n_token_types}")
 
+    # instantiate dataloader with a custom collate function to pad our data
     collate_with_args = partial(custom_collate_fn, max_len=max_len, padding_token=padding_token, num_voices=n_voices)
-
     data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True, collate_fn=collate_with_args)
 
-    #for batch_idx, batch in enumerate(data_loader):
-        # print(f"\nBatch {batch_idx + 1}:")
-        # print(f"Batch shape:")
-        # print(batch[0].shape)
-        # if batch_idx >= 1:
-        #     break
-
-
-    # Load our model componenets individually
+    # Load model componenets individually for testing
 
     embedding = EmbeddingLayer(embedding_size=embed_size,
                                d_model=d_model,
-                               n_token_types=20,
+                               n_token_types=8,
                                token_type_loc=0,
                                padding_idx=int(padding_token))
 
@@ -75,21 +69,22 @@ if __name__ == "__main__":
 
     data = single_batch[0]
     print(f"input dim: {data.shape}")
-
     x = embedding(data)
     print(f"after embedding: {x.shape}")
-
     x = encoder(x)
     print(f"after encoder: {x.shape}")
 
-    token_type, h_logits, v_logits = outputlayer.decode(x)
-
-    token_type_logits, h_logits, v_logits = outputlayer(x)
+    token_type_logits, hits, velocities = outputlayer.decode(x)
     print(f"token type: {token_type_logits.shape}")
-    print(f"h: {h_logits.shape}")
-    print(f"v: {v_logits.shape}")
+    print(f"h: {hits.shape}")
+    print(f"v: {velocities.shape}")
 
     print(token_type_logits[0, :5, :])
+    print(hits[0, :5, :])
+    print(velocities[0, :5, :])
+
+    final = torch.concat((token_type_logits, hits, velocities), dim=2)
+    print(final.shape)
 
     # sliced = data[:, :, 1:]
     #

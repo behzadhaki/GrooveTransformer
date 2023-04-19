@@ -85,15 +85,14 @@ class EmbeddingLayer(torch.nn.Module):
         # [batch_size, max_len, d_model]
         # Split inputs into token types and HVO sections
         token_types = input[:, :, self.token_type_loc].long()
-        hvo = input[:, :, (self.token_type_loc + 1):]
+        hv = input[:, :, (self.token_type_loc + 1):]
 
         token_type_embedding = self.token_embedding(token_types)
 
-        hvo_projection = self.Linear(hvo)
-        hvo_projection = self.ReLU(hvo_projection)
+        hv_projection = self.Linear(hv)
+        hv_projection = self.ReLU(hv_projection)
 
-        out = torch.cat((token_type_embedding, hvo_projection), 2)
-        #out = self.PositionalEncoding(x) #  move this to encoder
+        out = torch.cat((token_type_embedding, hv_projection), 2)
 
         return out
 
@@ -108,6 +107,7 @@ class OutputLayer(torch.nn.Module):
         self.tokenLinear = torch.nn.Linear(d_model, n_token_types, bias=True)
         self.hitsLinear = torch.nn.Linear(d_model, n_voices, bias=True)
         self.velocitiesLinear = torch.nn.Linear(d_model, n_voices, bias=True)
+        self.softmax = torch.nn.Softmax(dim=2)
 
     def init_weights(self, initrange=0.1):
         self.Linear.bias.data.zero_()
@@ -131,7 +131,7 @@ class OutputLayer(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             token_type_logits, h_logits, v_logits = self.forward(decoder_out)
-            token_type = torch.nn.Softmax(token_type_logits)
+            token_type = self.softmax(token_type_logits)
             h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
             v = torch.sigmoid(v_logits)
 

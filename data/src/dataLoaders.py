@@ -207,7 +207,8 @@ class MonotonicGrooveTokenizedDataset(Dataset):
                  tapped_voice_idx=2, flatten_velocities=False,
                  ticks_per_beat=96, delta_grains=[30, 10, 5, 1],
                  clip_data=[], measure_data=[], beat_data=["beat"],
-                 ignore_last_silence=False, load_as_tensor=True):
+                 ignore_last_silence=False, load_as_tensor=True,
+                 pad_tensors=True, max_length=300):
 
         """
         This dataset class us designed to load a set of gmd drum patterns as HVO objects,
@@ -224,9 +225,12 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         @param collapse_tapped_sequence: reduce flattened sequence to 1 dimension (default False)
         """
 
-        self.inputs = list()
-        self.outputs = list()
-        self.dataset = list()
+        self.input_tokens = list()
+        self.input_hv = list()
+        self.output_tokens = list()
+        self.output_hv = list()
+        self.masks = list()
+
         self.hvo_sequences = list()
         self.tokenized_sequences = list()
         self.tokenized_flattened_sequences = list()
@@ -270,31 +274,64 @@ class MonotonicGrooveTokenizedDataset(Dataset):
 
         # Convert tokenized data into arrays/tensors using vocab dictionary
 
-        for sequence in self.tokenized_sequences:
-            encoded_data = np.zeros((len(sequence), 19))
-            for idx, token in enumerate(sequence):
-                token_type = np.array([self.vocab[token[0]]])
-                hvo = token[1][0]
-                data = np.concatenate((token_type, hvo), axis=0)
-                encoded_data[idx] = data
-
-            self.outputs.append(encoded_data)
-
         for sequence in self.tokenized_flattened_sequences:
-            encoded_data = np.zeros((len(sequence), 19))
+            tokens = np.zeros(len(sequence))
+            hv_arrays = np.zeros((len(sequence), 18))
             for idx, token in enumerate(sequence):
-                token_type = np.array([self.vocab[token[0]]])
-                hvo = token[1][0]
-                data = np.concatenate((token_type, hvo), axis=0)
-                encoded_data[idx] = data
+                tokens[idx] = np.array([self.vocab[token[0]]])
+                hv_arrays[idx] = token[1][0]
 
-            self.inputs.append(encoded_data)
+            self.input_tokens.append(tokens)
+            self.input_hv.append(hv_arrays)
+
+        for sequence in self.tokenized_sequences:
+            tokens = np.zeros(len(sequence))
+            hv_arrays = np.zeros((len(sequence), 18))
+            for idx, token in enumerate(sequence):
+                tokens[idx] = np.array([self.vocab[token[0]]])
+                hv_arrays[idx] = token[1][0]
+
+            self.output_tokens.append(tokens)
+            self.output_hv.append(hv_arrays)
+
+        # Sequence padding
+
+        for idx, (in_tokens, in_hv, out_tokens, out_hv) in enumerate(zip(self.input_tokens,
+                                                                         self.input_hv,
+                                                                         self.output_tokens,
+                                                                         self.output_hv)):
+
+            # TODO: remove this if no error is thrown after several rounds
+            assert in_hv.shape == out_hv.shape, f"Input and output hv sequences {idx} of different shapes"
+            assert in_hv.shape[0] <= max_length, f"Sequence {idx} longer than max length of {max_length}"
+
+            mask_array = np.zeros(in_tokens.shape, dtype=bool)
+
+            # Pad sequences
+            if pad_tensors and in_hv.shape[0] < max_length:
+                pad_amount = max_length - in_hv.shape[0]
+
+                token_pad_array = np.zeros(pad_amount, dtype=float)
+                self.input_tokens[idx] = np.concatenate((self.input_tokens[idx], token_pad_array), axis=0)
+                self.output_tokens[idx] = np.concatenate((self.output_tokens[idx], token_pad_array), axis=0)
+
+                hv_pad_array = np.zeros((pad_amount, in_hv.shape[1]), dtype=float)
+                self.input_hv[idx] = np.concatenate((self.input_hv[idx], hv_pad_array), axis=0)
+                self.output_hv[idx] = np.concatenate((self.output_hv[idx], hv_pad_array), axis=0)
+
+                mask_pad_array = np.ones(pad_amount, dtype=bool)
+                mask_array = np.concatenate((mask_array, mask_pad_array), axis=0)
+
+            self.masks.append(mask_array)
+
 
         if load_as_tensor:
-            self.inputs = [torch.from_numpy(arr) for arr in self.inputs]
-            self.outputs = [torch.from_numpy(arr) for arr in self.outputs]
+            self.input_tokens = [torch.from_numpy(arr) for arr in self.input_tokens]
+            self.input_hv = [torch.from_numpy(arr) for arr in self.input_hv]
+            self.output_tokens = [torch.from_numpy(arr) for arr in self.output_tokens]
+            self.output_hv = [torch.from_numpy(arr) for arr in self.output_hv]
+            self.masks = [torch.from_numpy(arr) for arr in self.masks]
 
-        self.dataset = [(input_tensor, output_tensor) for input_tensor, output_tensor in zip(self.inputs, self.outputs)]
 
     def get_vocab_dictionary(self) -> dict:
         return self.vocab
@@ -303,8 +340,8 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         return len(self.hvo_sequences)
 
     def __getitem__(self, idx):
-        return self.dataset[idx]
-
+        return idx, self.input_tokens[idx], self.input_hv[idx], \
+               self.output_tokens[idx], self.output_hv[idx], self.masks[idx]
 
 # Custom collate function for padding
 def custom_collate_fn(batch, max_len=None, padding_token=np.NINF, num_voices=9):
