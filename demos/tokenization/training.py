@@ -6,7 +6,7 @@ from functools import partial
 from model.BaseTokenize.TokenizationModelTester import *
 from data.src.dataLoaders import MonotonicGrooveTokenizedDataset
 from torch.utils.data import DataLoader
-from data.src.dataLoaders import custom_collate_fn
+
 
 
 
@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
     d_model = 32
     n_voices = 9
-    embed_size = (n_voices * 2) + 1  # 19
-    max_len = 1000
+    embed_size = n_voices * 2
+    max_len = 500
 
     # load our data
 
@@ -29,25 +29,20 @@ if __name__ == "__main__":
 
     tokenized_dataset = MonotonicGrooveTokenizedDataset(
         dataset_setting_json_path="data/dataset_json_settings/BeatsAndFills_gmd_96.json",
-        subset_tag="test")
+        subset_tag="test", max_length=500)
 
     dictionary = tokenized_dataset.get_vocab_dictionary()
     print(dictionary)
     n_token_types = len(dictionary) + 1
-    padding_token = float(n_token_types)
     print(f"num token types: {n_token_types}")
 
-    # instantiate dataloader with a custom collate function to pad our data
-    collate_with_args = partial(custom_collate_fn, max_len=max_len, padding_token=padding_token, num_voices=n_voices)
-    data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True, collate_fn=collate_with_args)
+    data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True)
 
     # Load model componenets individually for testing
-
-    embedding = EmbeddingLayer(embedding_size=embed_size,
-                               d_model=d_model,
-                               n_token_types=8,
-                               token_type_loc=0,
-                               padding_idx=int(padding_token))
+    embedding = InputLayer(embedding_size=embed_size,
+                           d_model=d_model,
+                           n_token_types=n_token_types,
+                           token_type_loc=0)
 
     encoder = Encoder(d_model=d_model,
                       nhead=4,
@@ -67,11 +62,11 @@ if __name__ == "__main__":
         single_batch = data
         break
 
-    data = single_batch[0]
-    print(f"input dim: {data.shape}")
-    x = embedding(data)
+    idx, in_token, in_hv, out_token, out_hv, masks = single_batch
+
+    x = embedding(in_token, in_hv)
     print(f"after embedding: {x.shape}")
-    x = encoder(x)
+    x = encoder(x, masks)
     print(f"after encoder: {x.shape}")
 
     token_type_logits, hits, velocities = outputlayer.decode(x)

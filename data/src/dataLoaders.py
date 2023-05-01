@@ -305,6 +305,7 @@ class MonotonicGrooveTokenizedDataset(Dataset):
             assert in_hv.shape == out_hv.shape, f"Input and output hv sequences {idx} of different shapes"
             assert in_hv.shape[0] <= max_length, f"Sequence {idx} longer than max length of {max_length}"
 
+
             mask_array = np.zeros(in_tokens.shape, dtype=bool)
 
             # Pad sequences
@@ -324,12 +325,11 @@ class MonotonicGrooveTokenizedDataset(Dataset):
 
             self.masks.append(mask_array)
 
-
         if load_as_tensor:
             self.input_tokens = [torch.from_numpy(arr) for arr in self.input_tokens]
-            self.input_hv = [torch.from_numpy(arr) for arr in self.input_hv]
+            self.input_hv = [torch.from_numpy(arr).to(torch.float32) for arr in self.input_hv]
             self.output_tokens = [torch.from_numpy(arr) for arr in self.output_tokens]
-            self.output_hv = [torch.from_numpy(arr) for arr in self.output_hv]
+            self.output_hv = [torch.from_numpy(arr).to(torch.float32) for arr in self.output_hv]
             self.masks = [torch.from_numpy(arr) for arr in self.masks]
 
 
@@ -343,33 +343,7 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         return idx, self.input_tokens[idx], self.input_hv[idx], \
                self.output_tokens[idx], self.output_hv[idx], self.masks[idx]
 
-# Custom collate function for padding
-def custom_collate_fn(batch, max_len=None, padding_token=np.NINF, num_voices=9):
-    # batch = list of tuples of tensors
 
-    inputs = [item[0] for item in batch]
-    outputs = [item[1] for item in batch]
-
-    if max_len is None:
-        # Get the length of the longest sequence in the batch
-        max_len = max([sequence.shape[0] for sequence in outputs])
-
-    num_samples = len(outputs)
-    token_size = num_voices * 2 + 1  # (HV sequence + token type)
-
-    # Pad the sequences to have the same length and convert them to tensors
-    padded_input_batch = torch.full((num_samples, max_len, token_size), padding_token)
-    padded_output_batch = torch.full((num_samples, max_len, token_size), padding_token)
-
-    for idx, sequence in enumerate(inputs):
-        seq_length = sequence.shape[0]
-        padded_input_batch[idx, :seq_length, :] = sequence
-
-    for idx, sequence in enumerate(outputs):
-        seq_length = sequence.shape[0]
-        padded_output_batch[idx, :seq_length, :] = sequence
-
-    return padded_input_batch, padded_output_batch
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset
 # ---------------------------------------------------------------------------------------------- #

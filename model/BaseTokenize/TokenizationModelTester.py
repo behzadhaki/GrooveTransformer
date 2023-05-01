@@ -59,37 +59,40 @@ class Encoder(torch.nn.Module):
         self.Encoder = torch.nn.TransformerEncoder(encoder_layer, num_encoder_layers, norm_encoder)
         self.PositionalEncoder = PositionalEncoding(d_model, max_len, dropout=dropout)
 
-    def forward(self, src):
+    def forward(self, src, src_key_padding_mask=None):
         src = self.PositionalEncoder(src)
         src = src.permute(1, 0, 2)  # 32xNxd_model
-        out = self.Encoder(src)  # 32xNxd_model ()
+        out = self.Encoder(src, src_key_padding_mask=src_key_padding_mask)  # 32xNxd_model ()
         out = out.permute(1, 0, 2)  # Nx32xd_model
         return out
 
-class EmbeddingLayer(torch.nn.Module):
+class InputLayer(torch.nn.Module):
 
-    def __init__(self, embedding_size, d_model, n_token_types, token_type_loc, padding_idx):
-        super(EmbeddingLayer, self).__init__()
+    def __init__(self, embedding_size, d_model,  n_token_types, token_embedding_ratio=0.8, token_type_loc=0, padding_idx=0):
+        super(InputLayer, self).__init__()
+
         assert d_model % 2 == 0, "d_model must be divisible by 2"
+        assert 0. < token_embedding_ratio < 1., "token embedding ratio must be a value between 0. - 1."
 
-        self.token_embedding = torch.nn.Embedding(n_token_types, d_model//2, padding_idx=padding_idx, dtype=torch.float32)
         self.token_type_loc = token_type_loc
-        self.Linear = torch.nn.Linear((embedding_size-1), d_model//2, bias=True)
+        token_embedding_dim = math.floor(d_model * token_embedding_ratio)
+        self.token_embedding = torch.nn.Embedding(n_token_types, token_embedding_dim, padding_idx=padding_idx,
+                                                  dtype=torch.float32)
+
+        hv_projection_size = d_model - token_embedding_dim
+        self.Linear = torch.nn.Linear(embedding_size, hv_projection_size, bias=True)
         self.ReLU = torch.nn.ReLU()
 
-    def init_weights(self, initrange=0.1):
+    def init_weights(self, init_range=0.1):
         self.Linear.bias.data.zero_()
-        self.Linear.weight.data.uniform_(-initrange, initrange)
+        self.Linear.weight.data.uniform_(-init_range, init_range)
 
-    def forward(self, input):
-        # [batch_size, max_len, d_model]
-        # Split inputs into token types and HVO sections
-        token_types = input[:, :, self.token_type_loc].long()
-        hv = input[:, :, (self.token_type_loc + 1):]
+    def forward(self, input_tokens, input_hv):
+        # Tokens: [batch_size, max_len]
+        # HV arrays: [batch_size, max_len, d_model]
+        token_type_embedding = self.token_embedding(input_tokens.long())
 
-        token_type_embedding = self.token_embedding(token_types)
-
-        hv_projection = self.Linear(hv)
+        hv_projection = self.Linear(input_hv)
         hv_projection = self.ReLU(hv_projection)
 
         out = torch.cat((token_type_embedding, hv_projection), 2)
@@ -150,12 +153,12 @@ if __name__ == "__main__":
     n_voices = 7
     embed_size = (n_voices * 2) + 1  # columns
 
-    embedding = EmbeddingLayer(embedding_size=embed_size,
-                               d_model=d_model,
-                               dropout=0.1,
-                               max_len=max_len,
-                               n_token_types=n_token_types,
-                               token_type_loc=0)
+    embedding = InputLayer(embedding_size=embed_size,
+                           d_model=d_model,
+                           dropout=0.1,
+                           max_len=max_len,
+                           n_token_types=n_token_types,
+                           token_type_loc=0)
 
     encoder = Encoder(d_model=d_model,
                       nhead=4,
