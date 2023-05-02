@@ -3,8 +3,8 @@ import os
 import numpy as np
 from functools import partial
 
-from model.BaseTokenize.TokenizationModelTester import *
-from data.src.dataLoaders import MonotonicGrooveTokenizedDataset
+from model.BaseTokenize.shared_model_components import *
+from data.src.dataLoaders import MonotonicGrooveTokenizedDataset, load_gmd_hvo_sequences
 from torch.utils.data import DataLoader
 
 
@@ -26,23 +26,24 @@ if __name__ == "__main__":
     convert the token types to integers (with a retrievable dictionary), and return in 
     a format designed for pytorch dataloader (list of tuples of tensors)
     """
+    subset = load_gmd_hvo_sequences(dataset_setting_json_path="data/dataset_json_settings/BeatsAndFills_gmd_96.json",
+                                    subset_tag="train",
+                                    force_regenerate=False)
+    tokenized_dataset = MonotonicGrooveTokenizedDataset(subset=subset)
 
-    tokenized_dataset = MonotonicGrooveTokenizedDataset(
-        dataset_setting_json_path="data/dataset_json_settings/BeatsAndFills_gmd_96.json",
-        subset_tag="test", max_length=500)
 
     dictionary = tokenized_dataset.get_vocab_dictionary()
     print(dictionary)
-    n_token_types = len(dictionary) + 1
+    n_token_types = len(dictionary)
     print(f"num token types: {n_token_types}")
-
     data_loader = DataLoader(tokenized_dataset, batch_size=16, shuffle=True)
-
     # Load model componenets individually for testing
     embedding = InputLayer(embedding_size=embed_size,
                            d_model=d_model,
                            n_token_types=n_token_types,
-                           token_type_loc=0)
+                           token_type_loc=0,
+                           token_embedding_ratio=0.8,
+                           padding_idx=0)
 
     encoder = Encoder(d_model=d_model,
                       nhead=4,

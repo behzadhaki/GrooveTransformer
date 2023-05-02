@@ -1,12 +1,12 @@
 #  Copyright (c) 2022. \n Created by Hernan Dario Perez
 import torch
-from model import GrooveTransformerEncoderVAE
+from model import TokenizedTransformerEncoder
 from logging import getLogger
 logger = getLogger("helpers/VAE/modelLoader.py")
 logger.setLevel("DEBUG")
 
 
-def load_variational_mgt_model(model_path, params_dict=None, is_evaluating=True, device=None):
+def load_tokenized_model(model_path, params_dict=None, is_evaluating=True, device=None):
     """ Load a GrooveTransformerEncoder model from a given path
 
     Args:
@@ -40,7 +40,7 @@ def load_variational_mgt_model(model_path, params_dict=None, is_evaluating=True,
         with open(params_dict, 'r') as f:
             params_dict = json.load(f)
 
-    model = GrooveTransformerEncoderVAE(params_dict)
+    model = TokenizedTransformerEncoder(params_dict)
     model.load_state_dict(loaded_dict["model_state_dict"])
     if is_evaluating:
         model.eval()

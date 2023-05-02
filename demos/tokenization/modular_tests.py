@@ -3,7 +3,7 @@ import torch
 import numpy
 from data.src.dataLoaders import MonotonicGrooveTokenizedDataset
 from torch.utils.data import DataLoader
-from model.BaseTokenize.TokenizationModelTester import *
+from model.BaseTokenize.shared_model_components import *
 
 os.chdir("../../")
 

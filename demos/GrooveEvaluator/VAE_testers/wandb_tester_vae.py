@@ -61,8 +61,8 @@ for drop in [0.4, 0.3, 0.1]:
 
     ### call VAE encoder
 
-    groove_transformer = GrooveTransformerEncoderVAE(config.d_model_enc, config.d_model_dec, config.embedding_size_src,
-                                                     config.embedding_size_tgt, config.nhead_enc, config.nhead_dec,
+    groove_transformer = GrooveTransformerEncoderVAE(config.d_model, config.d_model_dec, config.embedding_size,
+                                                     config.embedding_size_tgt, config.nhead, config.nhead_dec,
                                                      config.dim_feedforward, config.dropout, config.num_encoder_layers,
                                                      config.latent_dim, config.num_decoder_layers, config.max_len,
                                                      config.device)

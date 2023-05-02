@@ -203,12 +203,12 @@ class MonotonicGrooveDataset(Dataset):
 from hvo_sequence.tokenization import tokenizeConsistentSequence, flattenTokenizedSequence
 
 class MonotonicGrooveTokenizedDataset(Dataset):
-    def __init__(self, dataset_setting_json_path, subset_tag,
+    def __init__(self, dataset_setting_json_path="", subset_tag="Train", subset=None,
                  tapped_voice_idx=2, flatten_velocities=False,
-                 ticks_per_beat=96, delta_grains=[30, 10, 5, 1],
+                 ticks_per_beat=96, delta_grains=[1, 2, 5, 10, 15, 20],
                  clip_data=[], measure_data=[], beat_data=["beat"],
                  ignore_last_silence=False, load_as_tensor=True,
-                 pad_tensors=True, max_length=300):
+                 pad_tensors=True, max_length=400):
 
         """
         This dataset class us designed to load a set of gmd drum patterns as HVO objects,
@@ -237,8 +237,8 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         self.vocab = dict()
 
         # load HVO sequences from pickle files
-
-        subset = load_gmd_hvo_sequences(dataset_setting_json_path,
+        if subset is None:
+            subset = load_gmd_hvo_sequences(dataset_setting_json_path,
                                         subset_tag,
                                         force_regenerate=False)
 
@@ -270,7 +270,8 @@ class MonotonicGrooveTokenizedDataset(Dataset):
 
         token_types = [token[0] for sequence in self.tokenized_sequences for token in sequence]
         unique_token_types = sorted(set(token_types))
-        self.vocab = {token_type: i + 1 for i, token_type in enumerate(unique_token_types)}
+        self.vocab = {"PAD": 0}
+        self.vocab.update({token_type: i + 1 for i, token_type in enumerate(unique_token_types)})
 
         # Convert tokenized data into arrays/tensors using vocab dictionary
 

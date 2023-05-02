@@ -1,10 +1,7 @@
 import torch
 import math
+from model import get_hits_activation
 
-
-# --------------------------------------------------------------------------------
-# ------------       Positinal Encoding BLOCK                ---------------------
-# --------------------------------------------------------------------------------
 class PositionalEncoding(torch.nn.Module):
     r"""Inject some information about the relative or absolute position of the tokens
         in the sequence. The positional encodings have the same dimension as
@@ -52,100 +49,192 @@ class PositionalEncoding(torch.nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-
-
-# --------------------------------------------------------------------------------
-# ------------                  ENCODER BLOCK                ---------------------
-# --------------------------------------------------------------------------------
 class Encoder(torch.nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward, dropout, num_encoder_layers):
+    def __init__(self, d_model, nhead, dim_feedforward, dropout, num_encoder_layers, max_len):
         super(Encoder, self).__init__()
         norm_encoder = torch.nn.LayerNorm(d_model)
         encoder_layer = torch.nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
         self.Encoder = torch.nn.TransformerEncoder(encoder_layer, num_encoder_layers, norm_encoder)
+        self.PositionalEncoder = PositionalEncoding(d_model, max_len, dropout=dropout)
 
-    def forward(self, src):
+    def forward(self, src, src_key_padding_mask=None):
+        src = self.PositionalEncoder(src)
         src = src.permute(1, 0, 2)  # 32xNxd_model
-        out = self.Encoder(src)  # 32xNxd_model ()
+        out = self.Encoder(src, src_key_padding_mask=src_key_padding_mask)  # 32xNxd_model ()
         out = out.permute(1, 0, 2)  # Nx32xd_model
         return out
 
-# --------------------------------------------------------------------------------
-# ------------                  DECODER BLOCK                ---------------------
-# --------------------------------------------------------------------------------
-def get_tgt_mask(d_model):
-    mask = (torch.triu(torch.ones(d_model, d_model)) == 1).transpose(0, 1).float()
-    mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-    return mask
-
-class Decoder(torch.nn.Module):
-
-    def __init__(self, d_model, nhead, dim_feedforward, dropout, num_decoder_layers):
-        super(Decoder, self).__init__()
-        norm_decoder = torch.nn.LayerNorm(d_model)
-        decoder_layer = torch.nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
-        self.Decoder = torch.nn.TransformerDecoder(decoder_layer, num_decoder_layers, norm_decoder)
-
-    def forward(self, tgt, memory, tgt_mask):
-        # tgt    Nx32xd_model
-        # memory Nx32xd_model
-
-        tgt = tgt.permute(1, 0, 2)  # 32xNxd_model
-        memory = memory.permute(1, 0, 2)  # 32xNxd_model
-
-        out = self.Decoder(tgt, memory, tgt_mask)  # 32xNxd_model
-
-        out = out.permute(1, 0, 2)  # Nx32xd_model
-
-        return out
-
-# --------------------------------------------------------------------------------
-# ------------                     I/O Layers                ---------------------
-# --------------------------------------------------------------------------------
 class InputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model, dropout, max_len):
+
+    def __init__(self, embedding_size, d_model,  n_token_types, token_embedding_ratio=0.8, token_type_loc=0, padding_idx=0):
         super(InputLayer, self).__init__()
 
-        self.Linear = torch.nn.Linear(embedding_size, d_model, bias=True)
+        assert d_model % 2 == 0, "d_model must be divisible by 2"
+        assert 0. < token_embedding_ratio < 1., "token embedding ratio must be a value between 0. - 1."
+
+        self.token_type_loc = token_type_loc
+        token_embedding_dim = math.floor(d_model * token_embedding_ratio)
+        self.token_embedding = torch.nn.Embedding(n_token_types, token_embedding_dim, padding_idx=padding_idx,
+                                                  dtype=torch.float32)
+
+        hv_projection_size = d_model - token_embedding_dim
+        self.Linear = torch.nn.Linear(embedding_size, hv_projection_size, bias=True)
         self.ReLU = torch.nn.ReLU()
-        self.PositionalEncoding = PositionalEncoding(d_model, max_len, dropout)
 
-    def init_weights(self, initrange=0.1):
+    def init_weights(self, init_range=0.1):
         self.Linear.bias.data.zero_()
-        self.Linear.weight.data.uniform_(-initrange, initrange)
+        self.Linear.weight.data.uniform_(-init_range, init_range)
 
-    def forward(self, src):
-        x = self.Linear(src)
-        x = self.ReLU(x)
-        out = self.PositionalEncoding(x)
+    def forward(self, input_tokens, input_hv):
+        # Tokens: [batch_size, max_len]
+        # HV arrays: [batch_size, max_len, d_model]
+        token_type_embedding = self.token_embedding(input_tokens.long())
+
+        hv_projection = self.Linear(input_hv)
+        hv_projection = self.ReLU(hv_projection)
+
+        out = torch.cat((token_type_embedding, hv_projection), 2)
 
         return out
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self, embedding_size, d_model):
+    def __init__(self, n_token_types, n_voices, d_model):
         super(OutputLayer, self).__init__()
 
-        self.embedding_size = embedding_size
-        self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
+        self.n_token_types = n_token_types
+        self.n_voices = n_voices
+        self.d_model = d_model
+
+        self.tokenLinear = torch.nn.Linear(d_model, n_token_types, bias=True)
+        self.hitsLinear = torch.nn.Linear(d_model, n_voices, bias=True)
+        self.velocitiesLinear = torch.nn.Linear(d_model, n_voices, bias=True)
+        self.softmax = torch.nn.Softmax(dim=2)
 
     def init_weights(self, initrange=0.1):
-        self.Linear.bias.data.zero_()
-        self.Linear.weight.data.uniform_(-initrange, initrange)
+        self.tokenLinear.bias.data.zero_()
+        self.tokenLinear.weight.data.uniform_(-initrange, initrange)
+        self.hitsLinear.bias.data.zero_()
+        self.hitsLinear.weight.data.uniform_(-initrange, initrange)
+        self.velocitiesLinear.bias.data.zero_()
+        self.velocitiesLinear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, decoder_out):
+        """
+        Predicts the *pre-activation* logits
+        @param decoder_out:
+        @return:
+        """
 
-        y = self.Linear(decoder_out)
+        token_type_logits = self.tokenLinear(decoder_out)
+        h_logits = self.hitsLinear(decoder_out)
+        v_logits = self.velocitiesLinear(decoder_out)
 
-        y = torch.reshape(y, (decoder_out.shape[0], decoder_out.shape[1], 3, self.embedding_size // 3))
+        return token_type_logits, h_logits, v_logits
 
-        _h = y[:, :, 0, :]
-        _v = y[:, :, 1, :]
-        _o = y[:, :, 2, :]
+    def decode(self, decoder_out, threshold=0.5, use_thres=True, use_pd=False):
 
-        h = _h
-        v = torch.sigmoid(_v)
-        o = torch.tanh(_o) * 0.5
+        self.eval()
+        with torch.no_grad():
+            token_type_logits, h_logits, v_logits = self.forward(decoder_out)
+            token_type = self.softmax(token_type_logits)
+            h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
+            v = torch.sigmoid(v_logits)
 
-        return h, v, o
+        return token_type, h, v
+
+
+
+
+if __name__ == "__main__":
+
+
+
+    d_model = 32  # columns after processing
+    max_len = 4
+    n_token_types = 5
+    n_voices = 7
+    embed_size = (n_voices * 2) + 1  # columns
+
+    embedding = InputLayer(embedding_size=embed_size,
+                           d_model=d_model,
+                           dropout=0.1,
+                           max_len=max_len,
+                           n_token_types=n_token_types,
+                           token_type_loc=0)
+
+    encoder = Encoder(d_model=d_model,
+                      nhead=4,
+                      dim_feedforward=128,
+                      dropout=0.1,
+                      num_encoder_layers=3,
+                      max_len=max_len)
+
+    outputlayer = OutputLayer(n_token_types=n_token_types,
+                              n_voices=n_voices,
+                              d_model=d_model)
+
+    # for testing purposes, the input tensor needs to be shape:
+    # [max_len, embed_size]
+    # embed size = hv size + 1(token)
+
+    input_hvo= torch.rand(max_len, (embed_size-1))
+    input_token = torch.full((max_len, 1), 3, dtype=torch.long)
+    data = torch.cat((input_token, input_hvo), dim=1)
+    print(f"Data shape: {data.shape}")
+
+    input = embedding(data)
+    print(f"embedding layer output: {input.shape}")
+
+    encoder_output = encoder(input)
+    print(f"encoder output: {encoder_output.shape}")
+
+    token, h, v = outputlayer(encoder_output)
+    print(token)
+
+
+    """
+    
+    Definitions:
+    Embedding size
+    (input) The # of columns in a single row - in this case, how many voices in the HVO + token type
+    
+    d_model
+    The # of columns AFTER going through linear layer, i.e. layer layer will 
+    expand 9 columns to 128 for each row
+    
+    
+    
+    Discoveries:
+    - Linear will change the second dimension of tensor, but leave first untouched.
+    I.e.
+    Input: (32, 9)
+    Linear: (9, 128)
+    Output: (32, 128)
+    
+    
+    
+    - The 2nd dimension (columns) of the -token embedding- and -hvo linear layer- (d_model) 
+    must be *identical* (in order to pass to cat)..
+    
+    - ..therefor, the output dimension variable of linear layer for hvo must == d_model
+    
+    - First dimension of cat will be the first dimensions of token + hvo added together. 
+    
+    - input args to Positional Encoder must be padded, and the reverse of the concat
+    i.e. if concat is [32, 8] then pos encoder must be [8, 32]
+    
+    - input data will be in batches, so the shape will be:
+    (batch size, max_sequence_length, input_dim)
+    
+    
+    
+    
+    """
+
+
+
+    # linear = torch.nn.Linear(20, 60)
+    # tensor = linear(tensor)
+    # print(tensor.shape)
 
