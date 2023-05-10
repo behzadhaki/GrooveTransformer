@@ -52,13 +52,13 @@ GM1_FULL_MAP = {
 
 # MAGENTA MAPPING
 ROLAND_REDUCED_MAPPING = {
-    "KICK": [36],
+    "KICK": [36, 35],
     "SNARE": [38, 37, 40],
     "HH_CLOSED": [42, 22, 44],
     "HH_OPEN": [46, 26],
-    "TOM_3_LO": [43, 58],
+    "TOM_3_LO": [43, 58, 41],
     "TOM_2_MID": [47, 45],
-    "TOM_1_HI": [50, 48],
+    "TOM_1_HI": [50, 48, 63, 62],
     "CRASH": [49, 52, 55, 57],
     "RIDE":  [51, 53, 59]
 }
