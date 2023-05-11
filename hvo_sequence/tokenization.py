@@ -1,5 +1,8 @@
 import numpy as np
+from copy import deepcopy
 
+from hvo_sequence import HVO_Sequence
+from hvo_sequence import ROLAND_REDUCED_MAPPING
 
 def tokenizeDeltas(delta, delta_grains, n_voices):
     """
@@ -235,23 +238,7 @@ def flattenTokenizedSequence(tokenized_sequence, num_voices, flattened_voice_idx
 
     return flattened_sequence
 
-# ---------------------------------
-# Reverse Tokenization
 
-def calculateSequenceLength(token_seq):
-    """
-    This utility function is designed to calculate the total length of a new HVO (numpy array) when
-    provided with a tokenized sequence.
-    """
-
-    length = 0
-
-    for token in token_seq:
-        token_type = str(token[0])
-        if "delta" in token_type:
-            length += int(token_type[6:])
-
-    return length
 
 def convertConsistentTokenizedSequenceToHVO(token_seq, tpb):
     """
@@ -280,3 +267,122 @@ def convertConsistentTokenizedSequenceToHVO(token_seq, tpb):
             total_delta += delta
 
     return hvo
+
+
+"""
+Reverse tokenization:
+These functions are designed to work with the outputs of a model, and convert
+them back into various data formats for evaluation and inference. Currently there are several
+'layers' of data representation:
+
+- MIDI
+- HVO (sequence)
+- HVO (array)
+- Tokenized Sequence ([string, HV_array])
+- Numerically tokenized sequence ([tokens], [hits], [velocities])
+
+A dictionary provides the link between the tokenized sequence and numerically tokenized sequence,
+i.e. identifying that {"hit": 0}
+
+
+
+"""
+# ---------------------------------
+# Reverse Tokenization
+
+def calculateSequenceLength(token_seq):
+    """
+    This utility function is designed to calculate the total length of a new HVO (numpy array) when
+    provided with a tokenized sequence.
+    """
+
+    length = 0
+
+    for token in token_seq:
+        token_type = str(token[0])
+        if "delta" in token_type:
+            length += int(token_type[6:])
+
+    return length
+
+def convert_model_output_to_tokenized_sequence(t, h, v, reverse_vocab):
+
+    assert t.size(dim=0) == h.size(dim=0) == v.size(dim=0), "All sequences must have same length"
+
+    tokenized_arrays = list()
+
+    for idx, token_value in enumerate(t):
+        if token_value != 0:
+            token = reverse_vocab[int(token_value)]
+            hv = np.concatenate((h[idx], v[idx]), axis=None)
+            tokenized_arrays.append((token, hv))
+
+    return tokenized_arrays
+
+def convert_tokenized_sequence_to_hvo_array(tokenized_arrays, num_voices=9, return_as_hvo=True):
+    """
+        Given a tokenized sequence of data, return an HVO array
+        Args:
+            tokenized_arrays [list]: 2D tuples with (token_type, array)
+            num_voices [int]: Number of voices in the sequence
+            return_as_hvo [bool]: if true, will convert HV to HVO with offsets as 0
+        Returns:
+            hv(o) array: a 2d array identical to HVO format
+
+        """
+
+    total_delta = 0
+    sequence_length = calculateSequenceLength(tokenized_arrays)
+
+    hvo_size = num_voices * 2  # 18 (n_voices * 2)
+    hv = np.zeros((sequence_length, hvo_size))
+
+    for idx, token in enumerate(tokenized_arrays):
+        token_type = str(token[0])
+
+        if token_type == "hit":
+            hv[total_delta] = tokenized_arrays[idx][1]
+            pass
+        if "delta" in token_type:
+            delta = int(token_type[6:])
+            total_delta += delta
+
+    if not return_as_hvo:
+        return hv
+
+    else:
+        # Create offsets, thus mimicking the original (x, 27) size of HVO
+        hvo = np.pad(hv, pad_width=((0, 0), (0, 9)), mode='constant', constant_values=0)
+        return hvo
+
+
+def batch_create_comparative_HVO_sequences(input_hvo_sequences, hvo_arrays, beat_div_factor=96):
+    """
+    #Todo: Is this function necessary? Currently unused
+    @param input_hvo_sequences: [list] of original HVO sequences
+    @param hvo_arrays: [list] of newly generated HVO arrays
+    It is up to you to ensure that they are matched!
+    hvo_sequences[0] should be the same pattern as hvo_arrays[0]
+    It is not possible to assert this automatically
+
+    @return: hvo_sequences: tuple of (input, output) hvo sequences
+    """
+    assert len(input_hvo_sequences) == len(hvo_arrays)
+
+    hvo_sequences = list()
+
+    for hvo_seq, hvo_array in zip(input_hvo_sequences, hvo_arrays):
+
+        output_hvo_seq = HVO_Sequence(beat_division_factors=[beat_div_factor],
+                                      drum_mapping=ROLAND_REDUCED_MAPPING)
+
+        output_hvo_seq.add_time_signature(time_step=0,
+                                          numerator=hvo_seq.time_signatures[0].numerator,
+                                          denominator=hvo_seq.time_signatures[0].denominator)
+        output_hvo_seq.add_tempo(time_step=0, qpm=float(hvo_seq.tempos[0].qpm))
+
+        output_hvo_seq.hvo = hvo_array
+
+        hvo_sequences.append((hvo_seq, output_hvo_seq))
+
+    return hvo_sequences

@@ -71,6 +71,23 @@ class TokenizedTransformerEncoder(torch.nn.Module):
 
         return token_type_logits, h_logits, v_logits
 
+    def predict(self, input_tokens, input_hv, mask=None, threshold=0.5, return_concatenated=False):
+
+        def encode_decode(input_tokens_, input_hv_, masks_):
+            x = self.InputLayer(input_tokens_, input_hv_)
+            x = self.Encoder(x, src_key_padding_mask=masks_)
+            token_type, h, v = self.OutputLayer.decode(x, threshold=threshold)
+            return token_type, h, v
+
+        if not self.training:
+            with torch.no_grad():
+                return encode_decode(input_tokens, input_hv, mask)
+        else:
+            return encode_decode(input_tokens, input_hv, mask)
+
+
+
+
 
     def save(self, save_path, additional_info=None):
         if not save_path.endswith('.pth'):

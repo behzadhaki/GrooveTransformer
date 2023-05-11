@@ -132,16 +132,16 @@ class OutputLayer(torch.nn.Module):
 
         return token_type_logits, h_logits, v_logits
 
-    def decode(self, decoder_out, threshold=0.5, use_thres=True, use_pd=False):
+    def decode(self, encoder_out, threshold=0.5, use_thres=True, use_pd=False):
 
         self.eval()
         with torch.no_grad():
-            token_type_logits, h_logits, v_logits = self.forward(decoder_out)
+            token_type_logits, h_logits, v_logits = self.forward(encoder_out)
             token_type = self.softmax(token_type_logits)
+            token_type = torch.argmax(token_type, dim=2)
             h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
             v = torch.sigmoid(v_logits)
-
-        return token_type, h, v
+            return token_type, h, v
 
 
 

@@ -203,7 +203,8 @@ class MonotonicGrooveDataset(Dataset):
 from hvo_sequence.tokenization import tokenizeConsistentSequence, flattenTokenizedSequence
 
 class MonotonicGrooveTokenizedDataset(Dataset):
-    def __init__(self, dataset_setting_json_path="", subset_tag="Train", subset=None,
+    def __init__(self, dataset_setting_json_path="", vocab=None,
+                 subset_tag="Train", subset=None,
                  tapped_voice_idx=2, flatten_velocities=False,
                  ticks_per_beat=96, delta_grains=[1, 2, 5, 10, 15, 20],
                  clip_data=[], measure_data=[], beat_data=["beat"],
@@ -266,12 +267,16 @@ class MonotonicGrooveTokenizedDataset(Dataset):
                     self.tokenized_sequences.append(tokenized_seq)
                     self.tokenized_flattened_sequences.append(tokenized_flat_seq)
 
-        # Create a dictionary of token types
+        # Create a vocab of token types
+        if vocab is None:
+            token_types = [token[0] for sequence in self.tokenized_sequences for token in sequence]
+            unique_token_types = sorted(set(token_types))
+            self.vocab = {"PAD": 0}
+            self.vocab.update({token_type: i + 1 for i, token_type in enumerate(unique_token_types)})
 
-        token_types = [token[0] for sequence in self.tokenized_sequences for token in sequence]
-        unique_token_types = sorted(set(token_types))
-        self.vocab = {"PAD": 0}
-        self.vocab.update({token_type: i + 1 for i, token_type in enumerate(unique_token_types)})
+        # Alternatively, load pre-made vocabulary - ensures consistency across training runs / evaluations / inference
+        else:
+            self.vocab = vocab
 
         # Convert tokenized data into arrays/tensors using vocab dictionary
 
@@ -302,10 +307,8 @@ class MonotonicGrooveTokenizedDataset(Dataset):
                                                                          self.output_tokens,
                                                                          self.output_hv)):
 
-            # TODO: remove this if no error is thrown after several rounds
-            assert in_hv.shape == out_hv.shape, f"Input and output hv sequences {idx} of different shapes"
-            assert in_hv.shape[0] <= max_length, f"Sequence {idx} longer than max length of {max_length}"
 
+            assert in_hv.shape[0] <= max_length, f"Sequence {idx} longer than max length of {max_length}"
 
             mask_array = np.zeros(in_tokens.shape, dtype=bool)
 
@@ -344,6 +347,11 @@ class MonotonicGrooveTokenizedDataset(Dataset):
         return idx, self.input_tokens[idx], self.input_hv[idx], \
                self.output_tokens[idx], self.output_hv[idx], self.masks[idx]
 
+    def get_input_arrays(self):
+        return self.input_tokens, self.input_hv, self.masks
+
+    def get_original_hvo_sequence(self, idx):
+        return self.hvo_sequences[idx]
 
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset
