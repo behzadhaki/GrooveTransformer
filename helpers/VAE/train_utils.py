@@ -178,17 +178,28 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_,
-                      hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
-                      indices) in enumerate(dataloader_):
+    for batch_count, data_tuple in enumerate(dataloader_):
+        inputs_ = data_tuple[0]
+        outputs_ = data_tuple[1]
+        hit_balancing_weights_per_sample_ = data_tuple[2] if len(data_tuple) > 4 else None
+        genre_balancing_weights_per_sample_ = data_tuple[3] if len(data_tuple) > 4 else None
+        indices_ = data_tuple[-1]
+
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
         inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
         outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
-        hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
-            if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
-        genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
-            if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
+        if hit_balancing_weights_per_sample_ is not None:
+            hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
+                if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
+        else:
+            hit_balancing_weights_per_sample = None
+
+        if genre_balancing_weights_per_sample_ is not None:
+            genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
+                if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
+        else:
+            genre_balancing_weights_per_sample = None
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
@@ -201,23 +212,33 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # ---------------------------------------------------------------------------------------
         batch_loss_h = calculate_hit_loss(
             hit_logits=h_logits, hit_targets=h_targets, hit_loss_function=hit_loss_fn)
-        batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_h = batch_loss_h.sum() if reduce_by_sum else batch_loss_h.mean()
 
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
-        batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
-        batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+
         batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
         batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)
-        batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1))
+        if genre_balancing_weights_per_sample is not None:
+            batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1))
+
+        else:
+            batch_loss_KL_Beta_Scaled = batch_loss_KL
+
         batch_loss_KL_Beta_Scaled = batch_loss_KL_Beta_Scaled.sum() if \
             reduce_by_sum else batch_loss_KL_Beta_Scaled.mean()
+
         batch_loss_KL = batch_loss_KL.sum() if reduce_by_sum else batch_loss_KL.mean()
 
         batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)

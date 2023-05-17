@@ -1,0 +1,34 @@
+{
+  "global":
+  {
+    "beat_division_factor": [4],
+    "drum_mapping_label": "ROLAND_REDUCED_MAPPING"
+  },
+  "hvo_seq_pickle_paths":
+    {
+      "Groove Monkee": "data/mega/hvoseqs_2bar_4-4_Groove Monkee_split.bz2pickle",
+      "GrooveMIDI": "data/mega/hvoseqs_2bar_4-4_GrooveMIDI_split.bz2pickle",
+      "MODO DRUM": "data/mega/hvoseqs_2bar_4-4_MODO DRUM_split.bz2pickle",
+      "Native Instruments": "data/mega/hvoseqs_2bar_4-4_Native Instruments_split.bz2pickle",
+      "Newtronic": "data/mega/hvoseqs_2bar_4-4_Newtronic_split.bz2pickle",
+      "OddGrooves": "data/mega/hvoseqs_2bar_4-4_OddGrooves_split.bz2pickle",
+      "Platinum Samples": "data/mega/hvoseqs_2bar_4-4_Platinum Samples_split.bz2pickle",
+      "reddit_800k": "data/mega/hvoseqs_2bar_4-4_reddit_800k_split.bz2pickle",
+      "SSD5": "data/mega/hvoseqs_2bar_4-4_SSD5_split.bz2pickle",
+      "The Loop Loft": "data/mega/hvoseqs_2bar_4-4_The Loop Loft_split.bz2pickle",
+      "Toontrack": "data/mega/hvoseqs_2bar_4-4_Toontrack_split.bz2pickle"
+    },
+  "settings":
+  {
+    "DEFAULT":
+    {
+      "beat_type": ["beat"],
+      "time_signature": ["4_4"]
+    },
+    "GrooveMIDI":
+    {
+      "beat_type": ["beat"],
+      "time_signature": ["4_4"]
+    }
+  }
+}
