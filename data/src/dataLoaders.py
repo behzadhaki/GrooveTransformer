@@ -196,6 +196,121 @@ class MonotonicGrooveDataset(Dataset):
 
     def get_outputs_at(self, idx):
         return self.outputs[idx]
+    
+
+class InstrumentGrooveDataset(Dataset):
+    def __init__(self, dataset_pickle_path, subset_tag, max_len, load_as_tensor=True, 
+                 sort_by_metadata_key=None, down_sampled_ratio=None, move_all_to_gpu=False,
+                 hit_loss_balancing_beta=0, genre_loss_balancing_beta=0):
+        """
+
+        :param dataset_pickle_path:         path to the pickle file containing the dataset
+        :param subset_tag:                  [str] whether to load the train/test/validation set
+        :param max_len:                     [int] maximum length of the sequences to be loaded
+        :param load_as_tensor:              [bool] loads the data as a tensor of torch.float32 instead of a numpy array
+        :param sort_by_metadata_key:        [str] sorts the data by the metadata key provided (e.g. "tempo")
+        :param down_sampled_ratio:          [float] down samples the data by the ratio provided (e.g. 0.5)
+        :param move_all_to_gpu:             [bool] moves all the data to the gpu
+        :param hit_loss_balancing_beta:     [float] beta parameter for hit balancing
+                                                (if 0 or very small, no hit balancing weights are returned)
+        :param genre_loss_balancing_beta:   [float] beta parameter for genre balancing
+                                                (if 0 or very small, no genre balancing weights are returned)
+                        hit_loss_balancing_beta and genre_balancing_beta are used to balance the data
+                        according to the hit and genre distributions of the dataset
+                        (reference: https://arxiv.org/pdf/1901.05555.pdf)
+        """
+
+        # Get processed inputs, outputs and hvo sequences
+        self.inputs = list()
+        self.outputs = list()
+        self.hvo_sequences = list()
+
+        # Load the data
+        # ------------------------------------------------------------------------------------------
+        assert os.path.exists(dataset_pickle_path), f"Unable to find: {dataset_pickle_path}"
+        with bz2.BZ2File(dataset_pickle_path, "rb") as file:
+            loaded_data = pickle.load(file)
+            subset = loaded_data[subset_tag]
+            
+        self.inputs = np.array(subset["inputs"])
+        self.outputs = np.array(subset["outputs"])
+        self.hvo_sequences = np.array(subset["outputs_hvo_seqs"])
+
+        # Sort data by a given metadata key if provided (e.g. "style_primary")
+        # ------------------------------------------------------------------------------------------
+        if sort_by_metadata_key:
+            if sort_by_metadata_key in subset[0].metadata[sort_by_metadata_key]:
+                subset = sorted(subset, key=lambda x: x.metadata[sort_by_metadata_key])
+
+        # Get hit balancing weights if a beta parameter is provided
+        # ------------------------------------------------------------------------------------------
+        # get the effective number of hits per step and voice
+        hits = self.outputs[:, :, :self.outputs.shape[-1] // 3]
+        total_hits = hits.sum(0) + 1e-6
+        effective_num_hits = 1.0 - np.power(hit_loss_balancing_beta, total_hits)
+        hit_balancing_weights = (1.0 - hit_loss_balancing_beta) / effective_num_hits
+        # normalize
+        num_classes = hit_balancing_weights.shape[0] * hit_balancing_weights.shape[1]
+        hit_balancing_weights = hit_balancing_weights / hit_balancing_weights.sum() * num_classes
+        self.hit_balancing_weights_per_sample = [hit_balancing_weights for _ in range(len(self.outputs))]
+
+        # Get genre balancing weights if a beta parameter is provided
+        # ------------------------------------------------------------------------------------------
+        # get the effective number of genres
+        genres_per_sample = [sample.metadata["style_primary"] for sample in self.hvo_sequences]
+        genre_counts = {genre: genres_per_sample.count(genre) for genre in set(genres_per_sample)}
+        effective_num_genres = 1.0 - np.power(genre_loss_balancing_beta, list(genre_counts.values()))
+        genre_balancing_weights = (1.0 - genre_loss_balancing_beta) / effective_num_genres
+        # normalize
+        genre_balancing_weights = genre_balancing_weights / genre_balancing_weights.sum() * len(genre_counts)
+        genre_balancing_weights = {genre: weight for genre, weight in
+                                   zip(genre_counts.keys(), genre_balancing_weights)}
+        t_steps = self.outputs.shape[1]
+        n_voices = self.outputs.shape[2] // 3
+        temp_row = np.ones((t_steps, n_voices))
+        self.genre_balancing_weights_per_sample = np.array(
+            [temp_row * genre_balancing_weights[sample.metadata["style_primary"]]
+             for sample in self.hvo_sequences])
+
+        # Load as tensor if requested
+        # ------------------------------------------------------------------------------------------
+        if load_as_tensor or move_all_to_gpu:
+            self.inputs = torch.tensor(self.inputs, dtype=torch.float32)
+            self.outputs = torch.tensor(self.outputs, dtype=torch.float32)
+            if hit_loss_balancing_beta is not None:
+                self.hit_balancing_weights_per_sample = torch.tensor(self.hit_balancing_weights_per_sample,
+                                                                     dtype=torch.float32)
+            if genre_loss_balancing_beta is not None:
+                self.genre_balancing_weights_per_sample = torch.tensor(self.genre_balancing_weights_per_sample,
+                                                                       dtype=torch.float32)
+
+        # Move to GPU if requested and GPU is available
+        # ------------------------------------------------------------------------------------------
+        if move_all_to_gpu and torch.cuda.is_available():
+            self.inputs = self.inputs.to('cuda')
+            self.outputs = self.outputs.to('cuda')
+            if hit_loss_balancing_beta is not None:
+                self.hit_balancing_weights_per_sample = self.hit_balancing_weights_per_sample.to('cuda')
+            if genre_loss_balancing_beta is not None:
+                self.genre_balancing_weights_per_sample = self.genre_balancing_weights_per_sample.to('cuda')
+
+        dataLoaderLogger.info(f"Loaded {len(self.inputs)} sequences")
+
+    def __len__(self):
+        return len(self.hvo_sequences)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.outputs[idx], \
+               self.hit_balancing_weights_per_sample[idx], self.genre_balancing_weights_per_sample[idx], idx
+
+    def get_hvo_sequences_at(self, idx):
+        return self.hvo_sequences[idx]
+
+    def get_inputs_at(self, idx):
+        return self.inputs[idx]
+
+    def get_outputs_at(self, idx):
+        return self.outputs[idx]
 
 # ---------------------------------------------------------------------------------------------- #
 # loading a down sampled dataset

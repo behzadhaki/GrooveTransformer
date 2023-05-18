@@ -5,7 +5,7 @@ import wandb
 import torch
 from model import GrooveTransformerEncoderVAE
 from helpers import vae_train_utils, vae_test_utils
-from data.src.dataLoaders import MonotonicGrooveDataset
+from data.src.dataLoaders import MonotonicGrooveDataset, InstrumentGrooveDataset
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
@@ -187,27 +187,47 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
     should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
-    training_dataset = MonotonicGrooveDataset(
-        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+
+    # training_dataset = MonotonicGrooveDataset(
+    #     dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+    #     subset_tag="train",
+    #     max_len=int(args.max_len_enc),
+    #     tapped_voice_idx=2,
+    #     collapse_tapped_sequence=collapse_tapped_sequence,
+    #     down_sampled_ratio=0.1 if args.is_testing is True else None,
+    #     move_all_to_gpu=should_place_all_data_on_cuda,
+    #     hit_loss_balancing_beta=args.hit_loss_balancing_beta,
+    #     genre_loss_balancing_beta=args.genre_loss_balancing_beta
+    # )
+
+    training_dataset = InstrumentGrooveDataset(
+        dataset_pickle_path="data\i2dgd\guitar2drum.bz2pickle",
         subset_tag="train",
         max_len=int(args.max_len_enc),
-        tapped_voice_idx=2,
-        collapse_tapped_sequence=collapse_tapped_sequence,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
         move_all_to_gpu=should_place_all_data_on_cuda,
         hit_loss_balancing_beta=args.hit_loss_balancing_beta,
         genre_loss_balancing_beta=args.genre_loss_balancing_beta
     )
+
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
-    test_dataset = MonotonicGrooveDataset(
-        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+    # test_dataset = MonotonicGrooveDataset(
+    #     dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+    #     subset_tag="test",
+    #     max_len=int(args.max_len_enc),
+    #     tapped_voice_idx=2,
+    #     collapse_tapped_sequence=collapse_tapped_sequence,
+    #     down_sampled_ratio=0.1 if args.is_testing is True else None,
+    #     move_all_to_gpu=should_place_all_data_on_cuda
+    # )
+
+    test_dataset = InstrumentGrooveDataset(
+        dataset_pickle_path="data\i2dgd\guitar2drum.bz2pickle",
         subset_tag="test",
         max_len=int(args.max_len_enc),
-        tapped_voice_idx=2,
-        collapse_tapped_sequence=collapse_tapped_sequence,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda
+        move_all_to_gpu=should_place_all_data_on_cuda,
+        hit_loss_balancing_beta=args.hit_loss_balancing_beta,
+        genre_loss_balancing_beta=args.genre_loss_balancing_beta
     )
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
