@@ -122,9 +122,9 @@ def get_logging_media_for_vae_model_wandb(
 
 
 def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
-                            down_sampled_ratio, collapse_tapped_sequence,
+                                 down_sampled_ratio, collapse_tapped_sequence,
                                  cached_folder="eval/GrooveEvaluator/templates/",
-                            divide_by_genre=True):
+                                 divide_by_genre=True):
 
     # logger.info("Generating the hit scores for subset: {}".format(subset_name))
     # and model is correct type

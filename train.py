@@ -31,14 +31,14 @@ parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
 parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
-                    default="beta_study_and_genre_balancing")
+                    default="i2g_sweeps")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
 parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
 parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
-parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
+parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=3)
 parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
 parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
 # d_ff_enc_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
@@ -78,13 +78,13 @@ parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sg
 parser.add_argument("--reduce_loss_by_sum", type=int, help="reduce loss by summing over all dimensions", default=0)
 
 # ----------------------- Data Parameters -----------------------
-parser.add_argument("--dataset_json_dir", type=str,
-                    help="Path to the folder hosting the dataset json file",
-                    default="data/dataset_json_settings")
-parser.add_argument("--dataset_json_fname", type=str,
+parser.add_argument("--dataset_dir", type=str,
+                    help="Path to the folder hosting the dataset bz2pickle file",
+                    default="data/i2dgd")
+parser.add_argument("--dataset_fname", type=str,
                     help="filename of the data (USE 4_4_Beats_gmd.jsom for only beat sections,"
                          " and 4_4_BeatsAndFills_gmd.json for beats and fill samples combined",
-                    default="4_4_Beats_gmd.json")
+                    default="guitar2drum.bz2pickle")
 parser.add_argument("--evaluate_on_subset", type=str,
                     help="Using test or evaluation subset for evaluating the model", default="test",
                     choices=['test', 'evaluation'] )
@@ -152,9 +152,10 @@ else:
         optimizer=args.optimizer,
         reduce_loss_by_sum=True if args.reduce_loss_by_sum == 1 else False,
         is_testing=args.is_testing,
-        dataset_json_dir=args.dataset_json_dir,
-        dataset_json_fname=args.dataset_json_fname,
+        dataset_dir=args.dataset_dir,
+        dataset_fname=args.dataset_fname,
         device="cuda" if torch.cuda.is_available() else "cpu"
+
     )
 
 
@@ -173,7 +174,7 @@ if __name__ == "__main__":
         config=hparams,                         # either from config file or CLI specified hyperparameters
         project=hparams["wandb_project"],          # name of the project
         anonymous="allow",
-        entity="nime2022_anon",                          # saves in the mmil_vae_cntd team account
+        entity="instrument2groove",                          # saves in the mmil_vae_cntd team account
         settings=wandb.Settings(code_dir="train.py")    # for code saving
     )
 
@@ -201,7 +202,7 @@ if __name__ == "__main__":
     # )
 
     training_dataset = InstrumentGrooveDataset(
-        dataset_pickle_path="data\i2dgd\guitar2drum.bz2pickle",
+        dataset_pickle_path=f"{args.dataset_dir}/{args.dataset_fname}",
         subset_tag="train",
         max_len=int(args.max_len_enc),
         move_all_to_gpu=should_place_all_data_on_cuda,
@@ -329,11 +330,11 @@ if __name__ == "__main__":
                 media = vae_test_utils.get_logging_media_for_vae_model_wandb(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    dataset_setting_json_path=f"{config.dataset_dir}/{config.dataset_fname}",
                     subset_name='test',
                     down_sampled_ratio=0.005,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
+                    cached_folder="eval/GrooveEvaluator/templates/i2g",
                     divide_by_genre=True,
                     need_piano_roll=True,
                     need_kl_plot=False,
@@ -359,11 +360,11 @@ if __name__ == "__main__":
                 train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    dataset_setting_json_path=f"{config.dataset_dir}/{config.dataset_fname}",
                     subset_name='train',
                     down_sampled_ratio=0.1,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
+                    cached_folder="eval/GrooveEvaluator/templates/i2g",
                     divide_by_genre=False
                 )
                 wandb.log(train_set_hit_scores, commit=False)
@@ -374,11 +375,11 @@ if __name__ == "__main__":
                 test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
                     groove_transformer_vae=groove_transformer_vae,
                     device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    dataset_setting_json_path=f"{config.dataset_dir}/{config.dataset_fname}",
                     subset_name=args.evaluate_on_subset,
                     down_sampled_ratio=None,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
+                    cached_folder="eval/GrooveEvaluator/templates/i2g",
                     divide_by_genre=False
                 )
                 wandb.log(test_set_hit_scores, commit=False)

@@ -4,6 +4,9 @@ from eval.GrooveEvaluator import load_evaluator
 import os
 
 import logging
+import bz2
+import pickle
+
 logger = logging.getLogger("eval.GrooveEvaluator.templates.main")
 logger.setLevel("DEBUG")
 
@@ -22,19 +25,27 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
     :return:
     """
     # load data using the settings specified in the dataset_setting_json_path
-    if down_sampled_ratio is None:
-        hvo_seq_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_name)
+    if dataset_setting_json_path.endswith(".json"):
+        if down_sampled_ratio is None:
+            hvo_seq_set = load_gmd_hvo_sequences(dataset_setting_json_path, subset_name)
+        else:
+            hvo_seq_set = load_down_sampled_gmd_hvo_sequences(dataset_setting_json_path, subset_name,
+                                                              down_sampled_ratio=down_sampled_ratio,
+                                                              cache_down_sampled_set=False)
     else:
-        hvo_seq_set = load_down_sampled_gmd_hvo_sequences(dataset_setting_json_path, subset_name,
-                                                          down_sampled_ratio=down_sampled_ratio,
-                                                          cache_down_sampled_set=False)
+        with bz2.BZ2File(dataset_setting_json_path, "rb") as file:
+            if down_sampled_ratio is None:
+                loaded_data = pickle.load(file)
+                hvo_seq_set = loaded_data[subset_name]["outputs_hvo_seqs"]
+            else:
+                loaded_data = pickle.load(file)
+                hvo_seq_set = loaded_data[subset_name]["outputs_hvo_seqs"]
+                hvo_seq_set = hvo_seq_set[:int(len(hvo_seq_set) * down_sampled_ratio)]
 
     # create a list of filter dictionaries for each genre if divide_by_genre is True
     if divide_by_genre:
         list_of_filter_dicts_for_subsets = []
-        styles = [
-            "afrobeat", "afrocuban", "blues", "country", "dance", "funk", "gospel", "highlife", "hiphop", "jazz",
-            "latin", "middleeastern", "neworleans", "pop", "punk", "reggae", "rock", "soul"]
+        styles = list(set([hvo_seq.metadata["style_primary"] for hvo_seq in hvo_seq_set]))
         for style in styles:
             list_of_filter_dicts_for_subsets.append(
                 {"style_primary": [style]}  # , "beat_type": ["beat"], "time_signature": ["4-4"]}
@@ -47,13 +58,15 @@ def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=N
     _identifier = f"_{down_sampled_ratio}_ratio_of_{dataset_name}_{subset_name}" \
         if down_sampled_ratio is not None else f"complete_set_of_{dataset_name}_{subset_name}"
 
+    last_dim = hvo_seq_set[0].hvo.shape[-1]
+
     # create the evaluator
     eval = Evaluator(
         hvo_sequences_list_=hvo_seq_set,
         list_of_filter_dicts_for_subsets=list_of_filter_dicts_for_subsets,
         _identifier=_identifier,
         n_samples_to_use=-1,
-        max_hvo_shape=(32, 27),
+        max_hvo_shape=(32, int(last_dim)),
         need_hit_scores=False,
         need_velocity_distributions=False,
         need_offset_distributions=False,

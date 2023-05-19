@@ -220,6 +220,9 @@ class InstrumentGrooveDataset(Dataset):
                         (reference: https://arxiv.org/pdf/1901.05555.pdf)
         """
 
+        # change and \ to / for linux
+        dataset_pickle_path = dataset_pickle_path.replace("\\", "/")
+
         # Get processed inputs, outputs and hvo sequences
         self.inputs = list()
         self.outputs = list()
