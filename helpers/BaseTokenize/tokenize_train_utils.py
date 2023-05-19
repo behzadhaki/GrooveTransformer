@@ -47,7 +47,7 @@ def calculate_velocity_loss(vel_logits, vel_targets):
 def calculate_average_hits_per_batch(token_logits, hit_value):
     tokens = torch.argmax(token_logits, dim=2)
     total_hits = tokens.eq(hit_value).sum(dim=1)
-    avg = total_hits.float().mean()
+    avg = total_hits.float().mean().cpu()
 
     return avg
 
