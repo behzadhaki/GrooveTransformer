@@ -91,8 +91,7 @@ class TokenizedTransformerEncoder(torch.nn.Module):
 
         params_dict = {
             'd_model': self.d_model,
-            'embedding_size': self.embedding_size,
-            'nhead': self.n_head,
+            'n_head': self.n_head,
             'dim_feedforward': self.dim_feedforward,
             'num_encoder_layers': self.num_encoder_layers,
             'dropout': self.dropout,
@@ -108,3 +107,4 @@ class TokenizedTransformerEncoder(torch.nn.Module):
         json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
         torch.save({'model_state_dict': self.state_dict(), 'params': params_dict,
                     'additional_info': additional_info}, save_path)
+        print(f"Saved model at {save_path}")

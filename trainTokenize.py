@@ -35,7 +35,7 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name", defa
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model", type=int, help="Dimension of the encoder model", default=32)
 parser.add_argument("--n_head", type=int, help="Number of attention heads", default=2)
-parser.add_argument("--dim_feedforward", type=int, help="Feed forward dimensions", default=128)
+parser.add_argument("--dim_feedforward", type=int, help="Feed forward dimensions", default=64)
 parser.add_argument("--num_encoder_layers", type=int, help="Number of encoder layers", default=3)
 parser.add_argument("--max_len", type=int, help="Maximum length of the encoder", default=400)
 parser.add_argument("--n_voices", type=int, help="Number of drum voices", default=9)
@@ -79,7 +79,7 @@ parser.add_argument("--hit_score_frequency", type=int, help="Frequency of hit sc
 # ----------------------- Misc Params -----------------------
 parser.add_argument("--save_model", type=bool, help="Save model", default=True)
 parser.add_argument("--save_model_dir", type=str, help="Path to save the model", default="misc/tokenize")
-parser.add_argument("--save_model_frequency", type=int, help="Save model every n epochs", default=100)
+parser.add_argument("--save_model_frequency", type=int, help="Save model every n epochs", default=50)
 
 
 args, unknown = parser.parse_known_args()
@@ -217,25 +217,26 @@ if __name__ == "__main__":
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
                     f"and test loss of {test_log_metrics['test/loss_total']}")
 
+        # Todo: Removing media generation because there are issues with the resolution consistency (4 vs. 96)
         # Generate PianoRolls if needed
         # ---------------------------------------------------------------------------------------------------
-        if args.piano_roll_samples:
-            if epoch % args.piano_roll_frequency == 0:
-                media = tokenize_eval_utils.get_logging_media_for_tokenize_model_wandb(
-                    model=tokenized_model,
-                    device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                    subset_name='test',
-                    down_sampled_ratio=0.005,
-                    vocab=vocab,
-                    cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=True,
-                    max_length=args.max_len,
-                    need_piano_roll=True,
-                    need_kl_plot=False,
-                    need_audio=False
-                )
-                wandb.log(media, commit=False)
+        # if args.piano_roll_samples:
+        #     if epoch % args.piano_roll_frequency == 0:
+        #         media = tokenize_eval_utils.get_logging_media_for_tokenize_model_wandb(
+        #             model=tokenized_model,
+        #             device=config.device,
+        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+        #             subset_name='test',
+        #             down_sampled_ratio=0.005,
+        #             vocab=vocab,
+        #             cached_folder="eval/GrooveEvaluator/templates",
+        #             divide_by_genre=True,
+        #             max_length=args.max_len,
+        #             need_piano_roll=True,
+        #             need_kl_plot=False,
+        #             need_audio=False
+        #         )
+        #         wandb.log(media, commit=False)
 
         # Commit the metrics to wandb
         # ---------------------------------------------------------------------------------------------------
