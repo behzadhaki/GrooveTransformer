@@ -14,7 +14,7 @@ logger.setLevel("DEBUG")
 def calculate_token_loss(token_logits, token_targets):
 
     loss_fn = torch.nn.CrossEntropyLoss()
-    token_loss = loss_fn(token_logits, token_targets)
+    token_loss = loss_fn(token_logits.view(-1, token_logits.shape[-1]), token_targets.view(-1).long())
     return token_loss
 
 def calculate_hit_loss(hit_logits, hit_targets):
@@ -44,9 +44,14 @@ def calculate_velocity_loss(vel_logits, vel_targets):
     loss_v = loss_fn(vel_logits, vel_targets)
     return loss_v       # batch_size,  time_steps, n_voices
 
+def calculate_average_hits_per_batch(token_logits, hit_value):
+    tokens = torch.argmax(token_logits, dim=2)
+    total_hits = tokens.eq(hit_value).sum(dim=1)
+    avg = total_hits.float().mean()
 
+    return avg
 
-def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
+def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None, hit_value=0):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -77,7 +82,7 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
     """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
-    loss_total, loss_token, loss_h, loss_v = [], [], [], []
+    loss_total, loss_token, loss_h, loss_v, avg_hits = [], [], [], [], []
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
@@ -93,7 +98,8 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
-        token_logits, hit_logits, vel_logits = model.forward(in_tokens, in_hv, masks)
+
+        token_logits, hit_logits, vel_logits = model.forward(in_tokens, in_hv, mask=masks)
 
         # Separate hit and velocity targets
         hit_targets, vel_targets = torch.split(out_hv, int(out_hv.shape[2] / 2), 2)
@@ -104,8 +110,8 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
         batch_loss_tokens = calculate_token_loss(token_logits=token_logits, token_targets=out_tokens)
         batch_loss_h = calculate_hit_loss(hit_logits = hit_logits, hit_targets=hit_targets)
         batch_loss_v = calculate_velocity_loss(vel_logits=vel_logits, vel_targets=vel_targets)
+        batch_avg_hits = calculate_average_hits_per_batch(token_logits=token_logits, hit_value=hit_value)
 
-        # Todo: Do I still need this?
         batch_loss_total = (batch_loss_tokens + batch_loss_h + batch_loss_v)
 
         # Backpropagation and optimization step (if training)
@@ -115,12 +121,17 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
             batch_loss_total.backward()
             optimizer.step()
 
+        # Todo: Use raw logits here, and then pass through sigmoid and threshold
+        # Todo: Obtain total number of hits, and return as list of total_hits
+
         # Update the per batch loss trackers
         # -----------------------------------------------------------------
         loss_token.append(batch_loss_tokens.item())
         loss_h.append(batch_loss_h.item())
         loss_v.append(batch_loss_v.item())
+        avg_hits.append(batch_avg_hits)
         loss_total.append(batch_loss_total.item())
+        # Add an average # of hits (total) - only on outputs
 
 
         # Increment the step counter
@@ -136,7 +147,8 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
         "loss_total": np.mean(loss_total),
         "loss_token": np.mean(loss_token),
         "loss_h": np.mean(loss_h),
-        "loss_v": np.mean(loss_v)
+        "loss_v": np.mean(loss_v),
+        "hit_totals": np.mean(avg_hits)
     }
 
     if starting_step is not None:
@@ -145,7 +157,7 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None):
         return metrics
 
 
-def train_loop(train_dataloader, model, optimizer, device, starting_step):
+def train_loop(train_dataloader, model, optimizer, device, starting_step, hit_value=0):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -182,13 +194,14 @@ def train_loop(train_dataloader, model, optimizer, device, starting_step):
         model=model,
         device=device,
         optimizer=optimizer,
-        starting_step=starting_step)
+        starting_step=starting_step,
+        hit_value=hit_value)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
-def test_loop(test_dataloader, model, device):
+def test_loop(test_dataloader, model, device, hit_value=0):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -221,7 +234,8 @@ def test_loop(test_dataloader, model, device):
             dataloader_=test_dataloader,
             model=model,
             device=device,
-            optimizer=None)
+            optimizer=None,
+            hit_value=hit_value)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics

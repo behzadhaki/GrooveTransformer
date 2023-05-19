@@ -296,7 +296,7 @@ def calculateSequenceLength(token_seq):
     provided with a tokenized sequence.
     """
 
-    length = 0
+    length = 1
 
     for token in token_seq:
         token_type = str(token[0])
@@ -341,8 +341,14 @@ def convert_tokenized_sequence_to_hvo_array(tokenized_arrays, num_voices=9, retu
         token_type = str(token[0])
 
         if token_type == "hit":
-            hv[total_delta] = tokenized_arrays[idx][1]
-            pass
+            try:
+                #hv[total_delta] = tokenized_arrays[idx][1]
+                hv[total_delta] = token[1]
+                pass
+            except:
+                print(f"failed on idx {idx} out of {len(tokenized_arrays)}, token is:")
+                print(token)
+
         if "delta" in token_type:
             delta = int(token_type[6:])
             total_delta += delta

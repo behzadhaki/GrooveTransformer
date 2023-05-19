@@ -8,7 +8,7 @@ logger = logging.getLogger("eval.GrooveEvaluator.templates.main")
 logger.setLevel("DEBUG")
 
 
-def create_template(dataset_setting_json_path, subset_name, down_sampled_ratio=None,
+def create_template(dataset_setting_json_path, subset_name, max_sequence_len=32,down_sampled_ratio=None,
                     cached_folder="eval/GrooveEvaluator/templates/", divide_by_genre=True):
     """
     Create a template for the given dataset and subset. The template will ALWAYS be saved in the cached_folder.

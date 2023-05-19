@@ -203,7 +203,8 @@ class MonotonicGrooveDataset(Dataset):
 from hvo_sequence.tokenization import tokenizeConsistentSequence, flattenTokenizedSequence
 
 class MonotonicGrooveTokenizedDataset(Dataset):
-    def __init__(self, dataset_setting_json_path="", vocab=None,
+    def __init__(self, dataset_setting_json_path="/Users/jlenz/Desktop/Thesis/GrooveTransformer/data/dataset_json_settings/BeatsAndFills_gmd_96.json",
+                 vocab=None,
                  subset_tag="Train", subset=None,
                  tapped_voice_idx=2, flatten_velocities=False,
                  ticks_per_beat=96, delta_grains=[1, 2, 5, 10, 15, 20],

@@ -75,6 +75,7 @@ class HVOSetSubsetter(object):
                 hvo_seq.hvo = np.pad(hvo_seq.hvo, ((0, pad_count), (0, 0)), 'constant')
                 hvo_seq.hvo = hvo_seq.hvo[:max_len, :]  # In case, sequence exceeds max_len
 
+
         self.subset_tags = None
         self.hvo_subsets = None
 

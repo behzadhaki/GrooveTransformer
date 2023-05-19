@@ -7,8 +7,6 @@ import model.BaseTokenize.shared_model_components
 from model.BaseTokenize import shared_model_components
 from model.BaseTokenize.utils import *
 
-
-
 class TokenizedTransformerEncoder(torch.nn.Module):
     """
     An encoder-only transformer
@@ -17,8 +15,7 @@ class TokenizedTransformerEncoder(torch.nn.Module):
         super(TokenizedTransformerEncoder, self).__init__()
 
         self.d_model = config['d_model']
-        self.embedding_size = config['embedding_size']
-        self.nhead = config['nhead']
+        self.n_head = config['n_head']
         self.dim_feedforward = config['dim_feedforward']
         self.num_encoder_layers = config['num_encoder_layers']
         self.dropout = config['dropout']
@@ -26,11 +23,13 @@ class TokenizedTransformerEncoder(torch.nn.Module):
         self.device = config['device']
 
         # New parameters from tokenization
+        self.embedding_size = (config["n_voices"] * 2)
         self.n_token_types = config['n_token_types']
         self.token_embedding_ratio = config['token_embedding_ratio']
         self.token_type_loc = config['token_type_loc']
         self.padding_idx = config['padding_idx']
         self.n_voices = config['n_voices']
+
 
 
     # Layers
@@ -46,7 +45,7 @@ class TokenizedTransformerEncoder(torch.nn.Module):
 
         self.Encoder = model.BaseTokenize.shared_model_components.Encoder(
             d_model=self.d_model,
-            nhead=self.nhead,
+            nhead=self.n_head,
             dim_feedforward=self.dim_feedforward,
             dropout=self.dropout,
             num_encoder_layers=self.num_encoder_layers,
@@ -85,10 +84,6 @@ class TokenizedTransformerEncoder(torch.nn.Module):
         else:
             return encode_decode(input_tokens, input_hv, mask)
 
-
-
-
-
     def save(self, save_path, additional_info=None):
         if not save_path.endswith('.pth'):
             save_path += '.pth'
@@ -97,7 +92,7 @@ class TokenizedTransformerEncoder(torch.nn.Module):
         params_dict = {
             'd_model': self.d_model,
             'embedding_size': self.embedding_size,
-            'nhead': self.nhead,
+            'nhead': self.n_head,
             'dim_feedforward': self.dim_feedforward,
             'num_encoder_layers': self.num_encoder_layers,
             'dropout': self.dropout,

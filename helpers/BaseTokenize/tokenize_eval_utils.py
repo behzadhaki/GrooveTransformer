@@ -1,11 +1,10 @@
 #  Copyright (c) 2022. \n Created by Behzad Haki. behzad.haki@upf.edu
-import torch
-import numpy as np
-# from model import GrooveTransformerEncoderVAE
+
 from model import TokenizedTransformerEncoder
 from eval.GrooveEvaluator import load_evaluator_template
 from data import MonotonicGrooveTokenizedDataset
 from hvo_sequence.tokenization import *
+from hvo_sequence import note_sequence_to_hvo_sequence
 
 from logging import getLogger
 logger = getLogger("helpers.VAE.eval_utils")
@@ -13,7 +12,7 @@ logger.setLevel("DEBUG")
 
 
 def get_logging_media_for_tokenize_model_wandb(
-        groove_transformer_tokenize, device, dataset_setting_json_path, subset_name,
+        model, device, dataset_setting_json_path, subset_name,
         down_sampled_ratio, vocab,
         cached_folder="eval/GrooveEvaluator/templates/",
         divide_by_genre=True, max_length=400,
@@ -37,11 +36,11 @@ def get_logging_media_for_tokenize_model_wandb(
     """
 
     # and model is correct type
-    assert isinstance(groove_transformer_tokenize, TokenizedTransformerEncoder)
+    assert isinstance(model, TokenizedTransformerEncoder)
 
     # load the evaluator template (or create a new one if it does not exist)
     evaluator = load_evaluator_template(
-        dataset_setting_json_path=dataset_setting_json_path,
+        dataset_setting_json_path="/data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_name=subset_name,
         down_sampled_ratio=down_sampled_ratio,
         cached_folder=cached_folder,
@@ -66,15 +65,8 @@ def get_logging_media_for_tokenize_model_wandb(
     need_audio = kwargs["need_audio"] if "need_audio" in kwargs.keys() else False
     need_kl_oa = kwargs["need_kl_oa"] if "need_kl_oa" in kwargs.keys() else False
 
-    # New version:
-    # Get the sequences (as hvo objects)
-    # Tokenize them (with pre-defined vocab)
-    # Run through the model
-    # Convert outputs to standard HVO arrays
-    # Feed back into evaluator as predictions
-
-    input_hvo_seqs = evaluator.get_ground_truth_hvos_sequences()
-
+    # Get ground truth sequences and tokenize them
+    input_hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
     eval_dataset = MonotonicGrooveTokenizedDataset(dataset_setting_json_path=dataset_setting_json_path,
                                                    vocab=vocab,
                                                    subset_tag="Test",
@@ -83,27 +75,53 @@ def get_logging_media_for_tokenize_model_wandb(
                                                    flatten_velocities=False,
                                                    ticks_per_beat=96,
                                                    max_length=max_length)
-
-    # Get input data, run it through the model
+    reverse_vocab = {v: k for k, v in eval_dataset.get_vocab_dictionary().items()}
     input_tokens, input_hv, masks = eval_dataset.get_input_arrays()
-    t, h, v = groove_transformer_tokenize.predict(input_tokens, input_hv, masks)
 
-    # Convert model outputs into a single batched HVO array
-    # (tokejns, hits, vels) -> tokenized_sequence(list) -> hvo array(numpy) -> Slice & batch
-    #Todo: Is there some issue with how I'm going from torch->numpy?
-    reverse_vocab = {v: k for k, v in eval_dataset.vocab().items()}
     output_hvo_arrays = list()
-    for tokens, hits, velocities in zip(t, h, v):
-        tokenized_seq = convert_model_output_to_tokenized_sequence(tokens, hits, velocities, reverse_vocab=reverse_vocab)
+    # Initialize un-quantized HVO sequence
+    hvo_seq = HVO_Sequence(beat_division_factors=[96],
+                           drum_mapping=ROLAND_REDUCED_MAPPING)
+    hvo_seq.add_time_signature(time_step=0, numerator=4, denominator=4)
+    hvo_seq.add_tempo(time_step=0, qpm=120)
+
+    """
+    For each sequence:
+    1. Convert dimensionality to 3D and run through model
+    2. Convert outputs to the tokenized format (string_token, HV_array)
+    3. Convert tokenized format to HVO array
+    4. Save HVO to a note sequence
+    5. Reload as a new HVO object, with standard HVO beat quantization (16ths)
+    6. Append array to the list 
+    """
+
+    for token, hv, mask in zip(input_tokens, input_hv, masks):
+        token = token.unsqueeze(0)
+        hv = hv.unsqueeze(0)
+        mask = mask.unsqueeze(0)
+        t, h, v = model.predict(token, hv, mask)
+        t = t.squeeze(0)
+        h = h.squeeze(0)
+        v = v.squeeze(0)
+        tokenized_seq = convert_model_output_to_tokenized_sequence(t, h, v, reverse_vocab=reverse_vocab)
         hvo_array = convert_tokenized_sequence_to_hvo_array(tokenized_seq)
-        output_hvo_arrays.append(hvo_array)
 
-    #Todo: How can we deal with sequences of different lengths?
-    seq_slice = 1000
-    output_hvo_arrays = [array[:seq_slice, :] for array in output_hvo_arrays]
-    output_hvo_arrays = np.stack(output_hvo_arrays)
+        # New HVO Sequence object
+        hvo_seq.hvo = hvo_array
+        print(hvo_seq.hits.shape)
+        if hvo_seq.hits.sum() > 0:
+            note_seq = hvo_seq.to_note_sequence()
 
-    evaluator.add_predictions(output_hvo_arrays)
+            # Load into quantized HVO and add to list of output HVO arrays
+            hvo_seq_quant = note_sequence_to_hvo_sequence(note_seq,
+                                                          drum_mapping=ROLAND_REDUCED_MAPPING,
+                                                          beat_division_factors=[4])
+            hvo_seq_quant.adjust_length(32)
+            output_hvo_arrays.append(hvo_seq_quant.hvo)
+        else:
+            output_hvo_arrays.append(np.zeros((32, 9)))
+
+    evaluator.add_predictions(np.stack(output_hvo_arrays))
 
     # Get the media from the evaluator
     # -------------------------------
