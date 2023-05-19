@@ -67,7 +67,7 @@ def get_logging_media_for_tokenize_model_wandb(
 
     # Get ground truth sequences and tokenize them
     input_hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
-    eval_dataset = MonotonicGrooveTokenizedDataset(dataset_setting_json_path=dataset_setting_json_path,
+    eval_dataset = MonotonicGrooveTokenizedDataset(dataset_setting_json_path="/data/dataset_json_settings/4_4_Beats_gmd.json",
                                                    vocab=vocab,
                                                    subset_tag="Test",
                                                    subset=input_hvo_seqs,
