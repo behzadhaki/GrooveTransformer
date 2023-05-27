@@ -172,6 +172,7 @@ class LatentLayer(torch.nn.Module):
 
         self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
         self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
+        print(f"max len: {max_len}")
 
     def init_weights(self, initrange=0.1):
         self.fc_mu.bias.data.zero_()
@@ -188,6 +189,7 @@ class LatentLayer(torch.nn.Module):
         result = torch.flatten(src, start_dim=1)
         # Split the result into mu and var components
         # of the latent Gaussian distribution
+
         mu = self.fc_mu(result)
         log_var = self.fc_var(result)
 
@@ -256,7 +258,7 @@ class VAE_Decoder(torch.nn.Module):
 
         self.latent_dim = latent_dim
         self.d_model = d_model
-        self.num_decoder_layers =    num_decoder_layers
+        self.num_decoder_layers = num_decoder_layers
         self.nhead = nhead
         self.dim_feedforward = dim_feedforward
         self.output_max_len = output_max_len

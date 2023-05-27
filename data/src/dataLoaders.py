@@ -1,4 +1,5 @@
 from data.src.utils import get_data_directory_using_filters, get_drum_mapping_using_label, load_original_gmd_dataset_pickle, extract_hvo_sequences_dict, pickle_hvo_dict
+from data.control.control_utils import calculate_density
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -60,6 +61,146 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
         ifile.close()
 
     return data
+
+class GrooveDataSet_Density(Dataset):
+    def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
+                 collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
+                 down_sampled_ratio=None, move_all_to_gpu=False,
+                 hit_loss_balancing_beta=0, genre_loss_balancing_beta=0):
+        """
+
+        :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
+        :param subset_tag:                [str] whether to load the train/test/validation set
+        :param max_len:              [int] maximum length of the sequences to be loaded
+        :param tapped_voice_idx:    [int] index of the voice to be tapped (default is 2 which is usually closed hat)
+        :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
+        :param load_as_tensor:      [bool] loads the data as a tensor of torch.float32 instead of a numpy array
+        :param sort_by_metadata_key: [str] sorts the data by the metadata key provided (e.g. "tempo")
+        :param down_sampled_ratio: [float] down samples the data by the ratio provided (e.g. 0.5)
+        :param move_all_to_gpu: [bool] moves all the data to the gpu
+        :param hit_loss_balancing_beta: [float] beta parameter for hit balancing
+                            (if 0 or very small, no hit balancing weights are returned)
+        :param genre_loss_balancing_beta: [float] beta parameter for genre balancing
+                            (if 0 or very small, no genre balancing weights are returned)
+                hit_loss_balancing_beta and genre_balancing_beta are used to balance the data
+                according to the hit and genre distributions of the dataset
+                (reference: https://arxiv.org/pdf/1901.05555.pdf)
+        """
+
+        # Get processed inputs, outputs and hvo sequences
+        self.inputs = list()
+        self.outputs = list()
+        self.hvo_sequences = list()
+        self.densities = list()
+
+        # load pre-stored hvo_sequences or
+        #   a portion of them uniformly sampled if down_sampled_ratio is provided
+        # ------------------------------------------------------------------------------------------
+        if down_sampled_ratio is None:
+            subset = load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False)
+        else:
+            subset = load_down_sampled_gmd_hvo_sequences(
+                dataset_setting_json_path=dataset_setting_json_path,
+                subset_tag=subset_tag,
+                force_regenerate=False,
+                down_sampled_ratio=down_sampled_ratio,
+                cache_down_sampled_set=True
+            )
+
+        # Sort data by a given metadata key if provided (e.g. "style_primary")
+        # ------------------------------------------------------------------------------------------
+        if sort_by_metadata_key:
+            if sort_by_metadata_key in subset[0].metadata[sort_by_metadata_key]:
+                subset = sorted(subset, key=lambda x: x.metadata[sort_by_metadata_key])
+
+        # collect input tensors, output tensors, and hvo_sequences
+        # ------------------------------------------------------------------------------------------
+        for idx, hvo_seq in enumerate(tqdm(subset)):
+            if hvo_seq.hits is not None:
+                hvo_seq.adjust_length(max_len)
+                if np.any(hvo_seq.hits):
+                    # Ensure all have a length of max_len
+                    self.hvo_sequences.append(hvo_seq)
+                    self.outputs.append(hvo_seq.hvo)
+                    flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
+                    self.inputs.append(flat_seq)
+                    density = calculate_density(hvo_seq.hits)
+                    self.densities.append(density)
+
+        self.inputs = np.array(self.inputs)
+        self.outputs = np.array(self.outputs)
+
+        # Get hit balancing weights if a beta parameter is provided
+        # ------------------------------------------------------------------------------------------
+        # get the effective number of hits per step and voice
+        hits = self.outputs[:, :, :self.outputs.shape[-1] // 3]
+        total_hits = hits.sum(0) + 1e-6
+        effective_num_hits = 1.0 - np.power(hit_loss_balancing_beta, total_hits)
+        hit_balancing_weights = (1.0 - hit_loss_balancing_beta) / effective_num_hits
+        # normalize
+        num_classes = hit_balancing_weights.shape[0] * hit_balancing_weights.shape[1]
+        hit_balancing_weights = hit_balancing_weights / hit_balancing_weights.sum() * num_classes
+        self.hit_balancing_weights_per_sample = [hit_balancing_weights for _ in range(len(self.outputs))]
+
+        # Get genre balancing weights if a beta parameter is provided
+        # ------------------------------------------------------------------------------------------
+        # get the effective number of genres
+        genres_per_sample = [sample.metadata["style_primary"] for sample in self.hvo_sequences]
+        genre_counts = {genre: genres_per_sample.count(genre) for genre in set(genres_per_sample)}
+        effective_num_genres = 1.0 - np.power(genre_loss_balancing_beta, list(genre_counts.values()))
+        genre_balancing_weights = (1.0 - genre_loss_balancing_beta) / effective_num_genres
+        # normalize
+        genre_balancing_weights = genre_balancing_weights / genre_balancing_weights.sum() * len(genre_counts)
+        genre_balancing_weights = {genre: weight for genre, weight in
+                                   zip(genre_counts.keys(), genre_balancing_weights)}
+        t_steps = self.outputs.shape[1]
+        n_voices = self.outputs.shape[2] // 3
+        temp_row = np.ones((t_steps, n_voices))
+        self.genre_balancing_weights_per_sample = np.array(
+            [temp_row * genre_balancing_weights[sample.metadata["style_primary"]]
+             for sample in self.hvo_sequences])
+
+        # Load as tensor if requested
+        # ------------------------------------------------------------------------------------------
+        if load_as_tensor or move_all_to_gpu:
+            self.inputs = torch.tensor(self.inputs, dtype=torch.float32)
+            self.outputs = torch.tensor(self.outputs, dtype=torch.float32)
+            self.densities = torch.tensor(self.densities, dtype=torch.float32)
+            if hit_loss_balancing_beta is not None:
+                self.hit_balancing_weights_per_sample = torch.tensor(self.hit_balancing_weights_per_sample,
+                                                                     dtype=torch.float32)
+            if genre_loss_balancing_beta is not None:
+                self.genre_balancing_weights_per_sample = torch.tensor(self.genre_balancing_weights_per_sample,
+                                                                       dtype=torch.float32)
+
+        # Move to GPU if requested and GPU is available
+        # ------------------------------------------------------------------------------------------
+        if move_all_to_gpu and torch.cuda.is_available():
+            self.inputs = self.inputs.to('cuda')
+            self.outputs = self.outputs.to('cuda')
+            self.densities = self.densities.to('cuda')
+            if hit_loss_balancing_beta is not None:
+                self.hit_balancing_weights_per_sample = self.hit_balancing_weights_per_sample.to('cuda')
+            if genre_loss_balancing_beta is not None:
+                self.genre_balancing_weights_per_sample = self.genre_balancing_weights_per_sample.to('cuda')
+
+        dataLoaderLogger.info(f"Loaded {len(self.inputs)} sequences")
+
+    def __len__(self):
+        return len(self.hvo_sequences)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.outputs[idx], self.densities[idx], \
+               self.hit_balancing_weights_per_sample[idx], self.genre_balancing_weights_per_sample[idx], idx
+
+    def get_hvo_sequences_at(self, idx):
+        return self.hvo_sequences[idx]
+
+    def get_inputs_at(self, idx):
+        return self.inputs[idx]
+
+    def get_outputs_at(self, idx):
+        return self.outputs[idx]
 
 
 class MonotonicGrooveDataset(Dataset):

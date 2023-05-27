@@ -37,7 +37,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         super(GrooveTransformerEncoderVAE, self).__init__()
 
         assert config['o_activation'] in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
-        assert config['embedding_size_src'] % 3 == 0, 'embedding_size_src must be divisible by 3'
+        #assert config['embedding_size_src'] % 3 == 0, 'embedding_size_src must be divisible by 3'
         assert config['embedding_size_tgt'] % 3 == 0, 'embedding_size_tgt must be divisible by 3'
 
         # HParams
@@ -75,7 +75,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             dropout=self.dropout)
 
         self.LatentEncoder = VAE_components.LatentLayer(
-            max_len=self.max_len_dec,
+            max_len=self.max_len_enc, #changed dec to enc
             d_model=self.d_model_enc,
             latent_dim=self.latent_dim)
 

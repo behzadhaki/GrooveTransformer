@@ -172,8 +172,7 @@ if __name__ == "__main__":
     wandb_run = wandb.init(
         config=hparams,                         # either from config file or CLI specified hyperparameters
         project=hparams["wandb_project"],          # name of the project
-        anonymous="allow",
-        entity="nime2022_anon",                          # saves in the mmil_vae_cntd team account
+        entity="mmil_julian",                          # saves in the mmil_vae_cntd team account
         settings=wandb.Settings(code_dir="train.py")    # for code saving
     )
 
