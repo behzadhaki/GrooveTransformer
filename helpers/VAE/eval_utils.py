@@ -65,7 +65,7 @@ def get_logging_media_for_vae_model_wandb(
     """
 
     # and model is correct type
-    assert isinstance(groove_transformer_vae, GrooveTransformerEncoderVAE)
+    #assert isinstance(groove_transformer_vae, GrooveTransformerEncoderVAE)
 
     # load the evaluator template (or create a new one if it does not exist)
     evaluator = load_evaluator_template(

@@ -3,9 +3,9 @@ import os
 import wandb
 
 import torch
-from model import GrooveTransformerEncoderVAE
+from model import GrooveTransformerEncoderVAE, GrooVAEDensity1D
 from helpers import vae_train_utils, vae_test_utils
-from data.src.dataLoaders import MonotonicGrooveDataset
+from data.src.dataLoaders import MonotonicGrooveDataset, GrooveDataSet_Density
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
@@ -37,7 +37,7 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
 parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
-parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
+parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=27)
 parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
 parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
 parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
@@ -54,6 +54,10 @@ parser.add_argument("--n_dec_lyrs_ratio", type=float, help="Number of decoder la
 parser.add_argument("--max_len_enc", type=int, help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decoder", default=32)
 parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=16)
+
+# ----------------------- Control Parameters -----------------------
+parser.add_argument("--n_params", type=int, help="Number of controllability parameters", default=1)
+parser.add_argument("--add_params", type=bool, help="Set to 'True' if concatenating params horizontally", default=True)
 
 # ----------------------- Loss Parameters -----------------------
 parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta parameter for hit loss balancing", default=0.0)
@@ -131,6 +135,8 @@ else:
         num_decoder_layers=num_decoder_layers,
         embedding_size_src=args.embedding_size_src,
         embedding_size_tgt=args.embedding_size_tgt,
+        n_params=args.n_params,
+        add_params=args.add_params,
         nhead_enc=args.nhead_enc,
         nhead_dec=args.nhead_dec,
         dropout=args.dropout,
@@ -186,7 +192,7 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
     should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
-    training_dataset = MonotonicGrooveDataset(
+    training_dataset = GrooveDataSet_Density(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="train",
         max_len=int(args.max_len_enc),
@@ -199,7 +205,7 @@ if __name__ == "__main__":
     )
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
-    test_dataset = MonotonicGrooveDataset(
+    test_dataset = GrooveDataSet_Density(
         dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
         subset_tag="test",
         max_len=int(args.max_len_enc),
@@ -213,10 +219,10 @@ if __name__ == "__main__":
 
     # Initialize the model
     # ------------------------------------------------------------------------------------------------------------
-    groove_transformer_vae_cpu = GrooveTransformerEncoderVAE(config)
+    model = GrooVAEDensity1D(config)
 
-    groove_transformer_vae = groove_transformer_vae_cpu.to(config.device)
-    wandb.watch(groove_transformer_vae, log="all", log_freq=1)
+    groove_1D_density_model = model.to(config.device)
+    wandb.watch(groove_1D_density_model, log="all", log_freq=1)
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
@@ -237,9 +243,9 @@ if __name__ == "__main__":
         offset_loss_fn = torch.nn.MSELoss(reduction='none')
 
     if config.optimizer == 'adam':
-        optimizer = torch.optim.Adam(groove_transformer_vae.parameters(), lr=config.lr)
+        optimizer = torch.optim.Adam(groove_1D_density_model.parameters(), lr=config.lr)
     else:
-        optimizer = torch.optim.SGD(groove_transformer_vae.parameters(), lr=config.lr)
+        optimizer = torch.optim.SGD(groove_1D_density_model.parameters(), lr=config.lr)
 
     # Iterate over epochs
     # ------------------------------------------------------------------------------------------------------------
@@ -247,7 +253,7 @@ if __name__ == "__main__":
     step_ = 0
 
     beta_np_cyc = vae_train_utils.generate_beta_curve(
-        n_epochs=config.epochs, 
+        n_epochs=config.epochs,
         period_epochs=config.beta_annealing_per_cycle_period,
         rise_ratio=config.beta_annealing_per_cycle_rising_ratio,
         start_first_rise_at_epoch=config.beta_annealing_start_first_rise_at_epoch)
@@ -257,13 +263,13 @@ if __name__ == "__main__":
 
         # Run the training loop (trains per batch internally)
         # ------------------------------------------------------------------------------------------
-        groove_transformer_vae.train()
+        groove_1D_density_model.train()
 
         logger.info("***************************Training...")
 
         train_log_metrics, step_ = vae_train_utils.train_loop(
             train_dataloader=train_dataloader,
-            model=groove_transformer_vae,
+            model=groove_1D_density_model,
             optimizer=optimizer,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
@@ -282,13 +288,13 @@ if __name__ == "__main__":
         #     - To ensure not overloading the GPU, we evaluate the model on the test set also in batche
         #           rather than all at once
         # ---------------------------------------------------------------------------------------------------
-        groove_transformer_vae.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
+        groove_1D_density_model.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
 
         logger.info("***************************Testing...")
 
         test_log_metrics = vae_train_utils.test_loop(
             test_dataloader=test_dataloader,
-            model=groove_transformer_vae,
+            model=groove_1D_density_model,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
@@ -303,64 +309,64 @@ if __name__ == "__main__":
 
         # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
-        if args.piano_roll_samples:
-            if epoch % args.piano_roll_frequency == 0:
-                media = vae_test_utils.get_logging_media_for_vae_model_wandb(
-                    groove_transformer_vae=groove_transformer_vae,
-                    device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                    subset_name='test',
-                    down_sampled_ratio=0.005,
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=True,
-                    need_piano_roll=True,
-                    need_kl_plot=False,
-                    need_audio=False
-                )
-                wandb.log(media, commit=False)
-
-                # umap
-                media = vae_test_utils.generate_umap_for_vae_model_wandb(
-                    groove_transformer_vae=groove_transformer_vae,
-                    device=config.device,
-                    test_dataset=test_dataset,
-                    subset_name='test',
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                )
-                wandb.log(media, commit=False)
+        # if args.piano_roll_samples:
+        #     if epoch % args.piano_roll_frequency == 0:
+        #         media = vae_test_utils.get_logging_media_for_vae_model_wandb(
+        #             groove_transformer_vae=groove_1D_density_model,
+        #             device=config.device,
+        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+        #             subset_name='test',
+        #             down_sampled_ratio=0.005,
+        #             collapse_tapped_sequence=collapse_tapped_sequence,
+        #             cached_folder="eval/GrooveEvaluator/templates",
+        #             divide_by_genre=True,
+        #             need_piano_roll=True,
+        #             need_kl_plot=False,
+        #             need_audio=False
+        #         )
+        #         wandb.log(media, commit=False)
+        #
+        #         # umap
+        #         media = vae_test_utils.generate_umap_for_vae_model_wandb(
+        #             groove_transformer_vae=groove_1D_density_model,
+        #             device=config.device,
+        #             test_dataset=test_dataset,
+        #             subset_name='test',
+        #             collapse_tapped_sequence=collapse_tapped_sequence,
+        #         )
+        #         wandb.log(media, commit=False)
 
         # Get Hit Scores for the entire train and the entire test set
         # ---------------------------------------------------------------------------------------------------
-        if args.calculate_hit_scores_on_train:
-            if epoch % args.hit_score_frequency == 0:
-                logger.info("________Calculating Hit Scores on Train Set...")
-                train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
-                    groove_transformer_vae=groove_transformer_vae,
-                    device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                    subset_name='train',
-                    down_sampled_ratio=0.1,
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=False
-                )
-                wandb.log(train_set_hit_scores, commit=False)
-
-        if args.calculate_hit_scores_on_test:
-            if epoch % args.hit_score_frequency == 0:
-                logger.info("________Calculating Hit Scores on Test Set...")
-                test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
-                    groove_transformer_vae=groove_transformer_vae,
-                    device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                    subset_name=args.evaluate_on_subset,
-                    down_sampled_ratio=None,
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                    cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=False
-                )
-                wandb.log(test_set_hit_scores, commit=False)
+        # if args.calculate_hit_scores_on_train:
+        #     if epoch % args.hit_score_frequency == 0:
+        #         logger.info("________Calculating Hit Scores on Train Set...")
+        #         train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
+        #             groove_transformer_vae=groove_1D_density_model,
+        #             device=config.device,
+        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+        #             subset_name='train',
+        #             down_sampled_ratio=0.1,
+        #             collapse_tapped_sequence=collapse_tapped_sequence,
+        #             cached_folder="eval/GrooveEvaluator/templates",
+        #             divide_by_genre=False
+        #         )
+        #         wandb.log(train_set_hit_scores, commit=False)
+        #
+        # if args.calculate_hit_scores_on_test:
+        #     if epoch % args.hit_score_frequency == 0:
+        #         logger.info("________Calculating Hit Scores on Test Set...")
+        #         test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
+        #             groove_transformer_vae=groove_1D_density_model,
+        #             device=config.device,
+        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+        #             subset_name=args.evaluate_on_subset,
+        #             down_sampled_ratio=None,
+        #             collapse_tapped_sequence=collapse_tapped_sequence,
+        #             cached_folder="eval/GrooveEvaluator/templates",
+        #             divide_by_genre=False
+        #         )
+        #         wandb.log(test_set_hit_scores, commit=False)
 
         # Commit the metrics to wandb
         # ---------------------------------------------------------------------------------------------------
@@ -378,7 +384,7 @@ if __name__ == "__main__":
                     ep_ = epoch
                 model_artifact = wandb.Artifact(f'model_epoch_{ep_}', type='model')
                 model_path = f"{args.save_model_dir}/{args.wandb_project}/{run_name}_{run_id}/{ep_}.pth"
-                groove_transformer_vae.save(model_path)
+                groove_1D_density_model.save(model_path)
                 model_artifact.add_file(model_path)
                 wandb_run.log_artifact(model_artifact)
                 logger.info(f"Model saved to {model_path}")

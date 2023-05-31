@@ -115,6 +115,65 @@ class InputLayer(torch.nn.Module):
         return out
 
 
+class InputLayer1DParam(torch.nn.Module):
+    """
+    Takes two inputs: HVO (N x 32 x embed_size) and params (N x 1 x n_params)
+    Projects both to d_model and concatenates, returning a (N x 33 x d_model) tensor
+    """
+
+    def __init__(self, embedding_size, n_params, d_model, dropout, max_len):
+        super(InputLayer1DParam, self).__init__()
+
+        self.HVOLinear = torch.nn.Linear(embedding_size, d_model, bias=True)
+        self.ParamLinear = torch.nn.Linear(n_params, d_model, bias=True)
+        self.ReLU = torch.nn.ReLU()
+        self.PositionalEncoding = PositionalEncoding(d_model, (max_len + n_params), dropout)
+
+    def init_weights(self, initrange=0.1):
+        self.HVOLinear.bias.data.zero_()
+        self.HVOLinear.weight.data.uniform_(-initrange, initrange)
+        self.ParamLinear.bias.data.zero_()
+        self.ParamLinear.weight.data.uniform_(-initrange, initrange)
+
+    def forward(self, hvo, params):
+        hvo_projection = self.HVOLinear(hvo)
+        params = params[:, None, None]
+        param_projection = self.ParamLinear(params)
+        x = torch.cat((param_projection, hvo_projection), dim=1)
+        x = self.ReLU(x)
+        out = self.PositionalEncoding(x)
+
+        return out
+
+class InputLayer2DParam(torch.nn.Module):
+    """
+    Takes two inputs: HVO (N x 32 x embed_size) and params (N x 1 x n_params)
+    Projects both to d_model and concatenates, returning a (N x 33 x d_model) tensor
+    """
+
+    def __init__(self, embedding_size, n_params, d_model, dropout, max_len):
+        super(InputLayer2DParam, self).__init__()
+
+        self.Linear = torch.nn.Linear((embedding_size + n_params), d_model, bias=True)
+        self.ReLU = torch.nn.ReLU()
+        self.PositionalEncoding = PositionalEncoding(d_model, max_len, dropout)
+
+    def init_weights(self, initrange=0.1):
+        self.Linear.bias.data.zero_()
+        self.Linear.weight.data.uniform_(-initrange, initrange)
+
+    def forward(self, hvo, params):
+
+        params = torch.unsqueeze(params, dim=1)
+        params = params.repeat(1, hvo.shape[1], 1)
+        src = torch.cat((hvo, params), dim=2)
+        x = self.Linear(src)
+        x = self.ReLU(x)
+        out = self.PositionalEncoding(x)
+
+        return out
+
+
 class OutputLayer(torch.nn.Module):
     """ Maps the dimension of the output of a decoded sequence into to the dimension of the output
 
@@ -167,11 +226,15 @@ class LatentLayer(torch.nn.Module):
    :return: mu, log_var, z (Tensor) [B x max_len_enc x d_model_enc]
    """
 
-    def __init__(self, max_len, d_model, latent_dim):
+    def __init__(self, max_len, d_model, latent_dim, add_params=False, n_params=0):
         super(LatentLayer, self).__init__()
 
-        self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
-        self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
+        if add_params:
+            self.fc_mu = torch.nn.Linear(int(max_len + n_params) * d_model, latent_dim)
+            self.fc_var = torch.nn.Linear(int((max_len + n_params) * d_model * n_params), latent_dim)
+        else:
+            self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
+            self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
         print(f"max len: {max_len}")
 
     def init_weights(self, initrange=0.1):

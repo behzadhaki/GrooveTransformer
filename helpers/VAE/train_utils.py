@@ -140,7 +140,7 @@ def calculate_kld_loss(mu, log_var):
     return kld_loss     # batch_size,  time_steps, n_voices
 
 
-def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
+def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0,
                reduce_by_sum=False):
     """
@@ -152,7 +152,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
 
     :param dataloader_:     (torch.utils.data.DataLoader)  dataloader for the dataset
-    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param model:  (GrooveTransformerVAE)  the model
     :param hit_loss_fn:     (str)  either "dice" or "bce"
     :param velocity_loss_fn:    (str)  either "mse" or "bce"
     :param offset_loss_fn:  (str)  either "mse" or "bce"
@@ -178,13 +178,14 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_,
+    for batch_count, (inputs_, outputs_, densities_,
                       hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
                       indices) in enumerate(dataloader_):
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
         inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
         outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
+        densities = densities_.to(device) if densities_.device.type!= device else densities_
         hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
             if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
         genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
@@ -192,7 +193,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
-        (h_logits, v_logits, o_logits), mu, log_var, latent_z = groove_transformer_vae.forward(inputs)
+        (h_logits, v_logits, o_logits), mu, log_var, latent_z = model.forward(inputs, densities)
 
         # Prepare targets for loss calculation
         h_targets, v_targets, o_targets = torch.split(outputs, int(outputs.shape[2] / 3), 2)
@@ -265,7 +266,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         return metrics
 
 
-def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
+def train_loop(train_dataloader, model, optimizer, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, starting_step, kl_beta=1, reduce_by_sum=False):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
@@ -273,7 +274,7 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     returned at the end of the loop.
 
     :param train_dataloader:    (torch.utils.data.DataLoader)  dataloader for the training dataset
-    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param model:  (GrooveTransformerVAE)  the model
     :param optimizer:  (torch.optim.Optimizer)  the optimizer to use for the model (sgd or adam)
     :param hit_loss_fn:     ("dice" or torch.nn.BCEWithLogitsLoss)
     :param velocity_loss_fn:  (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
@@ -294,14 +295,14 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
                     "train/loss_KL": np.mean(loss_KL)}
     """
     # ensure model is in training mode
-    if groove_transformer_vae.training is False:
+    if model.training is False:
         logger.warning("Model is not in training mode. Setting to training mode.")
-        groove_transformer_vae.train()
+        model.train()
 
     # Run the batch loop
     metrics, starting_step = batch_loop(
         dataloader_=train_dataloader,
-        groove_transformer_vae=groove_transformer_vae,
+        model=model,
         hit_loss_fn=hit_loss_fn,
         velocity_loss_fn=velocity_loss_fn,
         offset_loss_fn=offset_loss_fn,
@@ -315,15 +316,15 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     return metrics, starting_step
 
 
-def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, kl_beta=1, reduce_by_sum=False):
+def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
+              offset_loss_fn, device, kl_beta=1, reduce_by_sum=False):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
     of the loop.
 
     :param test_dataloader:   (torch.utils.data.DataLoader)  dataloader for the test dataset
-    :param groove_transformer_vae:  (GrooveTransformerVAE)  the model
+    :param model:  (GrooveTransformerVAE)  the model
     :param hit_loss_fn:     ("dice" or torch.nn.BCEWithLogitsLoss)
     :param velocity_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
     :param offset_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
@@ -341,15 +342,15 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
                     "test/loss_KL": np.mean(loss_KL)}
     """
     # ensure model is in eval mode
-    if groove_transformer_vae.training is True:
+    if model.training is True:
         logger.warning("Model is not in eval mode. Setting to eval mode.")
-        groove_transformer_vae.eval()
+        model.eval()
 
     with torch.no_grad():
         # Run the batch loop
         metrics = batch_loop(
             dataloader_=test_dataloader,
-            groove_transformer_vae=groove_transformer_vae,
+            model=model,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
