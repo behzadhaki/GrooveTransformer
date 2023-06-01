@@ -67,6 +67,9 @@ def get_logging_media_for_vae_model_wandb(
     # and model is correct type
     #assert isinstance(groove_transformer_vae, GrooveTransformerEncoderVAE)
 
+    # Todo: Manually load Evaluator class, with custom dict of params, i.e. Density
+    # https://github.com/behzadhaki/GrooveTransformer/blob/main/documentation/chapter3_Evaluator/1_grooveevalbasics.md#22-initialization-
+
     # load the evaluator template (or create a new one if it does not exist)
     evaluator = load_evaluator_template(
         dataset_setting_json_path=dataset_setting_json_path,
