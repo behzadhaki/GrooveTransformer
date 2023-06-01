@@ -1,0 +1,29 @@
+{
+  "global":
+  {
+    "beat_division_factor": [96],
+    "drum_mapping_label": "ROLAND_REDUCED_MAPPING"
+  },
+  "raw_data_pickle_path":
+    {
+      "gmd": "data/gmd/resources/storedDicts/groove_2bar-midionly.bz2pickle"
+    },
+  "settings":
+  {
+    "gmd":
+    {
+      "drummer": null,
+      "session": null,
+      "loop_id": null,
+      "master_id": null,
+      "style_primary": null,
+      "style_secondary": null,
+      "bpm": null,
+      "beat_type": null,
+      "time_signature": ["4-4"],
+      "full_midi_filename": null,
+      "full_audio_filename": null,
+      "number_of_instruments": null
+    }
+  }
+}

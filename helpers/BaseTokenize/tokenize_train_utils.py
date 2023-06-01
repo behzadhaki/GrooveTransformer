@@ -95,6 +95,9 @@ def batch_loop(dataloader_, model, device, optimizer=None, starting_step=None, h
         out_hv = out_hv_.to(device) if out_hv_.device.type != device else out_hv_
         masks = masks_.to(device) if masks_.device.type != device else masks_
 
+        print(f"tokens shape: {in_tokens.shape}")
+        print(f"hv shape: {in_hv.shape}")
+
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
