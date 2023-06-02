@@ -49,4 +49,8 @@ media_list = get_logging_media_for_control_model_wandb(
             need_kl_plot=False,
             need_audio=False)
 
-a = 0
+for item in media_list:
+    for k, v in item.items():
+        print(k)
+        print(v)
+    break

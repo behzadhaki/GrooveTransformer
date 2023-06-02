@@ -268,7 +268,7 @@ class Evaluator:
     #   - Piano Roll Bokeh Plots
     #   - Audio Files synthesized from HVO_Sequences
     # ==================================================================================================================
-    def get_logging_media(self, prepare_for_wandb=False, save_directory=None, **kwargs):
+    def get_logging_media(self, prepare_for_wandb=True, save_directory=None, **kwargs):
         logging_media = dict()
 
         # use default constructor values if a value is not provided
