@@ -3,20 +3,20 @@ import os
 import wandb
 
 import torch
-from model import GrooveTransformerEncoderVAE, GrooVAEDensity1D
-from helpers import vae_train_utils, vae_test_utils
-from data.src.dataLoaders import MonotonicGrooveDataset, GrooveDataSet_Density
+from model import GrooVAEDensity1D
+from helpers import vae_train_utils
+from helpers import control_eval_utils
+from data.src.dataLoaders import GrooveDataSet_Density
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
 import argparse
-import numpy as np
+
 
 logger = getLogger("train.py")
 logger.setLevel(DEBUG)
 
-# logger.info("MAKE SURE YOU DO THIS")
-# logger.warning("this is a warning!")
+
 
 parser = argparse.ArgumentParser()
 
@@ -26,12 +26,11 @@ parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) 
 
 # ----------------------- WANDB Settings -----------------------
 parser.add_argument("--wandb", type=bool, help="log to wandb", default=True)
-# wandb parameters
 parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
 parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
-                    default="beta_study_and_genre_balancing")
+                    default="Control 1D")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
@@ -309,32 +308,31 @@ if __name__ == "__main__":
 
         # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
-        # if args.piano_roll_samples:
-        #     if epoch % args.piano_roll_frequency == 0:
-        #         media = vae_test_utils.get_logging_media_for_vae_model_wandb(
-        #             groove_transformer_vae=groove_1D_density_model,
-        #             device=config.device,
-        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-        #             subset_name='test',
-        #             down_sampled_ratio=0.005,
-        #             collapse_tapped_sequence=collapse_tapped_sequence,
-        #             cached_folder="eval/GrooveEvaluator/templates",
-        #             divide_by_genre=True,
-        #             need_piano_roll=True,
-        #             need_kl_plot=False,
-        #             need_audio=False
-        #         )
-        #         wandb.log(media, commit=False)
-        #
-        #         # umap
-        #         media = vae_test_utils.generate_umap_for_vae_model_wandb(
-        #             groove_transformer_vae=groove_1D_density_model,
-        #             device=config.device,
-        #             test_dataset=test_dataset,
-        #             subset_name='test',
-        #             collapse_tapped_sequence=collapse_tapped_sequence,
-        #         )
-        #         wandb.log(media, commit=False)
+        if args.piano_roll_samples:
+            if epoch % args.piano_roll_frequency == 0:
+                media_list = control_eval_utils.get_logging_media_for_control_model_wandb(
+                    model=groove_1D_density_model,
+                    device=config.device,
+                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    collapse_tapped_sequence=collapse_tapped_sequence,
+                    divide_by_genre=False,
+                    need_piano_roll=True,
+                    need_kl_plot=False,
+                    need_audio=False
+                )
+
+                for media in media_list:
+                    wandb.log(media, commit=False)
+
+                # umap
+                media = control_eval_utils.generate_umap_for_control_model_wandb(
+                    model=groove_1D_density_model,
+                    device=config.device,
+                    test_dataset=test_dataset,
+                    subset_name='test',
+                    collapse_tapped_sequence=collapse_tapped_sequence,
+                )
+                wandb.log(media, commit=False)
 
         # Get Hit Scores for the entire train and the entire test set
         # ---------------------------------------------------------------------------------------------------

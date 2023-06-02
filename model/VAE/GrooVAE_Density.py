@@ -191,7 +191,7 @@ class GrooVAEDensity1D(torch.nn.Module):
 
         return (h_logits, v_logits, o_logits), mu, log_var, latent_z
 
-    def predict(self, src, thres=0.5, return_concatenated=False):
+    def predict(self, src, params, thres=0.5, return_concatenated=False):
         """
         Predicts the actual hvo array from the input Base
         :param src: the input sequence [batch_size, seq_len, embedding_size_src]
@@ -200,8 +200,8 @@ class GrooVAEDensity1D(torch.nn.Module):
         :return: (full_hvo_array, mu, log_var, latent_z) if return_concatenated is False, else
         ((h, v, o), mu, log_var, latent_z)
         """
-        def encode_decode(src_):
-            mu, log_var, latent_z = self.encode(src_)
+        def encode_decode(src_, params_):
+            mu, log_var, latent_z = self.encode(src_, params_)
             h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_pd=False, use_thres=True,
                                           return_concatenated=False)
             if return_concatenated:
@@ -212,9 +212,9 @@ class GrooVAEDensity1D(torch.nn.Module):
 
         if not self.training:
             with torch.no_grad():
-                return encode_decode(src)
+                return encode_decode(src, params)
         else:
-            return encode_decode(src)
+            return encode_decode(src, params)
 
     def save(self, save_path, additional_info=None):
         """ Saves the model to the given path. The Saved pickle has all the parameters ('params' field) as well as
