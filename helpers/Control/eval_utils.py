@@ -137,7 +137,7 @@ def get_logging_media_for_control_model_wandb(
                 need_kl_oa=need_kl_oa)
 
             results.append(media)
-
+    print(f"num results: {len(results)}")
     return results
 
 def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
