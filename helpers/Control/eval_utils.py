@@ -125,7 +125,7 @@ def get_logging_media_for_control_model_wandb(
             evaluator.add_predictions(outputs.detach().cpu().numpy())
 
             media = evaluator.get_logging_media(
-                prepare_for_wandb=False,
+                prepare_for_wandb=True,
                 need_hit_scores=need_hit_scores,
                 need_velocity_distributions=need_velocity_distributions,
                 need_offset_distributions=need_offset_distributions,

@@ -335,6 +335,7 @@ class Evaluator:
 
         if need_piano_roll is True:
             #print("Preparing Piano Roll Plots for Logging")
+            print(f"wandb: {prepare_for_wandb}")
             save_path = os.path.join(save_directory, f"Piano_Roll_Plots_{self._identifier}.html") if save_directory is not None else None
             logging_media["piano_roll_plots"] = \
                 {self._identifier: self.get_piano_rolls(prepare_for_wandb=prepare_for_wandb, save_path=save_path)}
