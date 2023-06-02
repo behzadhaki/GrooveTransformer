@@ -136,6 +136,10 @@ def get_logging_media_for_control_model_wandb(
                 need_audio=need_audio,
                 need_kl_oa=need_kl_oa)
 
+            # Name dictionary key with density value
+            media['piano_roll_plots'][f"density: {round(densities[idx].item(), 2)}"] = \
+                media['piano_roll_plots']["test set"]
+            del media['piano_roll_plots']["test set"]
             results.append(media)
 
     return results
