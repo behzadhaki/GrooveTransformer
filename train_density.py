@@ -192,7 +192,7 @@ if __name__ == "__main__":
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
     should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
     training_dataset = GrooveDataSet_Density(
-        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+        dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
         subset_tag="train",
         max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
     test_dataset = GrooveDataSet_Density(
-        dataset_setting_json_path="data/dataset_json_settings/4_4_Beats_gmd.json",
+        dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
         subset_tag="test",
         max_len=int(args.max_len_enc),
         tapped_voice_idx=2,
@@ -310,29 +310,35 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                media_list = control_eval_utils.get_logging_media_for_control_model_wandb(
-                    model=groove_1D_density_model,
-                    device=config.device,
-                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                    divide_by_genre=False,
-                    need_piano_roll=True,
-                    need_kl_plot=False,
-                    need_audio=False
-                )
+                try:
+                    media_list = control_eval_utils.get_logging_media_for_control_model_wandb(
+                        model=groove_1D_density_model,
+                        device=config.device,
+                        dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                        collapse_tapped_sequence=collapse_tapped_sequence,
+                        divide_by_genre=False,
+                        need_piano_roll=True,
+                        need_kl_plot=False,
+                        need_audio=False
+                    )
 
-                for media in media_list:
-                    wandb.log(media, commit=False)
+                    for media in media_list:
+                        wandb.log(media, commit=False)
+                except:
+                    print(f"unable to write piano rolls for epoch {epoch}")
 
                 # umap
-                media = control_eval_utils.generate_umap_for_control_model_wandb(
-                    model=groove_1D_density_model,
-                    device=config.device,
-                    test_dataset=test_dataset,
-                    subset_name='test',
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                )
-                wandb.log(media, commit=False)
+                try:
+                    media = control_eval_utils.generate_umap_for_control_model_wandb(
+                        model=groove_1D_density_model,
+                        device=config.device,
+                        test_dataset=test_dataset,
+                        subset_name='test',
+                        collapse_tapped_sequence=collapse_tapped_sequence,
+                    )
+                    wandb.log(media, commit=False)
+                except:
+                    print(f"unable to log umap for epoch {epoch}")
 
         # Get Hit Scores for the entire train and the entire test set
         # ---------------------------------------------------------------------------------------------------
