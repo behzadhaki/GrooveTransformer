@@ -160,6 +160,10 @@ class GrooveDataSet_Density(Dataset):
             [temp_row * genre_balancing_weights[sample.metadata["style_primary"]]
              for sample in self.hvo_sequences])
 
+        # Normalize densities
+        self.densities = np.array(self.densities)
+        self.densities = (self.densities - np.amin(self.densities)) / (np.amax(self.densities) - np.amin(self.densities))
+
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------
         if load_as_tensor or move_all_to_gpu:
@@ -201,6 +205,9 @@ class GrooveDataSet_Density(Dataset):
 
     def get_outputs_at(self, idx):
         return self.outputs[idx]
+
+    def get_densities(self):
+        return self.densities
 
 
 class MonotonicGrooveDataset(Dataset):
