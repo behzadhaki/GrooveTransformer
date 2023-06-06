@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # )
 
     test_dataset = InstrumentGrooveDataset(
-        dataset_pickle_path="data\i2dgd\guitar2drum.bz2pickle",
+        dataset_pickle_path=f"{args.dataset_dir}/{args.dataset_fname}",
         subset_tag="test",
         max_len=int(args.max_len_enc),
         move_all_to_gpu=should_place_all_data_on_cuda,
