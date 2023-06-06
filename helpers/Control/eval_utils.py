@@ -7,10 +7,19 @@ from eval.UMAP import UMapper
 from eval.GrooveEvaluator import Evaluator
 from data import load_gmd_hvo_sequences, load_down_sampled_gmd_hvo_sequences
 from data.control.control_utils import calculate_density
+import random
+import itertools
 
 from logging import getLogger
 logger = getLogger("helpers.VAE.eval_utils")
 logger.setLevel("DEBUG")
+
+
+def pick_and_duplicate(hvo_seq_set, num_items=3, num_duplicates=4):
+    chosen_items = random.sample(hvo_seq_set, num_items)
+    duplicated_items = [item for item in chosen_items for _ in range(num_duplicates)]
+
+    return duplicated_items
 
 
 def generate_umap_for_control_model_wandb(
@@ -51,7 +60,8 @@ def generate_umap_for_control_model_wandb(
 def get_logging_media_for_control_model_wandb(
         model, device, dataset_setting_json_path,
         collapse_tapped_sequence,
-        divide_by_genre=True, **kwargs):
+        divide_by_genre=True, normalizing_fn=None,
+        **kwargs):
     """
     Prepare a list of media dicts for logging in wandb. The list will be the # of params
     to be tested * the number of samples. For each sample, it will loop through
@@ -72,11 +82,14 @@ def get_logging_media_for_control_model_wandb(
     hvo_seq_set = load_gmd_hvo_sequences(dataset_setting_json_path=dataset_setting_json_path,
                                          subset_tag='test')
 
+    hvo_seq_set = pick_and_duplicate(hvo_seq_set, num_items=3, num_duplicates=4)
+    print(len(hvo_seq_set))
+    density_values = ["actual", 0.0, 0.5, 1.0]
+
     evaluator = Evaluator(
         hvo_sequences_list_=hvo_seq_set,
         list_of_filter_dicts_for_subsets=None,
         _identifier="test set",
-        n_samples_to_use=3,
         max_hvo_shape=(32, 27),
         need_hit_scores=False,
         need_velocity_distributions=False,
@@ -109,40 +122,39 @@ def get_logging_media_for_control_model_wandb(
     # (1) Get the targets, (2) tapify, (3) iterate through parameters, (4) add results to list
     # ------------------------------------------------------------------------------------------
     hvo_seqs = evaluator.get_ground_truth_hvo_sequences()
+    print(f"hvo seqs len: {len(hvo_seqs)}")
     in_grooves = torch.tensor(
         np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
                   for hvo_seq in hvo_seqs]), dtype=torch.float32).to(
         device)
-    results = list()
-    density_values = ["real_input", 0.05, 0.5, 0.95]
+
     print("Preparing media for logging")
 
-    for param in density_values:
-        densities = torch.zeros(len(hvo_seqs), dtype=torch.float32).to(device)
-        for idx, hvo_seq in enumerate(hvo_seqs):
-            densities[idx] = calculate_density(hvo_seq.hits) if param == "real_input" else param
-            outputs, mu, log_var, latent_z = model.predict(in_grooves, densities, return_concatenated=True)
-            evaluator.add_predictions(outputs.detach().cpu().numpy())
+    densities = torch.zeros(len(hvo_seqs), dtype=torch.float32).to(device)
+    for idx, (hvo_seq, density_value) in enumerate(zip(hvo_seq_set, itertools.cycle(density_values))):
+        # Calculate density and normalize with same values as train dataset
+        if density_value == "actual":
+            densities[idx] = normalizing_fn(calculate_density(hvo_seq.hits)) if normalizing_fn is not None \
+                else calculate_density(hvo_seq.hits)
+        else:
+            densities[idx] = density_value
 
-            media = evaluator.get_logging_media(
-                prepare_for_wandb=True,
-                need_hit_scores=need_hit_scores,
-                need_velocity_distributions=need_velocity_distributions,
-                need_offset_distributions=need_offset_distributions,
-                need_rhythmic_distances=need_rhythmic_distances,
-                need_heatmap=need_heatmap,
-                need_global_features=need_global_features,
-                need_piano_roll=need_piano_roll,
-                need_audio=need_audio,
-                need_kl_oa=need_kl_oa)
+    outputs, mu, log_var, latent_z = model.predict(in_grooves, densities, return_concatenated=True)
+    evaluator.add_predictions(outputs.detach().cpu().numpy())
 
-            # Name dictionary key with density value
-            media['piano_roll_plots'][f"density: {round(densities[idx].item(), 2)}"] = \
-                media['piano_roll_plots']["test set"]
-            del media['piano_roll_plots']["test set"]
-            results.append(media)
+    media = evaluator.get_logging_media(
+        prepare_for_wandb=True,
+        need_hit_scores=need_hit_scores,
+        need_velocity_distributions=need_velocity_distributions,
+        need_offset_distributions=need_offset_distributions,
+        need_rhythmic_distances=need_rhythmic_distances,
+        need_heatmap=need_heatmap,
+        need_global_features=need_global_features,
+        need_piano_roll=need_piano_roll,
+        need_audio=need_audio,
+        need_kl_oa=need_kl_oa)
 
-    return results
+    return media
 
 def get_hit_scores_for_vae_model(groove_transformer_vae, device, dataset_setting_json_path, subset_name,
                             down_sampled_ratio, collapse_tapped_sequence,

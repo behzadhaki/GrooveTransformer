@@ -63,9 +63,9 @@ parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta paramete
 parser.add_argument("--genre_loss_balancing_beta", type=float, help="beta parameter for genre loss balancing", default=0.0)
 parser.add_argument("--hit_loss_function", type=str, help="hit_loss_function - only bce supported for now", default="bce")
 parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_function - either 'bce' or 'mse' loss",
-                    default='bce', choices=['bce', 'mse'])
+                    default='mse', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
-                    default='bce', choices=['bce', 'mse'])
+                    default='mse', choices=['bce', 'mse'])
 parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float, help="rising ratio in each cycle to anneal beta", default=1)
 parser.add_argument("--beta_annealing_per_cycle_period", type=int, help="Number of epochs for each cycle of Beta annealing", default=100)
 parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle ", default=0)
@@ -311,19 +311,18 @@ if __name__ == "__main__":
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
                 try:
-                    media_list = control_eval_utils.get_logging_media_for_control_model_wandb(
+                    media = control_eval_utils.get_logging_media_for_control_model_wandb(
                         model=groove_1D_density_model,
                         device=config.device,
                         dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                         collapse_tapped_sequence=collapse_tapped_sequence,
                         divide_by_genre=False,
+                        normalizing_fn=training_dataset.normalize_density,
                         need_piano_roll=True,
                         need_kl_plot=False,
                         need_audio=False
                     )
-
-                    for media in media_list:
-                        wandb.log(media, commit=False)
+                    wandb.log(media, commit=False)
                 except:
                     print(f"unable to write piano rolls for epoch {epoch}")
 

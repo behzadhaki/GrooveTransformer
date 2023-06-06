@@ -192,6 +192,7 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
         genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
             if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
 
+
         # Forward pass
         # ---------------------------------------------------------------------------------------
         (h_logits, v_logits, o_logits), mu, log_var, latent_z = model.forward(inputs, densities)
@@ -206,15 +207,21 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
         batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_h = batch_loss_h.sum() if reduce_by_sum else batch_loss_h.mean()
 
+        mask = h_targets.detach().clone()
+
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
         batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
-        batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
+        batch_loss_v = batch_loss_v * mask # new
+        batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.sum() / mask.sum()
+        #batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
         batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
-        batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
+        batch_loss_o = batch_loss_o * mask
+        batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.sum() / mask.sum()
+        #batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
 
         batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)

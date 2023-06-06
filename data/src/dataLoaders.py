@@ -162,7 +162,11 @@ class GrooveDataSet_Density(Dataset):
 
         # Normalize densities
         self.densities = np.array(self.densities)
-        self.densities = (self.densities - np.amin(self.densities)) / (np.amax(self.densities) - np.amin(self.densities))
+        self.min_density = np.amin(self.densities)
+        self.max_density = np.amax(self.densities)
+
+        #self.densities = (self.densities - np.amin(self.densities)) / (np.amax(self.densities) - np.amin(self.densities))
+        self.densities = self.normalize_density(self.densities)
 
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------
@@ -208,6 +212,9 @@ class GrooveDataSet_Density(Dataset):
 
     def get_densities(self):
         return self.densities
+
+    def normalize_density(self, density):
+        return (density - self.min_density) / (self.max_density - self.min_density)
 
 
 class MonotonicGrooveDataset(Dataset):

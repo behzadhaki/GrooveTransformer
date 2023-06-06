@@ -17,3 +17,8 @@ densities = training_dataset.get_densities()
 
 print(torch.max(densities))
 print(torch.min(densities))
+
+density = 0.11
+
+density = training_dataset.normalize_density(density)
+print(density)
