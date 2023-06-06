@@ -2,7 +2,7 @@ from data.src.dataLoaders import GrooveDataSet_Density
 import torch
 
 training_dataset = GrooveDataSet_Density(
-        dataset_setting_json_path="../../data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
+        dataset_setting_json_path="../../../data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
         subset_tag="train",
         max_len=32,
         tapped_voice_idx=2,
