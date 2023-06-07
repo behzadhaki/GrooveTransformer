@@ -234,10 +234,17 @@ class InstrumentGrooveDataset(Dataset):
         with bz2.BZ2File(dataset_pickle_path, "rb") as file:
             loaded_data = pickle.load(file)
             subset = loaded_data[subset_tag]
-            
-        self.inputs = np.array(subset["inputs"])
-        self.outputs = np.array(subset["outputs"])
-        self.hvo_sequences = np.array(subset["outputs_hvo_seqs"])
+
+        if down_sample_dataset is None:
+            self.inputs = np.array(subset["inputs"])
+            self.outputs = np.array(subset["outputs"])
+            self.hvo_sequences = np.array(subset["outputs_hvo_seqs"])
+        else:
+            idx = int(len(subset["inputs"]) * down_sampled_ratio)
+            self.inputs = np.array(subset["inputs"])[:idx]
+            self.outputs = np.array(subset["outputs"])[:idx]
+            self.hvo_sequences = np.array(subset["outputs_hvo_seqs"])[:idx]
+
 
         # Sort data by a given metadata key if provided (e.g. "style_primary")
         # ------------------------------------------------------------------------------------------
