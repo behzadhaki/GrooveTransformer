@@ -126,7 +126,7 @@ def get_piano_rolls_for_control_model_wandb(
         in_grooves = torch.tensor(np.repeat(hvo_seq.flatten_voices()[np.newaxis, :], len(density_values), axis=0),
                                   dtype=torch.float32)
 
-        outputs, mu, log_var, latent_z = model.predict(in_grooves, densities, return_concatenated=True)
+        outputs, mu, log_var, latent_z = model.predict(in_grooves.to(device), densities.to(device), return_concatenated=True)
         output_hvo_arrays = [seq.squeeze(0).numpy() for seq in torch.split(outputs, 1, dim=0)]
 
         for density, prediction in zip(density_values, output_hvo_arrays):
