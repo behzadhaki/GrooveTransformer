@@ -207,6 +207,7 @@ if __name__ == "__main__":
         max_len=int(args.max_len_enc),
         move_all_to_gpu=should_place_all_data_on_cuda,
         hit_loss_balancing_beta=args.hit_loss_balancing_beta,
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
         genre_loss_balancing_beta=args.genre_loss_balancing_beta
     )
 
@@ -228,6 +229,7 @@ if __name__ == "__main__":
         max_len=int(args.max_len_enc),
         move_all_to_gpu=should_place_all_data_on_cuda,
         hit_loss_balancing_beta=args.hit_loss_balancing_beta,
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
         genre_loss_balancing_beta=args.genre_loss_balancing_beta
     )
 
