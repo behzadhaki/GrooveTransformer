@@ -105,15 +105,15 @@ def load_evaluator_template(dataset_setting_json_path, subset_name,
         if down_sampled_ratio is not None else f"complete_set_of_{dataset_name}_{subset_name}"
     path = os.path.join(cached_folder, f"{_identifier}_evaluator.Eval.bz2")
 
-    if os.path.exists(path):
-        if not disable_logging:
-            logger.info(f"Loading template from {path}")
-        return load_evaluator(path)
-    else:
+    # if os.path.exists(path):
+    #     if not disable_logging:
+    #         logger.info(f"Loading template from {path}")
+    #     return load_evaluator(path)
+    # else:
 
-        return create_template(
-            dataset_setting_json_path=dataset_setting_json_path,
-            subset_name=subset_name,
-            down_sampled_ratio=down_sampled_ratio,
-            cached_folder=cached_folder,
-            divide_by_genre=divide_by_genre)
+    return create_template(
+        dataset_setting_json_path=dataset_setting_json_path,
+        subset_name=subset_name,
+        down_sampled_ratio=down_sampled_ratio,
+        cached_folder=cached_folder,
+        divide_by_genre=divide_by_genre)
