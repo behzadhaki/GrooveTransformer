@@ -5,13 +5,15 @@ import wandb
 import torch
 from model import GrooVAEDensity1D
 from helpers import vae_train_utils
-from helpers import control_eval_utils
+from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Density
+from helpers import vae_test_utils, vae_train_utils
+from helpers import density_eval
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
 import argparse
-
+from distutils.util import strtobool
 
 logger = getLogger("train.py")
 logger.setLevel(DEBUG)
@@ -66,9 +68,11 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
                     default='mse', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='mse', choices=['bce', 'mse'])
+parser.add_argument("--beta_annealing_activated", help="Use cyclical annealing on KL beta term", type=strtobool,  default=True)
+parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=1.0)
 parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float, help="rising ratio in each cycle to anneal beta", default=1)
 parser.add_argument("--beta_annealing_per_cycle_period", type=int, help="Number of epochs for each cycle of Beta annealing", default=100)
-parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle ", default=0)
+parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle", default=0)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
@@ -113,6 +117,7 @@ args, unknown = parser.parse_known_args()
 if unknown:
     logger.warning(f"Unknown arguments: {unknown}")
 
+
 # Disable wandb logging in testing mode
 if args.is_testing:
     os.environ["WANDB_MODE"] = "disabled"
@@ -148,6 +153,8 @@ else:
         offset_loss_function=args.offset_loss_function,
         hit_loss_balancing_beta=float(args.hit_loss_balancing_beta),
         genre_loss_balancing_beta=float(args.genre_loss_balancing_beta),
+        beta_annealing_activated = args.beta_annealing_activated,
+        beta_level = args.beta_level,
         beta_annealing_per_cycle_rising_ratio=float(args.beta_annealing_per_cycle_rising_ratio),
         beta_annealing_per_cycle_period=args.beta_annealing_per_cycle_period,
         beta_annealing_start_first_rise_at_epoch=args.beta_annealing_start_first_rise_at_epoch,
@@ -246,16 +253,17 @@ if __name__ == "__main__":
     else:
         optimizer = torch.optim.SGD(groove_1D_density_model.parameters(), lr=config.lr)
 
-    # Iterate over epochs
-    # ------------------------------------------------------------------------------------------------------------
-    metrics = dict()
-    step_ = 0
-
+    # Create curve for KL beta annealing
     beta_np_cyc = vae_train_utils.generate_beta_curve(
         n_epochs=config.epochs,
         period_epochs=config.beta_annealing_per_cycle_period,
         rise_ratio=config.beta_annealing_per_cycle_rising_ratio,
         start_first_rise_at_epoch=config.beta_annealing_start_first_rise_at_epoch)
+
+    # Iterate over epochs
+    # ------------------------------------------------------------------------------------------------------------
+    metrics = dict()
+    step_ = 0
 
     for epoch in range(config.epochs):
         print(f"Epoch {epoch} of {config.epochs}, steps so far {step_}")
@@ -266,6 +274,11 @@ if __name__ == "__main__":
 
         logger.info("***************************Training...")
 
+        if config.beta_annealing_activated:
+            beta = float(args.beta_level * beta_np_cyc[epoch])
+        else:
+            beta = args.beta_level
+
         train_log_metrics, step_ = vae_train_utils.train_loop(
             train_dataloader=train_dataloader,
             model=groove_1D_density_model,
@@ -275,12 +288,12 @@ if __name__ == "__main__":
             offset_loss_fn=offset_loss_fn,
             device=config.device,
             starting_step=step_,
-            kl_beta=beta_np_cyc[epoch],
+            kl_beta=beta,
             reduce_by_sum=config.reduce_loss_by_sum,
         )
 
         wandb.log(train_log_metrics, commit=False)
-        wandb.log({"kl_beta": beta_np_cyc[epoch]}, commit=False)
+        wandb.log({"kl_beta": beta}, commit=False)
 
         # ---------------------------------------------------------------------------------------------------
         # After each epoch, evaluate the model on the test set
@@ -298,11 +311,14 @@ if __name__ == "__main__":
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
             device=config.device,
-            kl_beta=beta_np_cyc[epoch],
+            kl_beta=beta,
             reduce_by_sum = config.reduce_loss_by_sum
         )
 
         wandb.log(test_log_metrics, commit=False)
+
+
+
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
                     f"and test loss of {test_log_metrics['test/loss_total']}")
 
@@ -310,66 +326,64 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                try:
-                    media = control_eval_utils.get_logging_media_for_control_model_wandb(
-                        model=groove_1D_density_model,
-                        device=config.device,
-                        dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-                        collapse_tapped_sequence=collapse_tapped_sequence,
-                        divide_by_genre=False,
-                        normalizing_fn=training_dataset.normalize_density,
-                        need_piano_roll=True,
-                        need_kl_plot=False,
-                        need_audio=False
-                    )
-                    wandb.log(media, commit=False)
-                except:
-                    print(f"unable to write piano rolls for epoch {epoch}")
+                piano_rolls = get_piano_rolls_for_control_model_wandb(model=groove_1D_density_model,
+                                                                      device=config.device,
+                                                                      test_dataset=test_dataset,
+                                                                      normalizing_fn=training_dataset.normalize_density)
 
-                # umap
-                try:
-                    media = control_eval_utils.generate_umap_for_control_model_wandb(
-                        model=groove_1D_density_model,
-                        device=config.device,
-                        test_dataset=test_dataset,
-                        subset_name='test',
-                        collapse_tapped_sequence=collapse_tapped_sequence,
-                    )
-                    wandb.log(media, commit=False)
-                except:
-                    print(f"unable to log umap for epoch {epoch}")
+                wandb.log(piano_rolls, commit=False)
+
+                media = generate_umap_for_control_model_wandb(
+                    model=groove_1D_density_model,
+                    device=config.device,
+                    test_dataset=test_dataset,
+                    subset_name='test',
+                    collapse_tapped_sequence=collapse_tapped_sequence,
+                )
+                wandb.log(media, commit=False)
+
 
         # Get Hit Scores for the entire train and the entire test set
         # ---------------------------------------------------------------------------------------------------
-        # if args.calculate_hit_scores_on_train:
-        #     if epoch % args.hit_score_frequency == 0:
-        #         logger.info("________Calculating Hit Scores on Train Set...")
-        #         train_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
-        #             groove_transformer_vae=groove_1D_density_model,
-        #             device=config.device,
-        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-        #             subset_name='train',
-        #             down_sampled_ratio=0.1,
-        #             collapse_tapped_sequence=collapse_tapped_sequence,
-        #             cached_folder="eval/GrooveEvaluator/templates",
-        #             divide_by_genre=False
-        #         )
-        #         wandb.log(train_set_hit_scores, commit=False)
-        #
-        # if args.calculate_hit_scores_on_test:
-        #     if epoch % args.hit_score_frequency == 0:
-        #         logger.info("________Calculating Hit Scores on Test Set...")
-        #         test_set_hit_scores = vae_test_utils.get_hit_scores_for_vae_model(
-        #             groove_transformer_vae=groove_1D_density_model,
-        #             device=config.device,
-        #             dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
-        #             subset_name=args.evaluate_on_subset,
-        #             down_sampled_ratio=None,
-        #             collapse_tapped_sequence=collapse_tapped_sequence,
-        #             cached_folder="eval/GrooveEvaluator/templates",
-        #             divide_by_genre=False
-        #         )
-        #         wandb.log(test_set_hit_scores, commit=False)
+        if args.calculate_hit_scores_on_train:
+            if epoch % args.hit_score_frequency == 0:
+                logger.info("________Calculating Hit Scores on Train Set...")
+                train_set_hit_scores = get_hit_scores_for_density_model(
+                    model=groove_1D_density_model,
+                    device=config.device,
+                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    subset_name='train',
+                    down_sampled_ratio=0.1,
+                    collapse_tapped_sequence=collapse_tapped_sequence,
+                    normalizing_fn=training_dataset.normalize_density,
+                    cached_folder="eval/GrooveEvaluator/templates",
+                    divide_by_genre=False
+                )
+                wandb.log(train_set_hit_scores, commit=False)
+
+                densities_predictions = get_density_prediction_averages(model=groove_1D_density_model,
+                                                                        test_dataset=test_dataset,
+                                                                        device=config.device,
+                                                                        normalizing_fn=training_dataset.normalize_density)
+                wandb.log(densities_predictions, commit=False)
+
+        if args.calculate_hit_scores_on_test:
+            if epoch % args.hit_score_frequency == 0:
+                logger.info("________Calculating Hit Scores on Test Set...")
+                test_set_hit_scores = get_hit_scores_for_density_model(
+                    model=groove_1D_density_model,
+                    device=config.device,
+                    dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
+                    subset_name=args.evaluate_on_subset,
+                    down_sampled_ratio=None,
+                    collapse_tapped_sequence=collapse_tapped_sequence,
+                    normalizing_fn=training_dataset.normalize_density,
+                    cached_folder="eval/GrooveEvaluator/templates",
+                    divide_by_genre=False
+                )
+                wandb.log(test_set_hit_scores, commit=False)
+
+
 
         # Commit the metrics to wandb
         # ---------------------------------------------------------------------------------------------------

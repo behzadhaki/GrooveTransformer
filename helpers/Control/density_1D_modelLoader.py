@@ -1,12 +1,10 @@
-#  Copyright (c) 2022. \n Created by Hernan Dario Perez
+
 import torch
 from model import GrooVAEDensity1D
-# from logging import getLogger
-# logger = getLogger("helpers/VAE/density_1D_modelLoader.py")
-# logger.setLevel("DEBUG")
 
 
-def load_1d_density_model(model_path, params_dict=None, is_evaluating=True, device=None):
+
+def load_density_1d_model(model_path, params_dict=None, is_evaluating=True, device=None):
     """ Load a GrooveTransformerEncoder model from a given path
 
     Args:
@@ -26,7 +24,7 @@ def load_1d_density_model(model_path, params_dict=None, is_evaluating=True, devi
             loaded_dict = torch.load(model_path)
     except:
         loaded_dict = torch.load(model_path, map_location=torch.device('cpu'))
-        # logger.info(f"Model was loaded to cpu!!!")
+        #logger.info(f"Model was loaded to cpu!!!")
 
     if params_dict is None:
         if 'params' in loaded_dict:

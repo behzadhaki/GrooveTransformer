@@ -195,6 +195,8 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
+        # print(f"inputs: {inputs.shape}")
+        # print(f"densities: {densities.shape}")
         (h_logits, v_logits, o_logits), mu, log_var, latent_z = model.forward(inputs, densities)
 
         # Prepare targets for loss calculation
@@ -212,7 +214,7 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
         batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
-        batch_loss_v = batch_loss_v * mask # new
+        batch_loss_v = batch_loss_v * mask  # balance by number of hits
         batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.sum() / mask.sum()
         #batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
 

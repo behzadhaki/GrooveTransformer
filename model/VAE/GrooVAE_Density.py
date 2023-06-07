@@ -240,6 +240,8 @@ class GrooVAEDensity1D(torch.nn.Module):
             'max_len_dec': self.max_len_dec,
             'device': self.device.type if isinstance(self.device, torch.device) else self.device,
             'o_activation': self.o_activation,
+            'n_params': self.n_params,
+            'add_params': self.add_params
         }
 
         json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
