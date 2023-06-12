@@ -7,7 +7,7 @@ import os
 from model import VAE_components
 
 
-class GrooVAEDensity1D(torch.nn.Module):
+class Density2D(torch.nn.Module):
     """
     An encoder-encoder VAE transformer
     """
@@ -34,7 +34,7 @@ class GrooVAEDensity1D(torch.nn.Module):
             o_activation: the activation function to use for the output
         """
 
-        super(GrooVAEDensity1D, self).__init__()
+        super(Density2D, self).__init__()
 
         assert config['o_activation'] in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
         #assert config['embedding_size_src'] % 3 == 0, 'embedding_size_src must be divisible by 3'
@@ -61,12 +61,13 @@ class GrooVAEDensity1D(torch.nn.Module):
 
         # New control params
         self.n_params = config['n_params']
-        self.add_params = config['add_params'] # only to be used in horizontal concatenation (1D)
+        self.add_params = False
+        #self.add_params = config['add_params'] # only to be used in 1D concatenation
 
         # Layers
         # ---------------------------------------------------
 
-        self.InputLayerEncoder = VAE_components.InputLayer1DParam(
+        self.InputLayerEncoder = VAE_components.InputLayer2DParam(
             embedding_size=self.embedding_size_src,
             n_params=self.n_params,
             d_model=self.d_model_enc,

@@ -1,6 +1,6 @@
 
 import torch
-from model import GrooVAEDensity1D
+from model import Density1D
 
 
 
@@ -38,7 +38,7 @@ def load_density_1d_model(model_path, params_dict=None, is_evaluating=True, devi
         with open(params_dict, 'r') as f:
             params_dict = json.load(f)
 
-    model = GrooVAEDensity1D(params_dict)
+    model = Density1D(params_dict)
     model.load_state_dict(loaded_dict["model_state_dict"])
     if is_evaluating:
         model.eval()

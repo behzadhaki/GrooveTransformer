@@ -226,8 +226,8 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
         #batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
 
-        batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)
-        batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1))
+        batch_loss_KL = calculate_kld_loss(mu, log_var)
+        batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)) * kl_beta
         batch_loss_KL_Beta_Scaled = batch_loss_KL_Beta_Scaled.sum() if \
             reduce_by_sum else batch_loss_KL_Beta_Scaled.mean()
         batch_loss_KL = batch_loss_KL.sum() if reduce_by_sum else batch_loss_KL.mean()

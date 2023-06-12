@@ -1,6 +1,6 @@
 import os
 import torch
-from model import GrooVAEDensity1D
+from model import Density1D
 from helpers.Control.density_eval import get_piano_rolls_for_control_model_wandb
 from data.src.dataLoaders import GrooveDataSet_Density
 
@@ -28,7 +28,7 @@ hparams = dict(
             add_params = True) # only to be used in horizontal concatenation (1D)
 
 
-model = GrooVAEDensity1D(hparams)
+model = Density1D(hparams)
 
 test_dataset = GrooveDataSet_Density(
         dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",

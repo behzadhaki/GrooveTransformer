@@ -163,8 +163,8 @@ class InputLayer2DParam(torch.nn.Module):
         self.Linear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, hvo, params):
-
         params = torch.unsqueeze(params, dim=1)
+        params = torch.unsqueeze(params, dim=2)
         params = params.repeat(1, hvo.shape[1], 1)
         src = torch.cat((hvo, params), dim=2)
         x = self.Linear(src)
@@ -235,7 +235,7 @@ class LatentLayer(torch.nn.Module):
         else:
             self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
             self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
-        print(f"max len: {max_len}")
+
 
     def init_weights(self, initrange=0.1):
         self.fc_mu.bias.data.zero_()

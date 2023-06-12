@@ -3,7 +3,7 @@ import os
 import wandb
 
 import torch
-from model import Density1D
+from model import Density1D, Density2D
 from helpers import vae_train_utils
 from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Density
@@ -57,8 +57,9 @@ parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decod
 parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=16)
 
 # ----------------------- Control Parameters -----------------------
+parser.add_argument("--model_type", type=str, help="Which type of model to use", default="1D")
 parser.add_argument("--n_params", type=int, help="Number of controllability parameters", default=1)
-parser.add_argument("--add_params", type=bool, help="Set to 'True' if concatenating params horizontally", default=True)
+#parser.add_argument("--add_params", type=bool, help="Set to 'True' if concatenating params horizontally", default=True)
 
 # ----------------------- Loss Parameters -----------------------
 parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta parameter for hit loss balancing", default=0.0)
@@ -95,6 +96,7 @@ parser.add_argument("--dataset_json_fname", type=str,
 parser.add_argument("--evaluate_on_subset", type=str,
                     help="Using test or evaluation subset for evaluating the model", default="test",
                     choices=['test', 'evaluation'] )
+parser.add_argument("--normalize_densities", help="Norm between 0 and 1", type=strtobool,  default=True)
 
 # ----------------------- Evaluation Params -----------------------
 parser.add_argument("--calculate_hit_scores_on_train", type=bool,
@@ -140,7 +142,6 @@ else:
         embedding_size_src=args.embedding_size_src,
         embedding_size_tgt=args.embedding_size_tgt,
         n_params=args.n_params,
-        add_params=args.add_params,
         nhead_enc=args.nhead_enc,
         nhead_dec=args.nhead_dec,
         dropout=args.dropout,
@@ -207,7 +208,8 @@ if __name__ == "__main__":
         down_sampled_ratio=0.1 if args.is_testing is True else None,
         move_all_to_gpu=should_place_all_data_on_cuda,
         hit_loss_balancing_beta=args.hit_loss_balancing_beta,
-        genre_loss_balancing_beta=args.genre_loss_balancing_beta
+        genre_loss_balancing_beta=args.genre_loss_balancing_beta,
+        normalize_densities=args.normalize_densities
     )
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
@@ -218,17 +220,24 @@ if __name__ == "__main__":
         tapped_voice_idx=2,
         collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda
+        move_all_to_gpu=should_place_all_data_on_cuda,
+        normalize_densities = args.normalize_densities
     )
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
     # Initialize the model
     # ------------------------------------------------------------------------------------------------------------
-    model = Density1D(config)
+    assert args.model_type in ["1D", "2D"], print("Invalid model type specified")
+    if args.model_type == "1D":
+        config["add_params"] = True
+        model = Density1D(config)
+    elif args.model_type == "2D":
+        config["add_params"] = False
+        model = Density2D(config)
 
-    groove_1D_density_model = model.to(config.device)
-    wandb.watch(groove_1D_density_model, log="all", log_freq=1)
+    density_model = model.to(config.device)
+    wandb.watch(density_model, log="all", log_freq=1)
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
@@ -249,9 +258,9 @@ if __name__ == "__main__":
         offset_loss_fn = torch.nn.MSELoss(reduction='none')
 
     if config.optimizer == 'adam':
-        optimizer = torch.optim.Adam(groove_1D_density_model.parameters(), lr=config.lr)
+        optimizer = torch.optim.Adam(density_model.parameters(), lr=config.lr)
     else:
-        optimizer = torch.optim.SGD(groove_1D_density_model.parameters(), lr=config.lr)
+        optimizer = torch.optim.SGD(density_model.parameters(), lr=config.lr)
 
     # Create curve for KL beta annealing
     beta_np_cyc = vae_train_utils.generate_beta_curve(
@@ -270,7 +279,7 @@ if __name__ == "__main__":
 
         # Run the training loop (trains per batch internally)
         # ------------------------------------------------------------------------------------------
-        groove_1D_density_model.train()
+        density_model.train()
 
         logger.info("***************************Training...")
 
@@ -281,7 +290,7 @@ if __name__ == "__main__":
 
         train_log_metrics, step_ = vae_train_utils.train_loop(
             train_dataloader=train_dataloader,
-            model=groove_1D_density_model,
+            model=density_model,
             optimizer=optimizer,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
@@ -300,13 +309,13 @@ if __name__ == "__main__":
         #     - To ensure not overloading the GPU, we evaluate the model on the test set also in batche
         #           rather than all at once
         # ---------------------------------------------------------------------------------------------------
-        groove_1D_density_model.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
+        density_model.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
 
         logger.info("***************************Testing...")
 
         test_log_metrics = vae_train_utils.test_loop(
             test_dataloader=test_dataloader,
-            model=groove_1D_density_model,
+            model=density_model,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
@@ -326,15 +335,15 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                piano_rolls = get_piano_rolls_for_control_model_wandb(model=groove_1D_density_model,
+                piano_rolls = get_piano_rolls_for_control_model_wandb(model=density_model,
                                                                       device=config.device,
                                                                       test_dataset=test_dataset,
-                                                                      normalizing_fn=training_dataset.normalize_density)
+                                                                      normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None)
 
                 wandb.log(piano_rolls, commit=False)
 
                 media = generate_umap_for_control_model_wandb(
-                    model=groove_1D_density_model,
+                    model=density_model,
                     device=config.device,
                     test_dataset=test_dataset,
                     subset_name='test',
@@ -349,35 +358,35 @@ if __name__ == "__main__":
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Train Set...")
                 train_set_hit_scores = get_hit_scores_for_density_model(
-                    model=groove_1D_density_model,
+                    model=density_model,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name='train',
                     down_sampled_ratio=0.1,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    normalizing_fn=training_dataset.normalize_density,
+                    normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None,
                     cached_folder="eval/GrooveEvaluator/templates",
                     divide_by_genre=False
                 )
                 wandb.log(train_set_hit_scores, commit=False)
 
-                densities_predictions = get_density_prediction_averages(model=groove_1D_density_model,
+                densities_predictions = get_density_prediction_averages(model=density_model,
                                                                         test_dataset=test_dataset,
                                                                         device=config.device,
-                                                                        normalizing_fn=training_dataset.normalize_density)
+                                                                        normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None)
                 wandb.log(densities_predictions, commit=False)
 
         if args.calculate_hit_scores_on_test:
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Test Set...")
                 test_set_hit_scores = get_hit_scores_for_density_model(
-                    model=groove_1D_density_model,
+                    model=density_model,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name=args.evaluate_on_subset,
                     down_sampled_ratio=None,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    normalizing_fn=training_dataset.normalize_density,
+                    normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None,
                     cached_folder="eval/GrooveEvaluator/templates",
                     divide_by_genre=False
                 )
@@ -401,7 +410,7 @@ if __name__ == "__main__":
                     ep_ = epoch
                 model_artifact = wandb.Artifact(f'model_epoch_{ep_}', type='model')
                 model_path = f"{args.save_model_dir}/{args.wandb_project}/{run_name}_{run_id}/{ep_}.pth"
-                groove_1D_density_model.save(model_path)
+                density_model.save(model_path)
                 model_artifact.add_file(model_path)
                 wandb_run.log_artifact(model_artifact)
                 logger.info(f"Model saved to {model_path}")

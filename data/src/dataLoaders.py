@@ -66,7 +66,8 @@ class GrooveDataSet_Density(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
                  collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
                  down_sampled_ratio=None, move_all_to_gpu=False,
-                 hit_loss_balancing_beta=0, genre_loss_balancing_beta=0):
+                 hit_loss_balancing_beta=0, genre_loss_balancing_beta=0,
+                 normalize_densities=True):
         """
 
         :param dataset_setting_json_path:   path to the json file containing the dataset settings (see data/dataset_json_settings/4_4_Beats_gmd.json)
@@ -162,11 +163,11 @@ class GrooveDataSet_Density(Dataset):
 
         # Normalize densities
         self.densities = np.array(self.densities)
-        self.min_density = np.amin(self.densities)
-        self.max_density = np.amax(self.densities)
+        if normalize_densities:
+            self.min_density = np.amin(self.densities)
+            self.max_density = np.amax(self.densities)
+            self.densities = self.normalize_density(self.densities)
 
-        #self.densities = (self.densities - np.amin(self.densities)) / (np.amax(self.densities) - np.amin(self.densities))
-        self.densities = self.normalize_density(self.densities)
 
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------

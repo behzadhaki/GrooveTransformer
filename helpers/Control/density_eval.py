@@ -36,12 +36,21 @@ def generate_umap_for_control_model_wandb(
         np.array([hvo_seq.flatten_voices(reduce_dim=collapse_tapped_sequence)
                   for hvo_seq in test_dataset.hvo_sequences]), dtype=torch.float32).to(
         device)
-    densities = torch.zeros(len(test_dataset.hvo_sequences), dtype=torch.float32).to(device)
-    for idx, hvo_seq in enumerate(test_dataset.hvo_sequences):
-        densities[idx] = calculate_density(hvo_seq.hits)
+    #densities = torch.zeros(len(test_dataset.hvo_sequences), dtype=torch.float32).to(device)
+    # for idx, hvo_seq in enumerate(test_dataset.hvo_sequences):
+    #     densities[idx] = calculate_density(hvo_seq.hits)
 
-    #tags = [(hvo_seq.metadata["style_primary"], density) for hvo_seq, density in zip(test_dataset.hvo_sequences, densities)]
-    tags = [str(round(density.item(), 2)) for density in densities]
+    densities = test_dataset.densities
+
+    # #tags = [(hvo_seq.metadata["style_primary"], density) for hvo_seq, density in zip(test_dataset.hvo_sequences, densities)]
+    # tags = [str(round(density.item(), 2)) for density in densities]
+
+    tags = []
+    density_buckets = [0.01, 0.25, 0.5, 0.75, 0.99]
+    for density in densities:
+        rounded_density = min(density_buckets, key=lambda x: abs(x-density))
+        tags.append(str(rounded_density))
+
 
     _, _, _, latents_z = model.predict(in_groove, densities, return_concatenated=True)
 

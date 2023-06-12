@@ -4,7 +4,7 @@ import wandb
 from hvo_sequence import HVO_Sequence
 from hvo_sequence import ROLAND_REDUCED_MAPPING
 from data.src.dataLoaders import GrooveDataSet_Density
-from model import GrooVAEDensity1D
+from model import Density1D
 import os
 import logging
 root_logger = logging.getLogger()
@@ -52,7 +52,7 @@ def load_density_1d_model(model_path, params_dict=None, is_evaluating=True, devi
 
     params_dict['n_params'] = 1
     params_dict['add_params'] = True
-    model = GrooVAEDensity1D(params_dict)
+    model = Density1D(params_dict)
     model.load_state_dict(loaded_dict["model_state_dict"])
     if is_evaluating:
         model.eval()
