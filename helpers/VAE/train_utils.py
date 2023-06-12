@@ -143,7 +143,7 @@ def calculate_kld_loss(mu, log_var):
 
 def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0,
-               reduce_by_sum=False):
+               reduce_by_sum=False, balance_vo=True):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -209,22 +209,21 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
         batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_h = batch_loss_h.sum() if reduce_by_sum else batch_loss_h.mean()
 
-        mask = h_targets.detach().clone()
+        mask = h_logits.detach().clone()
+
+        if balance_vo:
+            v_logits = v_logits * mask
+            o_logits = o_logits * mask
 
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
         batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
-        batch_loss_v = batch_loss_v * mask  # balance by number of hits
-        batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.sum() / mask.sum()
-        #batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
+        batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
         batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
-        batch_loss_o = batch_loss_o * mask
-        batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.sum() / mask.sum()
-        #batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
-
+        batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
         batch_loss_KL = calculate_kld_loss(mu, log_var)
         batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)) * kl_beta
@@ -278,7 +277,7 @@ def batch_loop(dataloader_, model, hit_loss_fn, velocity_loss_fn,
 
 
 def train_loop(train_dataloader, model, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, starting_step, kl_beta=1, reduce_by_sum=False):
+               offset_loss_fn, device, starting_step, kl_beta=1, reduce_by_sum=False, balance_vo=True):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -321,14 +320,15 @@ def train_loop(train_dataloader, model, optimizer, hit_loss_fn, velocity_loss_fn
         optimizer=optimizer,
         starting_step=starting_step,
         kl_beta=kl_beta,
-        reduce_by_sum=reduce_by_sum)
+        reduce_by_sum=reduce_by_sum,
+        balance_vo=balance_vo)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
 def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
-              offset_loss_fn, device, kl_beta=1, reduce_by_sum=False):
+              offset_loss_fn, device, kl_beta=1, reduce_by_sum=False, balance_vo=True):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -368,7 +368,8 @@ def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
             device=device,
             optimizer=None,
             kl_beta=kl_beta,
-            reduce_by_sum=reduce_by_sum)
+            reduce_by_sum=reduce_by_sum,
+            balance_vo=balance_vo)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics

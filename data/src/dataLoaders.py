@@ -116,6 +116,7 @@ class GrooveDataSet_Density(Dataset):
 
         # collect input tensors, output tensors, and hvo_sequences
         # ------------------------------------------------------------------------------------------
+        print(f"subset length: {len(subset)}")
         for idx, hvo_seq in enumerate(tqdm(subset)):
             if hvo_seq.hits is not None:
                 hvo_seq.adjust_length(max_len)

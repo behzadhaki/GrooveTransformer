@@ -54,14 +54,15 @@ parser.add_argument("--n_dec_lyrs_ratio", type=float, help="Number of decoder la
                                                "n_enc_lyrs as a ratio of d_ff_enc", default=1)
 parser.add_argument("--max_len_enc", type=int, help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decoder", default=32)
-parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=16)
+parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=256)
 
 # ----------------------- Control Parameters -----------------------
 parser.add_argument("--model_type", type=str, help="Which type of model to use", default="1D")
 parser.add_argument("--n_params", type=int, help="Number of controllability parameters", default=1)
-#parser.add_argument("--add_params", type=bool, help="Set to 'True' if concatenating params horizontally", default=True)
+
 
 # ----------------------- Loss Parameters -----------------------
+parser.add_argument("--balance_vo", type=strtobool, help="Whether to make vel/off loss proportional to h", default=True)
 parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta parameter for hit loss balancing", default=0.0)
 parser.add_argument("--genre_loss_balancing_beta", type=float, help="beta parameter for genre loss balancing", default=0.0)
 parser.add_argument("--hit_loss_function", type=str, help="hit_loss_function - only bce supported for now", default="bce")
@@ -99,13 +100,13 @@ parser.add_argument("--evaluate_on_subset", type=str,
 parser.add_argument("--normalize_densities", help="Norm between 0 and 1", type=strtobool,  default=True)
 
 # ----------------------- Evaluation Params -----------------------
-parser.add_argument("--calculate_hit_scores_on_train", type=bool,
+parser.add_argument("--calculate_hit_scores_on_train", type=strtobool,
                     help="Evaluates the quality of the hit models on training set",
                     default=True)
-parser.add_argument("--calculate_hit_scores_on_test", type=bool,
+parser.add_argument("--calculate_hit_scores_on_test", type=strtobool,
                     help="Evaluates the quality of the hit models on test/evaluation set",
                     default=True)
-parser.add_argument("--piano_roll_samples", type=bool, help="Generate audio samples", default=True)
+parser.add_argument("--piano_roll_samples", type=strtobool, help="Generate piano rolls", default=True)
 parser.add_argument("--piano_roll_frequency", type=int, help="Frequency of piano roll generation", default=20)
 parser.add_argument("--hit_score_frequency", type=int, help="Frequency of hit score generation", default=10)
 
@@ -299,6 +300,7 @@ if __name__ == "__main__":
             starting_step=step_,
             kl_beta=beta,
             reduce_by_sum=config.reduce_loss_by_sum,
+            balance_vo=args.balance_vo
         )
 
         wandb.log(train_log_metrics, commit=False)
@@ -321,13 +323,11 @@ if __name__ == "__main__":
             offset_loss_fn=offset_loss_fn,
             device=config.device,
             kl_beta=beta,
-            reduce_by_sum = config.reduce_loss_by_sum
+            reduce_by_sum = config.reduce_loss_by_sum,
+            balance_vo=args.balance_vo
         )
 
         wandb.log(test_log_metrics, commit=False)
-
-
-
         logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
                     f"and test loss of {test_log_metrics['test/loss_total']}")
 
