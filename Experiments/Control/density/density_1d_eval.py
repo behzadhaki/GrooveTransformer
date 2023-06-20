@@ -63,10 +63,10 @@ densities = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 if __name__ == "__main__":
 
-        os.chdir("/Users/jlenz/Desktop/Thesis/GrooveTransformer")
+        os.chdir("/")
         print(os.getcwd())
         test_dataset = GrooveDataSet_Density(
-                dataset_setting_json_path="/Users/jlenz/Desktop/Thesis/GrooveTransformer/data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
+                dataset_setting_json_path="/data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
                 subset_tag="test",
                 max_len=32)
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         artifact_dir = artifact.download()
         model = load_density_1d_model(os.path.join(artifact_dir, f"{epoch}.pth"))
 
-        os.chdir("/Users/jlenz/Desktop/Thesis/GrooveTransformer/Experiments/Control/density/midi_1d")
+        os.chdir("/Experiments/Control/density/midi_1d")
 
         for i in range(10):
             hvo_sequence = test_dataset.get_hvo_sequences_at(i)
