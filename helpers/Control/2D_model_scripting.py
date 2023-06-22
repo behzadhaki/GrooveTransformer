@@ -18,11 +18,13 @@ if __name__ == "__main__":
         artifact = run.use_artifact(artifact_path, type='model')
         artifact_dir = artifact.download()
         model = load_density_2d_model(os.path.join(artifact_dir, f"{epoch}.pth"))
+        
+        model.serialize("../../eval/Control/serialized/2D")
 
-        scripted_model = torch.jit.script(model)
-
-        test_input = torch.rand((1, 32, 27))
-        test_density = [0.5]
-
-        hvo, _, _, _ = scripted_model.forward(test_input, test_density)
-        print(hvo)
+        # scripted_model = torch.jit.script(model)
+        #
+        # test_input = torch.rand((1, 32, 27))
+        # test_density = [0.5]
+        #
+        # hvo, _, _, _ = scripted_model.forward(test_input, test_density)
+        # print(hvo)
