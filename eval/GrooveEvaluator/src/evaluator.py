@@ -897,12 +897,10 @@ class Evaluator:
     #  Evaluation using Global Features Implemented in HVO_Sequence
     # ==================================================================================================================
     def get_global_features_values(self, return_as_pandas_df=False):
-        '''
-        Returns a dictionary with the global features values for each loop in the ground truth and predicted dataset (if available).
-        :return:
-        '''
+        ''' Returns a dictionary with the global features values for each loop in the ground truth and predicted dataset (if available).
+        :return: '''
 
-        values_dict ={
+        values_dict = {
             "Ground Truth": self.gt_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True),
             "Predictions": self.prediction_SubSet_Evaluator.feature_extractor.get_global_features_dicts(True) if self._prediction_hvos_array is not None else None
         }

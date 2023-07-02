@@ -2,8 +2,8 @@
 
 import torch
 import math
-from model import get_hits_activation
 
+from typing import List
 
 # --------------------------------------------------------------------------------
 # ------------       Positinal Encoding BLOCK                ---------------------
@@ -103,6 +103,7 @@ class InputLayer(torch.nn.Module):
         self.ReLU = torch.nn.ReLU()
         self.PositionalEncoding = PositionalEncoding(d_model, max_len, dropout)
 
+    @torch.jit.ignore
     def init_weights(self, initrange=0.1):
         self.Linear.bias.data.zero_()
         self.Linear.weight.data.uniform_(-initrange, initrange)
@@ -132,7 +133,8 @@ class OutputLayer(torch.nn.Module):
         self.embedding_size = embedding_size
         self.Linear = torch.nn.Linear(d_model, embedding_size, bias=True)
 
-    def init_weights(self, initrange=0.1, offset_activation='tanh'):
+    @torch.jit.ignore
+    def init_weights(self, initrange: float = 0.1, offset_activation: str = 'tanh'):
         if offset_activation == 'tanh':
             self.Linear.bias.data.zero_()
         else:
@@ -173,7 +175,7 @@ class LatentLayer(torch.nn.Module):
         self.fc_mu = torch.nn.Linear(int(max_len*d_model), latent_dim)
         self.fc_var = torch.nn.Linear(int(max_len*d_model), latent_dim)
 
-    def init_weights(self, initrange=0.1):
+    def init_weights(self, initrange: float = 0.1):
         self.fc_mu.bias.data.zero_()
         self.fc_mu.weight.data.uniform_(-initrange, initrange)
         self.fc_var.bias.data.zero_()
@@ -196,12 +198,14 @@ class LatentLayer(torch.nn.Module):
 
         return mu, log_var, z
 
+    @torch.jit.export
     def reparametrize(self, mu, log_var):
         std = torch.exp(0.5 * log_var)
         eps = torch.randn_like(std)
         z = eps * std + mu
 
         return z
+
 # --------------------------------------------------------------------------------
 # ------------       RE-CONSTRUCTION DECODER INPUT             -------------------
 # --------------------------------------------------------------------------------
@@ -220,7 +224,7 @@ class DecoderInput(torch.nn.Module):
 
         self.updims = torch.nn.Linear(latent_dim, int(max_len * d_model))
 
-    def init_weights(self, initrange=0.1):
+    def init_weights(self, initrange: float = 0.1):
         self.updims.bias.data.zero_()
         self.updims.weight.data.uniform_(-initrange, initrange)
 
@@ -280,6 +284,19 @@ class VAE_Decoder(torch.nn.Module):
             embedding_size=self.output_embedding_size,
             d_model=self.d_model)
 
+    @torch.jit.export
+    def get_hits_activation(self, _h, use_thres: bool = True, thres: float = 0.5):
+        _h = torch.sigmoid(_h)
+
+        if use_thres:
+            h = torch.where(_h > thres, 1, 0)
+
+        else:
+            pd = torch.rand(_h.shape[0], _h.shape[1])
+            h = torch.where(_h > pd, 1, 0)
+
+        return h
+
     def forward(self, latent_z):
         """Converts the latent vector into hit, vel, offset logits (i.e. Values **PRIOR** to activation).
 
@@ -292,22 +309,20 @@ class VAE_Decoder(torch.nn.Module):
 
         return h_logits, v_logits, o_logits
 
-    def decode(self, latent_z, threshold=0.5, use_thres=True, use_pd=False, return_concatenated=False):
+    @torch.jit.export
+    def decode(self, latent_z, threshold: float = 0.5, use_thres: bool = True):
         """Converts the latent vector into hit, vel, offset values
 
         :param latent_z: (Tensor) [N x latent_dim]
         :param threshold: (float) Threshold for hit prediction
         :param use_thres: (bool) Whether to use thresholding for hit prediction
-        :param use_pd: (bool) Whether to use a pd for hit prediction
-        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
         **For now only thresholding is supported**
 
         :return: (Tensor) h, v, o (each with dimension [N x max_len x num_voices])"""
 
-        self.eval()
         with torch.no_grad():
             h_logits, v_logits, o_logits = self.forward(latent_z)
-            h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
+            h = self.get_hits_activation(h_logits, use_thres=use_thres, thres=threshold)
             v = torch.sigmoid(v_logits)
 
             if self.o_activation == "tanh":
@@ -317,23 +332,39 @@ class VAE_Decoder(torch.nn.Module):
             else:
                 raise ValueError(f"{self.o_activation} for offsets is not supported")
 
-        return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
+        return h, v, o
 
-    def sample(self, latent_z, voice_thresholds, voice_max_count_allowed,
-               return_concatenated=False, sampling_mode=0):
+    @torch.jit.export
+    def decode_and_return_concatenated(self, latent_z, threshold: float = 0.5, use_thres: bool = True):
         """Converts the latent vector into hit, vel, offset values
 
         :param latent_z: (Tensor) [N x latent_dim]
-        :param voice_thresholds: (list) Thresholds for hit prediction
-        :param voice_max_count_allowed: (list) Maximum number of hits to allow for each voice
-        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
+        :param threshold: (float) Threshold for hit prediction
+        :param use_thres: (bool) Whether to use thresholding for hit prediction
+        **For now only thresholding is supported**
+
+        :return: (Tensor) [N x max_len x (num_voices * 3)]"""
+
+        h, v, o = self.decode(latent_z, threshold=threshold, use_thres=use_thres)
+
+        return torch.cat([h, v, o], dim=-1)
+
+    @torch.jit.export
+    def sample(self, latent_z, voice_thresholds: torch.FloatTensor,
+               voice_max_count_allowed: torch.FloatTensor, sampling_mode: int=0, temperature: float=1.0):
+        """Converts the latent vector into hit, vel, offset values
+
+        :param latent_z: (Tensor) [N x latent_dim]
+        :param voice_thresholds: (torch.FloatTensor) Thresholds for hit prediction
+        :param voice_max_count_allowed: (torch.FloatTensor) Maximum number of hits to allow for each voice
         :param sampling_mode: (int) 0 for top-k sampling,
                                     1 for bernoulli sampling
+        :param temperature: (float) Temperature for sampling
         """
-        self.eval()
+
         with torch.no_grad():
             h_logits, v_logits, o_logits = self.forward(latent_z)
-            _h = torch.sigmoid(h_logits)
+            _h = 1.0 / (1.0 + torch.exp(-h_logits / temperature))
             h = torch.zeros_like(_h)
 
             v = torch.sigmoid(v_logits)
@@ -347,7 +378,7 @@ class VAE_Decoder(torch.nn.Module):
 
             if sampling_mode == 0:
                 for ix, (thres, max_count) in enumerate(zip(voice_thresholds, voice_max_count_allowed)):
-                    max_indices = torch.topk(_h[:, :, ix], max_count).indices[0]
+                    max_indices = torch.topk(_h[:, :, ix], max_count.item()).indices[0]
                     h[:, max_indices, ix] = _h[:, max_indices, ix]
                     h[:, :, ix] = torch.where(h[:, :, ix] > thres, 1, 0)
             elif sampling_mode == 1:
@@ -355,11 +386,25 @@ class VAE_Decoder(torch.nn.Module):
                     # sample using probability distribution of hits (_h)
                     voice_probs = _h[:, :, ix]
                     sampled_indices = torch.bernoulli(voice_probs)
-                    max_indices = torch.topk(sampled_indices*voice_probs, max_count).indices[0]
+                    max_indices = torch.topk(sampled_indices*voice_probs, max_count.item()).indices[0]
                     h[:, max_indices, ix] = 1
 
-            # sample using probability distribution of velocities (v)
-            if return_concatenated:
-                return torch.concat((h, v, o), -1)
-            else:
-                return h, v, o
+            return h, v, o, _h
+
+    @torch.jit.export
+    def sample_and_return_concatenated(self, latent_z, voice_thresholds: torch.FloatTensor,
+                                       voice_max_count_allowed: torch.FloatTensor, sampling_mode: int = 0,
+                                       temperature: float = 1.0):
+        """Converts the latent vector into hit, vel, offset values
+
+        :param latent_z: (Tensor) [N x latent_dim]
+        :param voice_thresholds: (torch.FloatTensor) Thresholds for hit prediction
+        :param voice_max_count_allowed: (torch.FloatTensor) Maximum number of hits to allow for each voice
+        :param sampling_mode: (int) 0 for top-k sampling,
+                                    1 for bernoulli sampling
+        :param temperature: (float) Temperature for sampling
+        """
+        h, v, o, _h = self.sample(
+            latent_z, voice_thresholds, voice_max_count_allowed, sampling_mode=sampling_mode, temperature=temperature)
+
+        return torch.concat((h, v, o), -1), _h

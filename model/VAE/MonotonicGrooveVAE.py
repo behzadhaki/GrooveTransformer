@@ -97,6 +97,14 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         self.Decoder.DecoderInput.init_weights()
         self.Decoder.OutputLayer.init_weights(offset_activation=self.o_activation)
 
+    @torch.jit.export
+    def get_latent_probs_and_reparametrize_to_z(self, src_):
+        x = self.InputLayerEncoder(src_)  # Nx32xd_model
+        memory = self.Encoder(x)  # Nx32xd_model
+        mu, log_var, latent_z = self.LatentEncoder(memory)
+        return mu, log_var, latent_z
+
+    @torch.jit.export
     def encode(self, src):
         """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space
         of shape (batch_size, latent_dim)
@@ -105,39 +113,18 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         :param eval: if True, the encoder will be in eval mode
         :return: mu, log_var, latent_z (each of shape [batch_size, latent_dim])
         """
-
-        def get_latent_probs_and_reparametrize_to_z(src_):
-            x = self.InputLayerEncoder(src_)  # Nx32xd_model
-            memory = self.Encoder(x)  # Nx32xd_model
-            mu, log_var, latent_z = self.LatentEncoder(memory)
-            return mu, log_var, latent_z
-
         if not self.training:
             with torch.no_grad():
-                return get_latent_probs_and_reparametrize_to_z(src)
+                return self.get_latent_probs_and_reparametrize_to_z(src)
         else:
-            self.train()
-            return get_latent_probs_and_reparametrize_to_z(src)
+            return self.get_latent_probs_and_reparametrize_to_z(src)
 
-    def encode_to_mu_logvar(self, src):
-        def get_mu_var(src_):
-            x = self.InputLayerEncoder(src_)  # Nx32xd_model
-            memory = self.Encoder(x)  # Nx32xd_model
-            mu, log_var, _ = self.LatentEncoder(memory)
-            return mu, log_var
-
-        if not self.training:
-            with torch.no_grad():
-                return get_mu_var(src)
-        else:
-            self.train()
-            return get_mu_var(src)
-
+    @torch.jit.export
     def reparametrize(self, mu, log_var):
         return self.LatentEncoder.reparametrize(mu, log_var)
 
-
-    def decode(self, latent_z, threshold=0.5):
+    @torch.jit.export
+    def decode(self, latent_z, threshold: float = 0.5):
         """ Decodes a given latent space of shape (batch_size, latent_dim) into a sequence of shape
         (batch_size, seq_len, embedding_size_tgt)
 
@@ -149,26 +136,49 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             with torch.no_grad():
                 return self.Decoder.decode(latent_z, threshold=threshold)
         else:
-            self.train()
             return self.Decoder.decode(latent_z, threshold=threshold)
 
-    def sample(self, latent_z, voice_thresholds, voice_max_count_allowed,
-           return_concatenated=False, sampling_mode=0):
+    @torch.jit.export
+    def sample(self, latent_z, voice_thresholds, voice_max_count_allowed, sampling_mode: int = 0,
+               temperature: float = 1.0):
         """Converts the latent vector into hit, vel, offset values
 
         :param latent_z: (Tensor) [N x latent_dim]
-        :param voice_thresholds: (list) Thresholds for hit prediction
-        :param voice_max_count_allowed: (list) Maximum number of hits to allow for each voice
-        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
+        :param voice_thresholds: (floatTensor) Thresholds for hit prediction
+        :param voice_max_count_allowed: (floatTensor) Maximum number of hits to allow for each voice
         :param sampling_mode: (int) 0 for top-k sampling,
                                     1 for bernoulli sampling
+        :param temperature: (float) temperature for sampling
+
+        Returns:
+        h, v, o, _h
         """
         return self.Decoder.sample(
             latent_z=latent_z,
             voice_thresholds=voice_thresholds,
             voice_max_count_allowed=voice_max_count_allowed,
-            return_concatenated=return_concatenated,
-            sampling_mode=sampling_mode)
+            sampling_mode=sampling_mode,
+            temperature=temperature)
+
+    @torch.jit.export
+    def sample_and_return_concatenated(self, latent_z, voice_thresholds, voice_max_count_allowed,
+              sampling_mode: int = 0, temperature: float = 1.0):
+        """Converts the latent vector into hit, vel, offset values and returns the concatenated tensor
+
+        :param latent_z: (Tensor) [N x latent_dim]
+        :param voice_thresholds: (list) Thresholds for hit prediction
+        :param voice_max_count_allowed: (list) Maximum number of hits to allow for each voice
+        :param sampling_mode: (int) 0 for thresholding,
+                                    1 for bernoulli sampling
+        :Returns:
+        hvo, _h
+        """
+        return self.Decoder.sample_and_return_concatenated(
+            latent_z=latent_z,
+            voice_thresholds=voice_thresholds,
+            voice_max_count_allowed=voice_max_count_allowed,
+            sampling_mode=sampling_mode,
+            temperature=temperature)
 
     def forward(self, src):
         """ Converts a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a
@@ -182,7 +192,22 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
 
         return (h_logits, v_logits, o_logits), mu, log_var, latent_z
 
-    def predict(self, src, thres=0.5, return_concatenated=False):
+    @torch.jit.export
+    def encode_decode(self, src_, thres: float):
+        mu, log_var, latent_z = self.encode(src_)
+        h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_thres=True)
+        return (h, v, o), mu, log_var, latent_z
+
+    @torch.jit.export
+    def encode_decode_and_return_concatenated(self, src_, thres: float):
+        mu, log_var, latent_z = self.encode(src_)
+        h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_thres=True)
+        hvo = torch.cat((h, v, o), dim=-1)
+        return hvo, mu, log_var, latent_z
+
+
+    @torch.jit.export
+    def predict(self, src, thres: float = 0.5):
         """
         Predicts the actual hvo array from the input Base
         :param src: the input sequence [batch_size, seq_len, embedding_size_src]
@@ -191,22 +216,28 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         :return: (full_hvo_array, mu, log_var, latent_z) if return_concatenated is False, else
         ((h, v, o), mu, log_var, latent_z)
         """
-        def encode_decode(src_):
-            mu, log_var, latent_z = self.encode(src_)
-            h, v, o = self.Decoder.decode(latent_z, threshold=thres, use_pd=False, use_thres=True,
-                                          return_concatenated=False)
-            if return_concatenated:
-                hvo = torch.cat((h, v, o), dim=-1)
-                return hvo, mu, log_var, latent_z
-            else:
-                return (h, v, o), mu, log_var, latent_z
-
         if not self.training:
             with torch.no_grad():
-                return encode_decode(src)
+                return self.encode_decode(src, thres)
         else:
-            return encode_decode(src)
+            return self.encode_decode(src, thres)
 
+    @torch.jit.export
+    def predict_and_return_concatenated(self, src, thres: float = 0.5):
+        """
+        Predicts the actual hvo array from the input Base
+        :param src: the input sequence [batch_size, seq_len, embedding_size_src]
+        :param thres: (default=0.5) the threshold to use for the output
+        :return: (full_hvo_array, mu, log_var, latent_z) if return_concatenated is False, else
+        ((h, v, o), mu, log_var, latent_z)
+        """
+        if not self.training:
+            with torch.no_grad():
+                return self.encode_decode_and_return_concatenated(src, thres)
+        else:
+            return self.encode_decode_and_return_concatenated(src, thres)
+
+    @torch.jit.ignore
     def save(self, save_path, additional_info=None):
         """ Saves the model to the given path. The Saved pickle has all the parameters ('params' field) as well as
         the state_dict ('state_dict' field) """
@@ -236,3 +267,32 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))
         torch.save({'model_state_dict': self.state_dict(), 'params': params_dict,
                     'additional_info': additional_info}, save_path)
+
+    @torch.jit.ignore
+    # serializes to a torchscript model
+    def serialize(self, save_folder):
+        os.makedirs(save_folder, exist_ok=True)
+
+        # save InputLayerEncoder
+        input_layer_encoder = self.InputLayerEncoder
+        torch.jit.save(torch.jit.script(input_layer_encoder), os.path.join(save_folder, 'InputLayerEncoder.pt'))
+
+        # save Encoder
+        encoder = self.Encoder
+        torch.jit.save(torch.jit.script(encoder), os.path.join(save_folder, 'Encoder.pt'))
+
+        # save LatentLayer
+        latent_layer = self.LatentEncoder
+        torch.jit.save(torch.jit.script(latent_layer), os.path.join(save_folder, 'LatentEncoder.pt'))
+
+        # save Decoder
+        decoder = self.Decoder
+        torch.jit.save(torch.jit.script(decoder), os.path.join(save_folder, 'Decoder.pt'))
+
+    def serialize_v2(self, filename_with_path):
+        assert filename_with_path.endswith('.pt'), 'filename must end with .pt'
+        os.makedirs(os.path.dirname(filename_with_path), exist_ok=True)
+        # save model in single file
+        with open(filename_with_path, 'wb') as f:
+            torch.jit.save(torch.jit.script(self), f)
+            print("Saved model to {}".format(filename_with_path))

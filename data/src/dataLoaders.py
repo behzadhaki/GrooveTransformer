@@ -12,6 +12,96 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 dataLoaderLogger = logging.getLogger("data.Base.dataLoaders")
 
+class MegaMonotonicGrooveDataset(Dataset):
+    def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
+                 collapse_tapped_sequence=False, load_as_tensor=True,
+                 move_all_to_gpu=False,
+                 hit_loss_balancing_beta=0, genre_loss_balancing_beta=0, **kwargs):
+        """
+
+        :param dataset_setting_json_path:   path to the json file containing the dataset settings '(see data/dataset_json_settings/4_4_Beats_mega_beats.json)
+        :param subset_tag:                [str] whether to load the train/test/validation set
+        :param max_len:              [int] maximum length of the sequences to be loaded
+        :param tapped_voice_idx:    [int] index of the voice to be tapped (default is 2 which is usually closed hat)
+        :param collapse_tapped_sequence:  [bool] returns a Tx3 tensor instead of a Tx(3xNumVoices) tensor
+        :param load_as_tensor:      [bool] loads the data as a tensor of torch.float32 instead of a numpy array
+        :param sort_by_metadata_key: [str] sorts the data by the metadata key provided (e.g. "tempo")
+        :param down_sampled_ratio: [float] down samples the data by the ratio provided (e.g. 0.5)
+        :param move_all_to_gpu: [bool] moves all the data to the gpu
+        :param hit_loss_balancing_beta: [float] beta parameter for hit balancing
+                            (if 0 or very small, no hit balancing weights are returned)
+        :param genre_loss_balancing_beta: [float] beta parameter for genre balancing
+                            (if 0 or very small, no genre balancing weights are returned)
+                hit_loss_balancing_beta and genre_balancing_beta are used to balance the data
+                according to the hit and genre distributions of the dataset
+                (reference: https://arxiv.org/pdf/1901.05555.pdf)
+        """
+
+        # Get processed inputs, outputs and hvo sequences
+        self.inputs = list()
+        self.outputs = list()
+        self.hvo_sequences = list()
+
+        # create cached path
+        cached_path = "data/mega/cached"
+        os.makedirs(cached_path, exist_ok=True)
+        cached_fname = os.path.join(cached_path, dataset_setting_json_path.split(os.sep)[-1].replace(".json", f"_{subset_tag}.pkl"))
+        if os.path.exists(cached_fname):
+            dataLoaderLogger.info(f"Loading cached file {cached_fname}")
+            with open(cached_fname, "rb") as f:
+                subset = pickle.load(f)
+        else:
+            dataLoaderLogger.info(f"No cached file at {cached_fname}")
+            # load pre-stored hvo_sequences or
+            subset = load_mega_dataset_hvo_sequences(dataset_setting_json_path, subset_tag)
+            with open(cached_fname, "wb") as f:
+                pickle.dump(subset, f)
+            dataLoaderLogger.info(f"Saved cached file {cached_fname}")
+
+        # collect input tensors, output tensors, and hvo_sequences
+        # ------------------------------------------------------------------------------------------
+        for idx, hvo_seq in enumerate(tqdm(subset)):
+            if hvo_seq.hits is not None:
+                hvo_seq.adjust_length(max_len)
+                if np.any(hvo_seq.hits):
+                    # Ensure all have a length of max_len
+                    self.hvo_sequences.append(hvo_seq)
+                    self.outputs.append(hvo_seq.hvo)
+                    flat_seq = hvo_seq.flatten_voices(voice_idx=tapped_voice_idx, reduce_dim=collapse_tapped_sequence)
+                    self.inputs.append(flat_seq)
+
+        self.inputs = np.array(self.inputs)
+        self.outputs = np.array(self.outputs)
+
+
+        # Load as tensor if requested
+        # ------------------------------------------------------------------------------------------
+        if load_as_tensor or move_all_to_gpu:
+            self.inputs = torch.tensor(self.inputs, dtype=torch.float32)
+            self.outputs = torch.tensor(self.outputs, dtype=torch.float32)
+
+        # Move to GPU if requested and GPU is available
+        # ------------------------------------------------------------------------------------------
+        if move_all_to_gpu and torch.cuda.is_available():
+            self.inputs = self.inputs.to('cuda')
+            self.outputs = self.outputs.to('cuda')
+
+        dataLoaderLogger.info(f"Loaded {len(self.inputs)} sequences")
+
+    def __len__(self):
+        return len(self.hvo_sequences)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.outputs[idx], idx
+
+    def get_hvo_sequences_at(self, idx):
+        return self.hvo_sequences[idx]
+
+    def get_inputs_at(self, idx):
+        return self.inputs[idx]
+
+    def get_outputs_at(self, idx):
+        return self.outputs[idx]
 
 def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenerate=False):
     """
@@ -61,6 +151,52 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
     return data
 
+
+def load_mega_dataset_hvo_sequences(dataset_setting_json_path, subset_tag, apply_filter_settings=False):
+    """
+    Loads the hvo_sequences using the settings provided in the json file.
+
+    :param dataset_setting_json_path: path to the json file containing the dataset settings
+                                        (see data/dataset_json_settings/4_4_Beats_mega_beats.json)
+    :param subset_tag: [str] whether to load the train/test/validation set
+    apply_filter_settings: [bool] whether to apply the filter settings in the json file
+                                (default: False) --> TODO: implement this
+    :return:
+    """
+    if subset_tag == "validation":
+        subset_tag = "val"
+
+    # load settings
+    dataset_setting_json = json.load(open(dataset_setting_json_path, "r"))
+
+    # load datasets
+    paths = dataset_setting_json["hvo_seq_pickle_paths"]
+
+    dataset = []
+
+    for key, path in paths.items():
+        dataLoaderLogger.info(f"Loading Loading Data From {''.join(key[::2])} Collection")
+        ifile = bz2.BZ2File(path, 'rb')
+        data = pickle.load(ifile)
+        dataset.extend(data[subset_tag.lower()])
+
+    styles = [data.metadata["style_secondary"] for data in dataset]
+
+    # get unique styles and their counts
+    unique_styles, counts = np.unique(styles, return_counts=True)
+
+    # sort counts in descending order
+    sort_idx = np.argsort(counts)[::-1]
+    unique_styles = unique_styles[sort_idx]
+    counts = counts[sort_idx]
+
+    txt = "Style Distribution in the Dataset:\n"
+    # display unique styles and their counts
+    for style, count in zip(unique_styles, counts):
+        txt += f"{style}: {count}\n"
+    dataLoaderLogger.info(txt)
+
+    return dataset
 
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,

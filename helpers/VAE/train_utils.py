@@ -12,6 +12,56 @@ logger = getLogger("VAE_LOSS_CALCULATOR")
 logger.setLevel("DEBUG")
 
 
+def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at_epoch=0):
+    """
+    Generate a beta curve for the given parameters
+
+    Args:
+        n_epochs:            The number of epochs to generate the curve for
+        period_epochs:       The period of the curve in epochs (for multiple cycles)
+        rise_ratio:         The ratio of the period to be used for the rising part of the curve
+        start_first_rise_at_epoch:  The epoch to start the first rise at (useful for warmup)
+
+    Returns:
+
+    """
+    def f(x, K):
+        if x == 0:
+            return 0
+        elif x == K:
+            return 1
+        else:
+            return 1 / (1 + np.exp(-10 * (x - K / 2) / K))
+
+    def generate_rising_curve(K):
+        curve = []
+        for i in range(K):
+            curve.append(f(i, K - 1))
+        return np.array(curve)
+
+    def generate_single_beta_cycle(period, rise_ratio):
+        cycle = np.ones(period)
+
+        curve_steps_in_epochs = int(period * rise_ratio)
+
+        rising_curve = generate_rising_curve(curve_steps_in_epochs)
+
+        cycle[:rising_curve.shape[0]] = rising_curve[:cycle.shape[0]]
+
+        return cycle
+
+    beta_curve = np.zeros((start_first_rise_at_epoch))
+    effective_epochs = n_epochs - start_first_rise_at_epoch
+    n_cycles = np.ceil(effective_epochs / period_epochs)
+
+    single_cycle = generate_single_beta_cycle(period_epochs, rise_ratio)
+
+    for c in np.arange(n_cycles):
+        beta_curve = np.append(beta_curve, single_cycle)
+
+    return beta_curve[:n_epochs]
+
+
 def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function):
     """
     Calculate the hit loss for the given hit logits and hit targets.
@@ -91,7 +141,8 @@ def calculate_kld_loss(mu, log_var):
 
 
 def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0):
+               offset_loss_fn, device, optimizer=None, starting_step=None, kl_beta=1.0,
+               reduce_by_sum=False):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -109,6 +160,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     :param optimizer:   (torch.optim.Optimizer)  the optimizer to use for the model
     :param starting_step:   (int)  the starting step for the optimizer
     :param kl_beta: (float)  the beta value for the KLD loss
+    :param reduce_by_sum:   (bool)  whether to reduce the loss by sum or mean
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
                 metrics = {
@@ -122,21 +174,32 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
     """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
-    loss_total, loss_recon, loss_h, loss_v, loss_o, loss_KL = [], [], [], [], [], []
+    loss_total, loss_recon, loss_h, loss_v, loss_o, loss_KL, loss_KL_beta_scaled = [], [], [], [], [], [], []
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_,
-                      hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
-                      indices) in enumerate(dataloader_):
+    for batch_count, data_tuple in enumerate(dataloader_):
+        inputs_ = data_tuple[0]
+        outputs_ = data_tuple[1]
+        hit_balancing_weights_per_sample_ = data_tuple[2] if len(data_tuple) > 4 else None
+        genre_balancing_weights_per_sample_ = data_tuple[3] if len(data_tuple) > 4 else None
+        indices_ = data_tuple[-1]
+
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
         inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
         outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
-        hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
-            if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
-        genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
-            if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
+        if hit_balancing_weights_per_sample_ is not None:
+            hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
+                if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
+        else:
+            hit_balancing_weights_per_sample = None
+
+        if genre_balancing_weights_per_sample_ is not None:
+            genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
+                if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
+        else:
+            genre_balancing_weights_per_sample = None
 
         # Forward pass
         # ---------------------------------------------------------------------------------------
@@ -148,22 +211,38 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         # Compute losses
         # ---------------------------------------------------------------------------------------
         batch_loss_h = calculate_hit_loss(
-            hit_logits = h_logits, hit_targets=h_targets, hit_loss_function=hit_loss_fn)
-        batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+            hit_logits=h_logits, hit_targets=h_targets, hit_loss_function=hit_loss_fn)
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+        batch_loss_h = batch_loss_h.sum() if reduce_by_sum else batch_loss_h.mean()
 
         batch_loss_v = calculate_velocity_loss(
             vel_logits=v_logits, vel_targets=v_targets, vel_loss_function=velocity_loss_fn)
-        batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_v = (batch_loss_v * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+        batch_loss_v = batch_loss_v.sum() if reduce_by_sum else batch_loss_v.mean()
 
         batch_loss_o = calculate_offset_loss(
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
-        batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample).mean()
+        if hit_balancing_weights_per_sample is not None and genre_balancing_weights_per_sample is not None:
+            batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
+
+        batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
         batch_loss_KL = kl_beta * calculate_kld_loss(mu, log_var)
-        batch_loss_KL = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1)).mean()
+        if genre_balancing_weights_per_sample is not None:
+            batch_loss_KL_Beta_Scaled = (batch_loss_KL * genre_balancing_weights_per_sample[:, 0, 0].view(-1, 1))
+
+        else:
+            batch_loss_KL_Beta_Scaled = batch_loss_KL
+
+        batch_loss_KL_Beta_Scaled = batch_loss_KL_Beta_Scaled.sum() if \
+            reduce_by_sum else batch_loss_KL_Beta_Scaled.mean()
+
+        batch_loss_KL = batch_loss_KL.sum() if reduce_by_sum else batch_loss_KL.mean()
 
         batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
-        batch_loss_total = (batch_loss_recon + batch_loss_KL)
+        batch_loss_total = (batch_loss_recon + batch_loss_KL_Beta_Scaled)
 
         # Backpropagation and optimization step (if training)
         # ---------------------------------------------------------------------------------------
@@ -180,6 +259,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         loss_total.append(batch_loss_total.item())
         loss_recon.append(batch_loss_recon.item())
         loss_KL.append(batch_loss_KL.item())
+        loss_KL_beta_scaled.append(batch_loss_KL_Beta_Scaled.item())
 
         # Increment the step counter
         # ---------------------------------------------------------------------------------------
@@ -196,6 +276,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
         "loss_v": np.mean(loss_v),
         "loss_o": np.mean(loss_o),
         "loss_KL": np.mean(loss_KL),
+        "loss_KL_beta_scaled": np.mean(loss_KL_beta_scaled),
         "loss_recon": np.mean(loss_recon)
     }
 
@@ -206,7 +287,7 @@ def batch_loop(dataloader_, groove_transformer_vae, hit_loss_fn, velocity_loss_f
 
 
 def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, starting_step, kl_beta=1):
+               offset_loss_fn, device, starting_step, kl_beta=1, reduce_by_sum=False):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -222,6 +303,7 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
     :param device:  (str)  the device to use for the model
     :param starting_step:   (int)  the starting step for the optimizer
     :param kl_beta: (float)  the beta value for the KL loss
+    :param reduce_by_sum:   (bool)  if True, the loss values are reduced by sum instead of mean
 
     :return:    (dict)  a dictionary containing the loss values for the current batch
 
@@ -247,14 +329,15 @@ def train_loop(train_dataloader, groove_transformer_vae, optimizer, hit_loss_fn,
         device=device,
         optimizer=optimizer,
         starting_step=starting_step,
-        kl_beta=kl_beta)
+        kl_beta=kl_beta,
+        reduce_by_sum=reduce_by_sum)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
 def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, kl_beta=1):
+               offset_loss_fn, device, kl_beta=1, reduce_by_sum=False):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -267,6 +350,8 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
     :param offset_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
     :param loss_hit_penalty_multiplier:     (float)  the hit loss penalty multiplier
     :param device:  (str)  the device to use for the model
+    :param kl_beta: (float)  the beta value for the KL loss
+    :param reduce_by_sum:   (bool)  if True, the loss values are reduced by sum instead of mean
     :return:   (dict)  a dictionary containing the loss values for the current batch
 
             metrics = {
@@ -291,7 +376,8 @@ def test_loop(test_dataloader, groove_transformer_vae, hit_loss_fn, velocity_los
             offset_loss_fn=offset_loss_fn,
             device=device,
             optimizer=None,
-            kl_beta=kl_beta)
+            kl_beta=kl_beta,
+            reduce_by_sum=reduce_by_sum)
 
     metrics = {f"test/{key}": value for key, value in metrics.items()}
     return metrics

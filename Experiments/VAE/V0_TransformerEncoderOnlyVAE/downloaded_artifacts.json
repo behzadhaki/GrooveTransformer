@@ -1,0 +1,68 @@
+{
+    "GOOD_AVERAGE_glamorous-sweep-62_epoch_100": {
+        "artifact_name": "model_epoch_100:v283",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v283/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v283"
+    },
+    "GOOD_apricot-sweep-17_epoch_100": {
+        "artifact_name": "model_epoch_100:v242",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v242/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v242"
+    },
+    "GOOD_azure-sweep-54_epoch_100": {
+        "artifact_name": "model_epoch_100:v279",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v279/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v279"
+    },
+    "GOOD_hearty-sweep-60_epoch_100": {
+        "artifact_name": "model_epoch_100:v280",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v280/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v280"
+    },
+    "GOOD_legendary-sweep-5_epoch_100": {
+        "artifact_name": "model_epoch_100:v230",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v230/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v230"
+    },
+    "GOOD_worldly-sweep-22_epoch_100": {
+        "artifact_name": "model_epoch_100:v245",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v245/100.pth",
+        "wandb_link": "mmil_vae_g2d/voice_distribution_and_genre_distribution_imbalance/model_epoch_100:v245"
+    },
+    "drawn_river_6_epoch_100": {
+        "artifact_name": "model_epoch_100:v2",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v2/100.pth",
+        "wandb_link": "mmil_vae_g2d/beta_annealing_study/model_epoch_100:v2"
+    },
+    "kind-gorge-14_epoch_500": {
+        "artifact_name": "model_epoch_500:v1",
+        "epoch": "500",
+        "load_path": "./artifacts/model_epoch_500:v1/500.pth",
+        "wandb_link": "mmil_vae_g2d/beta_annealing_study/model_epoch_500:v1"
+    },
+    "noble-field-7_epoch_100": {
+        "artifact_name": "model_epoch_100:v3",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v3/100.pth",
+        "wandb_link": "mmil_vae_g2d/beta_annealing_study/model_epoch_100:v3"
+    },
+    "worldly-firebrand-5_epoch_100": {
+        "artifact_name": "model_epoch_100:v1",
+        "epoch": "100",
+        "load_path": "./artifacts/model_epoch_100:v1/100.pth",
+        "wandb_link": "mmil_vae_g2d/beta_annealing_study/model_epoch_100:v1"
+    },
+    "young-violet-12_epoch_200": {
+        "artifact_name": "model_epoch_200:v0",
+        "epoch": "200",
+        "load_path": "./artifacts/model_epoch_200:v0/200.pth",
+        "wandb_link": "mmil_vae_g2d/beta_annealing_study/model_epoch_200:v0"
+    }
+}
