@@ -90,6 +90,7 @@ if __name__ == "__main__":
             hvo_sequence = test_dataset.get_hvo_sequences_at(i)
             hvo_sequence.save_hvo_to_midi(filename=f"{i}_original.mid")
             input, _, _, _, _, _ = test_dataset[i]
+            print(input[:8, :9])
             input = torch.unsqueeze(input, dim=0)
             for density in densities:
                 density_tensor = torch.unsqueeze(torch.tensor(density), dim=0)
