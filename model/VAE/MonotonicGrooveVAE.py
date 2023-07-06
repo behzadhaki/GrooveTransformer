@@ -37,7 +37,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         super(GrooveTransformerEncoderVAE, self).__init__()
 
         assert config['o_activation'] in ['sigmoid', 'tanh'], 'offset_activation must be sigmoid or tanh'
-        assert config['embedding_size_src'] % 3 == 0, 'embedding_size_src must be divisible by 3'
+        #assert config['embedding_size_src'] % 3 == 0, 'embedding_size_src must be divisible by 3'
         assert config['embedding_size_tgt'] % 3 == 0, 'embedding_size_tgt must be divisible by 3'
 
         # HParams
@@ -75,7 +75,7 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
             dropout=self.dropout)
 
         self.LatentEncoder = VAE_components.LatentLayer(
-            max_len=self.max_len_dec,
+            max_len=self.max_len_enc, #changed dec to enc
             d_model=self.d_model_enc,
             latent_dim=self.latent_dim)
 
@@ -97,14 +97,14 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         self.Decoder.DecoderInput.init_weights()
         self.Decoder.OutputLayer.init_weights(offset_activation=self.o_activation)
 
-    @torch.jit.export
     def get_latent_probs_and_reparametrize_to_z(self, src_):
         x = self.InputLayerEncoder(src_)  # Nx32xd_model
         memory = self.Encoder(x)  # Nx32xd_model
         mu, log_var, latent_z = self.LatentEncoder(memory)
         return mu, log_var, latent_z
 
-    @torch.jit.export
+
+
     def encode(self, src):
         """ Encodes a given input sequence of shape (batch_size, seq_len, embedding_size_src) into a latent space
         of shape (batch_size, latent_dim)
@@ -113,6 +113,20 @@ class GrooveTransformerEncoderVAE(torch.nn.Module):
         :param eval: if True, the encoder will be in eval mode
         :return: mu, log_var, latent_z (each of shape [batch_size, latent_dim])
         """
+        if not self.training:
+            with torch.no_grad():
+                return self.get_latent_probs_and_reparametrize_to_z(src)
+        else:
+            return self.get_latent_probs_and_reparametrize_to_z(src)
+
+
+    def encode_to_mu_logvar(self, src):
+        def get_mu_var(src_):
+            x = self.InputLayerEncoder(src_)  # Nx32xd_model
+            memory = self.Encoder(x)  # Nx32xd_model
+            mu, log_var, _ = self.LatentEncoder(memory)
+            return mu, log_var
+
         if not self.training:
             with torch.no_grad():
                 return self.get_latent_probs_and_reparametrize_to_z(src)

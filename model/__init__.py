@@ -9,4 +9,5 @@ from model.Base.BasicGrooveTransformer import GrooveTransformerEncoder
 # VAE Imports
 import model.VAE.shared_model_components as VAE_components
 from model.VAE.MonotonicGrooveVAE import GrooveTransformerEncoderVAE
-
+from model.VAE.Density1D import Density1D
+from model.VAE.Density2D import Density2D

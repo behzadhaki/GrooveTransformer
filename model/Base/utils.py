@@ -4,7 +4,6 @@ import torch
 # --------------------------------------------------------------------------------
 
 
-@torch.jit.export
 def get_hits_activation(_h, use_thres=True, thres=0.5, use_pd=False):
     _h = torch.sigmoid(_h)
 
