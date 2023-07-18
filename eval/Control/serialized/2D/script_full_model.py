@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import typing
 from helpers.Control.density_model_Loader import load_density_model
 
@@ -47,6 +48,9 @@ if __name__ == "__main__":
     decoder = torch.jit.load("Decoder.pt")
 
     full_model = full_2D_model(input_layer_encoder, encoder, latent, decoder)
+
+    params = sum(p.numel() for p in full_model.parameters())
+    print(params)
     # Script + save
-    scripted_model = torch.jit.script(full_model)
-    scripted_model.save((model_name + ".pt"))
+    # scripted_model = torch.jit.script(full_model)
+    # scripted_model.save((model_name + ".pt"))
