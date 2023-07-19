@@ -105,9 +105,8 @@ def get_piano_rolls(patterns, save_path=None, prepare_for_wandb=True, x_range_pa
 
     return final_tabs if prepare_for_wandb is False else wandb.Html(file_html(final_tabs, CDN, "Piano Rolls"))
 
-def get_piano_rolls_for_control_model_wandb(
-        model, test_dataset, device,
-        num_examples=8, normalizing_fn=None):
+def get_piano_rolls_for_control_model_wandb(vae_model, test_dataset, device,
+                                            num_examples=8, normalizing_fn=None):
     """
     Obtain a selection of input and output piano rolls for evaluation purposes on the Density
     control models. Intended to provide the ground truth HVO, the prediction when passed the 'real' (normalized)
@@ -130,12 +129,11 @@ def get_piano_rolls_for_control_model_wandb(
                 else calculate_density(hvo_seq.hits)
         densities = torch.tensor(density_values, dtype=torch.float32).to(device)
 
-
         # Create a batch of duplicate inputs based on number of densities we are testing
-        in_grooves = torch.tensor(np.repeat(hvo_seq.flatten_voices()[np.newaxis, :], len(density_values), axis=0),
+        in_grooves = torch.tensor(np.repeat(hvo_seq.flatten_voices(reduce_dim=True)[np.newaxis, :], len(density_values), axis=0),
                                   dtype=torch.float32)
 
-        outputs, mu, log_var, latent_z = model.predict(in_grooves.to(device), densities.to(device), return_concatenated=True)
+        outputs, mu, log_var, latent_z = vae_model.predict(in_grooves.to(device), densities.to(device), return_concatenated=True)
         output_hvo_arrays = [seq.squeeze(0).cpu().numpy() for seq in torch.split(outputs, 1, dim=0)]
 
         for density, prediction in zip(density_values, output_hvo_arrays):
@@ -207,7 +205,7 @@ def get_density_prediction_averages(model, test_dataset, device, batch_size=64, 
 
     hvo_seq_set = test_dataset.get_hvo_sequences()
     hvo_sequences = random.sample(hvo_seq_set, batch_size)
-    in_grooves = torch.tensor(np.array([hvo_seq.flatten_voices() for hvo_seq in hvo_sequences]), dtype=torch.float32)
+    in_grooves = torch.tensor(np.array([hvo_seq.flatten_voices(reduce_dim=True) for hvo_seq in hvo_sequences]), dtype=torch.float32)
 
     densities = [0.01, 0.5, 0.99]
 

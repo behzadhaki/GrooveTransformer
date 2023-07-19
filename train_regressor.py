@@ -6,7 +6,7 @@ import torch
 from model import Density1D, Density2D
 from helpers import vae_train_utils
 from helpers.Control.density_eval import *
-from data.src.dataLoaders import GrooveDataSet_Density
+from data.src.dataLoaders import GrooveDataSet_Density, GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers import density_eval
 from model.Control_VAE.shared_model_components import LatentRegressor, LatentClassifier
@@ -40,7 +40,7 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
 parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
 parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
-parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=27)
+parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
 parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
 parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
 parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
@@ -137,6 +137,14 @@ else:
     dim_feedforward_enc = int(float(args.d_ff_enc_to_dmodel)*float(args.d_model_enc))
     dim_feedforward_dec = int(float(args.d_ff_dec_to_dmodel) * d_model_dec)
     num_decoder_layers = int(float(args.n_enc_lyrs) * float(args.n_dec_lyrs_ratio))
+    embedding_size = args.embedding_size_src
+    if args.train_density:
+        embedding_size += 1
+    if args.train_syncopation:
+        embedding_size += 1
+    if args.train_genre:
+        embedding_size += 16
+
     hparams = dict(
         d_model_enc=args.d_model_enc,
         d_model_dec=d_model_dec,
@@ -207,29 +215,49 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # only 1% of the dataset is used if we are testing the script (is_testing==True)
     should_place_all_data_on_cuda = args.force_data_on_cuda and torch.cuda.is_available()
-    training_dataset = GrooveDataSet_Density(
+    genre_mapping = {
+        'rock': 0,
+        'latin': 1,
+        'jazz': 2,
+        'funk': 3,
+        'afrobeat': 4,
+        'afrocuban': 5,
+        'hiphop': 6,
+        'dance': 7,
+        'soul': 8,
+        'reggae': 9,
+        'country': 10,
+        'pop': 11,
+        'punk': 12,
+        'blues': 13,
+        'highlife': 14,
+        'other': 15}
+    training_dataset = GrooveDataSet_Control(
         dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
         subset_tag="train",
-        max_len=int(args.max_len_enc),
+        max_len=32,
         tapped_voice_idx=2,
-        collapse_tapped_sequence=collapse_tapped_sequence,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda,
-        hit_loss_balancing_beta=args.hit_loss_balancing_beta,
-        genre_loss_balancing_beta=args.genre_loss_balancing_beta,
-        normalize_densities=args.normalize_densities
+        collapse_tapped_sequence=True,
+        down_sampled_ratio=None,
+        move_all_to_gpu=False,
+        hit_loss_balancing_beta=0,
+        genre_loss_balancing_beta=0,
+        custom_genre_mapping_dict=genre_mapping
     )
+
     train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
 
-    test_dataset = GrooveDataSet_Density(
+    test_dataset = GrooveDataSet_Control(
         dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
         subset_tag="test",
-        max_len=int(args.max_len_enc),
+        max_len=32,
         tapped_voice_idx=2,
-        collapse_tapped_sequence=collapse_tapped_sequence,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
-        move_all_to_gpu=should_place_all_data_on_cuda,
-        normalize_densities = args.normalize_densities
+        collapse_tapped_sequence=True,
+        down_sampled_ratio=None,  # 0.1
+        move_all_to_gpu=False,
+        hit_loss_balancing_beta=0,
+        genre_loss_balancing_beta=0,
+        custom_genre_mapping_dict=genre_mapping
     )
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
@@ -286,7 +314,7 @@ if __name__ == "__main__":
     else:
         offset_loss_fn = torch.nn.MSELoss(reduction='none')
 
-    if config.vae_optimizer == 'adam':
+    if config.optimizer == 'adam':
         vae_optimizer = torch.optim.Adam(density_model.parameters(), lr=config.lr)
     else:
         vae_optimizer = torch.optim.SGD(density_model.parameters(), lr=config.lr)
@@ -319,8 +347,8 @@ if __name__ == "__main__":
         train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,
             model=density_model,
+            adversarial_models=adversarial_models,
             vae_optimizer=vae_optimizer,
-            adversarial_optimizers=adversarial_optimizers,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
@@ -329,9 +357,6 @@ if __name__ == "__main__":
             kl_beta=beta,
             reduce_by_sum=config.reduce_loss_by_sum,
             balance_vo=args.balance_vo,
-            train_density=args.train_density,
-            train_syncopation=args.train_syncopation,
-            train_genre=args.train_genre
         )
 
         wandb.log(train_log_metrics, commit=False)
@@ -347,7 +372,8 @@ if __name__ == "__main__":
 
         test_log_metrics = control_train_utils.test_loop(
             test_dataloader=test_dataloader,
-            model=density_model,
+            vae_model=density_model,
+            adversarial_models=adversarial_models,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
@@ -365,7 +391,7 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                piano_rolls = get_piano_rolls_for_control_model_wandb(model=density_model,
+                piano_rolls = get_piano_rolls_for_control_model_wandb(vae_model=density_model,
                                                                       device=config.device,
                                                                       test_dataset=test_dataset,
                                                                       normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None)

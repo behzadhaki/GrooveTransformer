@@ -36,7 +36,7 @@ test_dataset = GrooveDataSet_Density(
         max_len=32,
         tapped_voice_idx=2,)
 
-piano_rolls = get_piano_rolls_for_control_model_wandb(model=model, device='cpu',
+piano_rolls = get_piano_rolls_for_control_model_wandb(vae_model=model, device='cpu',
                                                       test_dataset=test_dataset)
 
 print("lol")

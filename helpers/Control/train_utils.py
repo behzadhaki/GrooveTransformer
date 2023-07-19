@@ -1,7 +1,7 @@
 
 import numpy as np
 import torch
-from loss_functions import *
+from helpers.Control.loss_functions import *
 
 
 
@@ -155,29 +155,29 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
         # Train the adversarial networks
         # ---------------------------------------------------------------------------------------
-        if adversarial_models["density"]["active"]:
-            adversarial_models["density"]["optimizer"].zero_grad()
-            z_star = remove_elements(latent_z, 0)
-            predictions = adversarial_models["density"]["model"].forward(z_star.detach())
-            loss = calculate_regressor_loss(predictions, densities)
-            loss.backward()
-            adversarial_models["density"]["optimizer"].step()
+            if adversarial_models["density"]["active"]:
+                adversarial_models["density"]["optimizer"].zero_grad()
+                z_star = remove_elements(latent_z, 0)
+                predictions = adversarial_models["density"]["model"].forward(z_star.detach())
+                loss = calculate_regressor_loss(predictions, densities)
+                loss.backward()
+                adversarial_models["density"]["optimizer"].step()
 
-        if adversarial_models["syncopation"]["active"]:
-            adversarial_models["syncopation"]["optimizer"].zero_grad()
-            z_star = remove_elements(latent_z, 0)
-            predictions = adversarial_models["syncopation"]["model"].forward(z_star.detach())
-            loss = calculate_regressor_loss(predictions, densities)
-            loss.backward()
-            adversarial_models["syncopation"]["optimizer"].step()
+            if adversarial_models["syncopation"]["active"]:
+                adversarial_models["syncopation"]["optimizer"].zero_grad()
+                z_star = remove_elements(latent_z, 0)
+                predictions = adversarial_models["syncopation"]["model"].forward(z_star.detach())
+                loss = calculate_regressor_loss(predictions, densities)
+                loss.backward()
+                adversarial_models["syncopation"]["optimizer"].step()
 
-        if adversarial_models["genre"]["active"]:
-            adversarial_models["genre"]["optimizer"].zero_grad()
-            z_star = remove_elements(latent_z, 0)
-            predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
-            loss = calculate_classifier_loss(predictions, densities)
-            loss.backward()
-            adversarial_models["genre"]["optimizer"].step()
+            if adversarial_models["genre"]["active"]:
+                adversarial_models["genre"]["optimizer"].zero_grad()
+                z_star = remove_elements(latent_z, 0)
+                predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
+                loss = calculate_classifier_loss(predictions, densities)
+                loss.backward()
+                adversarial_models["genre"]["optimizer"].step()
 
         # Update the per batch loss trackers
         # -----------------------------------------------------------------
@@ -198,7 +198,8 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     # empty gpu cache if cuda
     if device != 'cpu':
         torch.cuda.empty_cache()
-
+    print(f"adv density loss: {np.mean(loss_adv_density)}")
+    print(f"enc density loss: {np.mean(loss_density)}")
     metrics = {
         "loss_total": np.mean(loss_total),
         "loss_h": np.mean(loss_h),
@@ -266,16 +267,13 @@ def train_loop(train_dataloader, model, adversarial_models, vae_optimizer,  hit_
         starting_step=starting_step,
         kl_beta=kl_beta,
         reduce_by_sum=reduce_by_sum,
-        balance_vo=balance_vo,
-        train_density=train_genre,
-        train_syncopation=train_syncopation,
-        train_genre=train_genre)
+        balance_vo=balance_vo)
 
     metrics = {f"train/{key}": value for key, value in metrics.items()}
     return metrics, starting_step
 
 
-def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
+def test_loop(test_dataloader, vae_model, adversarial_models, hit_loss_fn, velocity_loss_fn,
               offset_loss_fn, device, kl_beta=1, reduce_by_sum=False, balance_vo=True):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
@@ -283,7 +281,7 @@ def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
     of the loop.
 
     :param test_dataloader:   (torch.utils.data.DataLoader)  dataloader for the test dataset
-    :param model:  (GrooveTransformerVAE)  the model
+    :param vae_model:  (GrooveTransformerVAE)  the model
     :param hit_loss_fn:     ("dice" or torch.nn.BCEWithLogitsLoss)
     :param velocity_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
     :param offset_loss_fn:    (torch.nn.MSELoss or torch.nn.BCEWithLogitsLoss)
@@ -301,14 +299,15 @@ def test_loop(test_dataloader, model, hit_loss_fn, velocity_loss_fn,
                     "test/loss_KL": np.mean(loss_KL)}
     """
     # ensure model is in eval mode
-    if model.training is True:
-        model.eval()
+    if vae_model.training is True:
+        vae_model.eval()
 
     with torch.no_grad():
         # Run the batch loop
         metrics = batch_loop(
             dataloader_=test_dataloader,
-            vae_model=model,
+            vae_model=vae_model,
+            adversarial_models=adversarial_models,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,

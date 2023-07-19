@@ -326,7 +326,7 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.piano_roll_samples:
             if epoch % args.piano_roll_frequency == 0:
-                piano_rolls = get_piano_rolls_for_control_model_wandb(model=groove_1D_density_model,
+                piano_rolls = get_piano_rolls_for_control_model_wandb(vae_model=groove_1D_density_model,
                                                                       device=config.device,
                                                                       test_dataset=test_dataset,
                                                                       normalizing_fn=training_dataset.normalize_density)
