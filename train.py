@@ -236,7 +236,7 @@ if __name__ == "__main__":
     else:
         offset_loss_fn = torch.nn.MSELoss(reduction='none')
 
-    if config.optimizer == 'adam':
+    if config.vae_optimizer == 'adam':
         optimizer = torch.optim.Adam(groove_transformer_vae.parameters(), lr=config.lr)
     else:
         optimizer = torch.optim.SGD(groove_transformer_vae.parameters(), lr=config.lr)

@@ -7,8 +7,10 @@ from model import Density1D, Density2D
 from helpers import vae_train_utils
 from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Density
-from helpers import vae_test_utils, vae_train_utils
+from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers import density_eval
+from model.Control_VAE.shared_model_components import LatentRegressor, LatentClassifier
+
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
 import yaml
@@ -57,12 +59,14 @@ parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decod
 parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=256)
 
 # ----------------------- Control Parameters -----------------------
-parser.add_argument("--model_type", type=str, help="Which type of model to use", default="1D")
-parser.add_argument("--n_params", type=int, help="Number of controllability parameters", default=1)
-
+parser.add_argument("--model_type", type=str, help="Which type of model to use", default="2D")
+parser.add_argument("--n_params", type=int, help="Number of controllable parameters", default=1)
+parser.add_argument("--train_density", type=strtobool, help="Include density parameter", default=True)
+parser.add_argument("--train_syncopation", type=strtobool, help="Include syncopation parameter", default=False)
+parser.add_argument("--train_genre", type=strtobool, help="Include genre parameter", default=False)
 
 # ----------------------- Loss Parameters -----------------------
-parser.add_argument("--balance_vo", type=strtobool, help="Whether to make vel/off loss proportional to h", default=True)
+parser.add_argument("--balance_vo", type=strtobool, help="Whether to make vel/off loss proportional to h", default=False)
 parser.add_argument("--hit_loss_balancing_beta", type=float, help="beta parameter for hit loss balancing", default=0.0)
 parser.add_argument("--genre_loss_balancing_beta", type=float, help="beta parameter for genre loss balancing", default=0.0)
 parser.add_argument("--hit_loss_function", type=str, help="hit_loss_function - only bce supported for now", default="bce")
@@ -143,6 +147,9 @@ else:
         embedding_size_src=args.embedding_size_src,
         embedding_size_tgt=args.embedding_size_tgt,
         n_params=args.n_params,
+        train_density=args.train_density,
+        train_syncopation=args.train_syncopation,
+        train_genre=args.train_genre,
         nhead_enc=args.nhead_enc,
         nhead_dec=args.nhead_dec,
         dropout=args.dropout,
@@ -227,7 +234,7 @@ if __name__ == "__main__":
 
     test_dataloader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=True)
 
-    # Initialize the model
+    # Initialize the VAEmodel
     # ------------------------------------------------------------------------------------------------------------
     assert args.model_type in ["1D", "2D"], print("Invalid model type specified")
     if args.model_type == "1D":
@@ -239,6 +246,27 @@ if __name__ == "__main__":
 
     density_model = model.to(config.device)
     wandb.watch(density_model, log="all", log_freq=1)
+
+    # Regressors and Classifiers for latent space disentanglement
+    adversarial_models = {"density": {"active": False},
+                          "syncopation": {"active": False},
+                          "genre": {"active": False}}
+
+    if args.train_density:
+        density_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)
+        optimizer = torch.optim.Adam(density_regressor_model.parameters(), lr=config.lr)
+        adversarial_models["density"] = {"active": True, "model": density_regressor_model, "optimizer": optimizer}
+        wandb.watch(density_regressor_model, log="all", log_freq=1)
+
+    if args.train_syncopation:
+        syncopation_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)
+        optimizer = torch.optim.Adam(syncopation_regressor_model.parameters(), lr=config.lr)
+        adversarial_models["syncopation"] = {"active": True, "model": syncopation_regressor_model, "optimizer": optimizer}
+        wandb.watch(syncopation_regressor_model, log="all", log_freq=1)
+
+    # if args.train_genre:
+    #     genre_classifier_model = LatentClassifier(latent_dim=args.latent_dim, )
+
 
     # Instantiate the loss Criterion and Optimizer
     # ------------------------------------------------------------------------------------------------------------
@@ -259,12 +287,11 @@ if __name__ == "__main__":
         offset_loss_fn = torch.nn.MSELoss(reduction='none')
 
     if config.vae_optimizer == 'adam':
-        optimizer = torch.optim.Adam(density_model.parameters(), lr=config.lr)
+        vae_optimizer = torch.optim.Adam(density_model.parameters(), lr=config.lr)
     else:
-        optimizer = torch.optim.SGD(density_model.parameters(), lr=config.lr)
+        vae_optimizer = torch.optim.SGD(density_model.parameters(), lr=config.lr)
 
-    # Create curve for KL beta annealing
-    beta_np_cyc = vae_train_utils.generate_beta_curve(
+    beta_np_cyc = control_loss_functions.generate_beta_curve(
         n_epochs=config.epochs,
         period_epochs=config.beta_annealing_per_cycle_period,
         rise_ratio=config.beta_annealing_per_cycle_rising_ratio,
@@ -289,10 +316,11 @@ if __name__ == "__main__":
         else:
             beta = args.beta_level
 
-        train_log_metrics, step_ = vae_train_utils.train_loop(
+        train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,
             model=density_model,
-            optimizer=optimizer,
+            vae_optimizer=vae_optimizer,
+            adversarial_optimizers=adversarial_optimizers,
             hit_loss_fn=hit_loss_fn,
             velocity_loss_fn=velocity_loss_fn,
             offset_loss_fn=offset_loss_fn,
@@ -300,7 +328,10 @@ if __name__ == "__main__":
             starting_step=step_,
             kl_beta=beta,
             reduce_by_sum=config.reduce_loss_by_sum,
-            balance_vo=args.balance_vo
+            balance_vo=args.balance_vo,
+            train_density=args.train_density,
+            train_syncopation=args.train_syncopation,
+            train_genre=args.train_genre
         )
 
         wandb.log(train_log_metrics, commit=False)
@@ -312,10 +343,9 @@ if __name__ == "__main__":
         #           rather than all at once
         # ---------------------------------------------------------------------------------------------------
         density_model.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
-
         logger.info("***************************Testing...")
 
-        test_log_metrics = vae_train_utils.test_loop(
+        test_log_metrics = control_train_utils.test_loop(
             test_dataloader=test_dataloader,
             model=density_model,
             hit_loss_fn=hit_loss_fn,
