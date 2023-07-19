@@ -1894,29 +1894,75 @@ class HVO_Sequence(object):
         return combined_syncopation
 
     def get_witek_polyphonic_syncopation(self, low_mid_hi_drum_map=Groove_Toolbox_3Part_keymap):
-        """Calculate syncopation using Witek syncopation distance - modelling syncopation between instruments
-        Works on semiquaver and quaver levels of syncopation
-        at maximum amplitude (=30 for 2 bar 4/4 loop)"""
-        # todo: Normalize...?
+        """Port of Rhythm ToolBox PolySync function to HVO_Sequence object
 
-        metrical_profile = WITEK_SYNCOPATION_METRICAL_PROFILE_4_4_16th_NOTE
+        Witek, M. A., Clarke, E. F., Wallentin, M., Kringelbach, M. L., & Vuust, P. (2014).
+        Syncopation, body-movement and pleasure in groove music. PloS one, 9(4), e94446.
 
-        max_syncopation = 30.0
+        Drum rhythm spaces: From polyphonic similarity to generative maps by Daniel Gomez Marin, 2020
+
+        Source Code Reference:
+
+        https://github.com/danielgomezmarin/rhythmtoolbox/blob/d7187aa1cbff0e21bfd6f460c40c3ad6a2d38dbd/rhythmtoolbox/descriptors.py#L176-L241
+
+        """
+        assert self.number_of_steps % 16 == 0, "Currently only works for multipl of 16 step loops"
+
+        # Metric profile as described by Witek et al. (2014)
+        salience_w = [0, -3, -2, -3, -1, -3, -2, -3, -1, -3, -2, -3, -1, -3, -2, -3] * int(self.number_of_steps / 16)
+        syncopation_list = []
+
 
         # Get hits score reduced to low mid high groups
         lmh_hits = self.get_with_different_drum_mapping("h", tgt_drum_mapping=low_mid_hi_drum_map)
-        low = lmh_hits[:, 0]
-        mid = lmh_hits[:, 1]
-        high = lmh_hits[:, 2]
 
-        total_syncopation = 0
+        # find pairs of N and Ndi notes events
+        for ix in range(self.number_of_steps):
+            # describe the instruments present in current and next steps
+            event = [lmh_hits[ix, 0], lmh_hits[ix, 1], lmh_hits[ix, 2]]
 
-        for i in range(len(low)):
-            kick_syncopation, snare_syncopation = _get_kick_and_snare_syncopations(low, mid, high, i, metrical_profile)
-            total_syncopation += kick_syncopation * low[i]
-            total_syncopation += snare_syncopation * mid[i]
+            next_ix = (ix + 1) % self.number_of_steps
+            event_next = [lmh_hits[next_ix, 0], lmh_hits[next_ix, 1], lmh_hits[next_ix, 2]]
 
-        return total_syncopation / max_syncopation
+            # syncopation occurs when adjacent events are different, and succeeding event has greater or equal metric weight
+            if event != event_next and salience_w[next_ix] >= salience_w[ix]:
+                # only process if there is a syncopation
+                # analyze what type of syncopation is found to assign instrumental weight
+                # instrumental weight depends on the relationship between the instruments in the pair
+
+                instrumental_weight = None
+
+                # Three-stream syncopation
+                # Low against mid and hi
+                if event[0] == 1 and event_next[1] == 1 and event_next[2] == 1:
+                    instrumental_weight = 2
+
+                # Mid against low and high
+                if event[1] == 1 and event_next[0] == 1 and event_next[2] == 1:
+                    instrumental_weight = 1
+
+                # Two-stream syncopation
+                # Low or mid against high
+                if (event[0] == 1 or event[1] == 1) and event_next == [0, 0, 1]:
+                    instrumental_weight = 5
+
+                # Low against mid (NOTE: not defined in [Witek et al., 2014])
+                if event == [1, 0, 0] and event_next == [0, 1, 0]:
+                    instrumental_weight = 2
+
+                # Mid against low (NOTE: not defined in [Witek et al., 2014])
+                if event == [0, 1, 0] and event_next == [1, 0, 0]:
+                    instrumental_weight = 2
+
+                local_syncopation = 0
+                if instrumental_weight:
+                    local_syncopation = (
+                            abs(salience_w[ix] - salience_w[next_ix]) + instrumental_weight
+                    )
+                syncopation_list.append(local_syncopation)
+
+        return sum(syncopation_list)
+
 
     def get_low_mid_hi_syncopation_info(self, low_mid_hi_drum_map=Groove_Toolbox_3Part_keymap):
         """calculates monophonic syncopation of low/mid/high voice groups
