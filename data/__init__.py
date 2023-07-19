@@ -6,3 +6,4 @@ from data.src.dataLoaders import load_gmd_hvo_sequences
 from data.src.dataLoaders import load_down_sampled_gmd_hvo_sequences
 from data.src.dataLoaders import MonotonicGrooveDataset
 from data.src.dataLoaders import GrooveDataSet_Density
+from data.src.dataLoaders import GrooveDataSet_Control
