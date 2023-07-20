@@ -136,7 +136,7 @@ def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at
 
     return beta_curve[:n_epochs]
 
-def remove_elements(tensor, start, end=None):
+def separate_control_elements(tensor, start, end=None, squeeze_result=False):
     """Removes elements from a tensor, either a single element or a slice.
 
     Args:
@@ -147,7 +147,19 @@ def remove_elements(tensor, start, end=None):
     Returns:
     torch.Tensor: Tensor with elements removed.
     """
-    if end is None:  # If no end index is given, remove a single element
-        return torch.cat((tensor[:, :start], tensor[:, start+1:]), dim=1)
-    else:  # If an end index is given, remove a slice
-        return torch.cat((tensor[:, :start], tensor[:, end+1:]), dim=1)
+    if end is None:
+        z_star = torch.cat((tensor[:, :start], tensor[:, start+1:]), dim=1)
+        element = tensor[:, start]
+    else:
+        z_star = torch.cat((tensor[:, :start], tensor[:, end+1:]), dim=1)
+        element = tensor[:, start:end]
+
+    if squeeze_result:
+        element = element.squeeze()
+
+    return z_star, element
+
+    # if end is None:  # If no end index is given, remove a single element
+    #     return torch.cat((tensor[:, :start], tensor[:, start+1:]), dim=1)
+    # else:  # If an end index is given, remove a slice
+    #     return torch.cat((tensor[:, :start], tensor[:, end+1:]), dim=1)

@@ -32,6 +32,10 @@ class InAttentionEncoder(torch.nn.Module):
 
 
 class LatentRegressor(torch.nn.Module):
+    """
+    Regressor to predict a single continuous value from the latent space. For example,
+    if latent space has 256 values, it will look at 255 of these and predict a single value.
+    """
     def __init__(self, latent_dim, activate_output=True):
         super(LatentRegressor, self).__init__()
         latent_dim = latent_dim - 1
@@ -47,7 +51,7 @@ class LatentRegressor(torch.nn.Module):
         x = self.fc_activation_1(x)
         x = self.fc_layer_2(x)
         x = self.fc_activation_2(x)
-        output = self.fc_output_layer(x)
+        output = self.fc_output_layer(x).squeeze()  # squeeze to match the single-dimensionality of control vector
         if self.fc_output_activation is not None:
             output = self.fc_output_activation(output)
 

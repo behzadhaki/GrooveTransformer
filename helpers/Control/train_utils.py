@@ -7,7 +7,7 @@ from helpers.Control.loss_functions import *
 
 def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, vae_optimizer=None, starting_step=None,
-               kl_beta=1.0, adversarial_loss_modifier=1.0, encoder_loss_modifier=1.0,
+               kl_beta=1.0, adversarial_loss_modifier=1.0, control_encoding_loss_modifier=0.2,
                reduce_by_sum=False, balance_vo=True):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
@@ -43,6 +43,8 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     # ------------------------------------------------------------------------------------------
     loss_total, loss_recon, loss_h, loss_v, loss_o, loss_KL, loss_KL_beta_scaled, \
         loss_adv_density, loss_density, loss_adv_sync, loss_sync, loss_adv_genre, loss_genre = [], [], [], [], [], [], [], [], [], [], [], [], []
+
+    loss_adversarial_total, loss_encoder_total = [], []
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
@@ -103,69 +105,74 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         batch_loss_KL = batch_loss_KL.sum() if reduce_by_sum else batch_loss_KL.mean()
 
         # Adversarial Latent
-        adversarial_loss = 0
-        encoding_loss = 0
+        adversarial_loss = 0.0
+        control_encoding_loss = 0.0
 
         if adversarial_models["density"]["active"]:
-            z_star = remove_elements(latent_z, 0)
+            z_star, ctrl_elements = separate_control_elements(latent_z, 0, squeeze_result=True)
             adversarial_density_pred = adversarial_models["density"]["model"].forward(z_star)
             adversarial_density_loss = calculate_regressor_loss(adversarial_density_pred, densities)
             adversarial_loss += adversarial_density_loss
-            density_loss = calculate_regressor_loss(latent_z[:, 0], densities)
-            encoding_loss += density_loss
-            # Record the values
+
+            density_loss = calculate_regressor_loss(ctrl_elements, densities)
+            control_encoding_loss += density_loss
+
             loss_adv_density.append(adversarial_density_loss.item())
             loss_density.append(density_loss.item())
 
 
         if adversarial_models["syncopation"]["active"]:
-            z_star = remove_elements(latent_z, 1)
+            z_star = separate_control_elements(latent_z, 1)
             adversarial_syncopation_pred = adversarial_models["syncopation"]["model"].forward(z_star)
             adversarial_syncopation_loss = calculate_regressor_loss(adversarial_syncopation_pred, syncopations)
             adversarial_loss += adversarial_syncopation_loss
+
             syncopation_loss = calculate_regressor_loss(latent_z[:, 1], syncopations)
-            encoding_loss += syncopation_loss
-            # Record the values
+            control_encoding_loss += syncopation_loss
+
             loss_adv_sync.append(adversarial_syncopation_loss)
             loss_sync.append(syncopation_loss.item())
 
         if adversarial_models["genre"]["active"]:
-            z_star = remove_elements(latent_z, start=2, end=18)
+            z_star = separate_control_elements(latent_z, start=2, end=18)
             adversarial_genre_pred = adversarial_models["genre"]["model"].forward(z_star)
             adversarial_genre_loss = calculate_classifier_loss(adversarial_genre_pred, genres)
             adversarial_loss += adversarial_genre_loss
+
             genre_loss = calculate_classifier_loss(latent_z[:, 2:18], genres)
-            encoding_loss += genre_loss
-            # Record the values
+            control_encoding_loss += genre_loss
+
             loss_adv_genre.append(adversarial_genre_loss)
             loss_genre.append(genre_loss.item())
 
         # Scale losses according to hyperparams
         adversarial_loss *= adversarial_loss_modifier
-        encoding_loss *= encoder_loss_modifier
+        control_encoding_loss *= control_encoding_loss_modifier
 
-        batch_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled - adversarial_loss + encoding_loss
+        vae_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled + control_encoding_loss - adversarial_loss
 
         # Backpropagation and optimization step (if training)
         # ---------------------------------------------------------------------------------------
         if vae_optimizer is not None:
             vae_optimizer.zero_grad()
-            batch_loss_total.backward()
+            vae_loss_total.backward()
             vae_optimizer.step()
 
         # Train the adversarial networks
         # ---------------------------------------------------------------------------------------
             if adversarial_models["density"]["active"]:
                 adversarial_models["density"]["optimizer"].zero_grad()
-                z_star = remove_elements(latent_z, 0)
+                z_star, _ = separate_control_elements(latent_z, 0)
                 predictions = adversarial_models["density"]["model"].forward(z_star.detach())
                 loss = calculate_regressor_loss(predictions, densities)
+                loss *= .01
+                # print(f"training adv loss: {loss}")
                 loss.backward()
                 adversarial_models["density"]["optimizer"].step()
 
             if adversarial_models["syncopation"]["active"]:
                 adversarial_models["syncopation"]["optimizer"].zero_grad()
-                z_star = remove_elements(latent_z, 0)
+                z_star = separate_control_elements(latent_z, 0)
                 predictions = adversarial_models["syncopation"]["model"].forward(z_star.detach())
                 loss = calculate_regressor_loss(predictions, densities)
                 loss.backward()
@@ -173,7 +180,7 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
             if adversarial_models["genre"]["active"]:
                 adversarial_models["genre"]["optimizer"].zero_grad()
-                z_star = remove_elements(latent_z, 0)
+                z_star = separate_control_elements(latent_z, 0)
                 predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
                 loss = calculate_classifier_loss(predictions, densities)
                 loss.backward()
@@ -184,10 +191,11 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         loss_h.append(batch_loss_h.item())
         loss_v.append(batch_loss_v.item())
         loss_o.append(batch_loss_o.item())
-        loss_total.append(batch_loss_total.item())
         loss_recon.append(batch_loss_recon.item())
         loss_KL.append(batch_loss_KL.item())
         loss_KL_beta_scaled.append(batch_loss_KL_Beta_Scaled.item())
+        loss_adversarial_total.append(adversarial_loss.item())
+        loss_total.append(vae_loss_total.item())
 
 
         # Increment the step counter
@@ -200,6 +208,8 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         torch.cuda.empty_cache()
     print(f"adv density loss: {np.mean(loss_adv_density)}")
     print(f"enc density loss: {np.mean(loss_density)}")
+    print(f"total adversarial loss (after balancing): {np.mean(loss_adversarial_total)}")
+    print(f"total vae loss without adv: {np.mean(loss_total) + np.mean(loss_adversarial_total)}")
     metrics = {
         "loss_total": np.mean(loss_total),
         "loss_h": np.mean(loss_h),

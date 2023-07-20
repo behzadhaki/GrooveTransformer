@@ -34,7 +34,7 @@ parser.add_argument(
     "--config",
     help="Yaml file for configuration. If available, the rest of the arguments will be ignored", default=None)
 parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
-                    default="Control 1D")
+                    default="ControlAdversarial")
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         max_len=32,
         tapped_voice_idx=2,
         collapse_tapped_sequence=True,
-        down_sampled_ratio=None,
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
         genre_loss_balancing_beta=0,
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         max_len=32,
         tapped_voice_idx=2,
         collapse_tapped_sequence=True,
-        down_sampled_ratio=None,  # 0.1
+        down_sampled_ratio=0.1 if args.is_testing is True else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
         genre_loss_balancing_beta=0,
