@@ -29,20 +29,24 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     :param kl_beta: (float)  the beta value for the KLD loss
     :param reduce_by_sum:   (bool)  whether to reduce the loss by sum or mean
     :return:    (dict)  a dictionary containing the loss values for the current batch
-
-                metrics = {
-                    "loss_total": np.mean(loss_total),
-                    "loss_h": np.mean(loss_h),
-                    "loss_v": np.mean(loss_v),
-                    "loss_o": np.mean(loss_o),
-                    "loss_KL": np.mean(loss_KL)}
-
-                (int)  the current step of the optimizer (if provided)
     """
     # Prepare the metric trackers for the new epoch
     # ------------------------------------------------------------------------------------------
-    loss_total, loss_recon, loss_h, loss_v, loss_o, loss_KL, loss_KL_beta_scaled, \
-        loss_adv_density, loss_density, loss_adv_sync, loss_sync, loss_adv_genre, loss_genre = [], [], [], [], [], [], [], [], [], [], [], [], []
+    vae_loss_total = []
+    loss_recon, loss_h, loss_v, loss_o = [], [], [], []
+    loss_kl, loss_kl_beta_scaled = [], []
+
+    # For each control parameter we have 3 loss functions to track:
+    # 1. Gradient Reversal Layer (grl), 2. Adversarial Loss 3. Encoding Loss
+    loss_adversarial_trackers = {"density_grl": [],
+                                 "density": [],
+                                 "density_encoding": [],
+                                 "sync_grl": [],
+                                 "sync": [],
+                                 "sync_encoding": [],
+                                 "genre_grl": [],
+                                 "genre": [],
+                                 "genre_encoding": []}
 
     loss_adversarial_total, loss_encoder_total = [], []
 
@@ -54,22 +58,26 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
-        inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
-        outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
-        densities = densities_.to(device) if densities_.device.type!= device else densities_
-        syncopations = syncopations_.to(device) if syncopations_.device.type!= device else syncopations_
-        genres = genres_.to(device) if genres_.device.type!= device else genres_
-        hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
-            if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
-        genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
-            if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
+        data_list = [inputs_, outputs_, densities_, syncopations_, genres_,
+                     hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_]
+
+        inputs, outputs, densities, syncopations, genres, \
+            hit_balancing_weights_per_sample, genre_balancing_weights_per_sample = \
+            [tensor.to(device) if tensor.device.type != device else tensor for tensor in data_list]
+        # inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
+        # outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
+        # densities = densities_.to(device) if densities_.device.type!= device else densities_
+        # syncopations = syncopations_.to(device) if syncopations_.device.type!= device else syncopations_
+        # genres = genres_.to(device) if genres_.device.type!= device else genres_
+        # hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
+        #     if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
+        # genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
+        #     if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
 
 
         # Forward pass of VAE
         # ---------------------------------------------------------------------------------------
         (h_logits, v_logits, o_logits), mu, log_var, latent_z = vae_model.forward(inputs, densities)
-
-        # Prepare data for loss calculation
         h_targets, v_targets, o_targets = torch.split(outputs, int(outputs.shape[2] / 3), 2)
 
         # Compute VAE losses
@@ -95,7 +103,7 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
 
-        batch_loss_recon = (batch_loss_h + batch_loss_v + batch_loss_o)
+        batch_loss_recon = batch_loss_h + batch_loss_v + batch_loss_o
 
         # KL
         batch_loss_KL = calculate_kld_loss(mu, log_var)
@@ -105,86 +113,23 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         batch_loss_KL = batch_loss_KL.sum() if reduce_by_sum else batch_loss_KL.mean()
 
         # Adversarial Latent
-        adversarial_loss = 0.0
-        control_encoding_loss = 0.0
-
-        if adversarial_models["density"]["active"]:
-            z_star, ctrl_elements = separate_control_elements(latent_z, 0, squeeze_result=True)
-            adversarial_density_pred = adversarial_models["density"]["model"].forward(z_star)
-            adversarial_density_loss = calculate_regressor_loss(adversarial_density_pred, densities)
-            adversarial_loss += adversarial_density_loss
-
-            density_loss = calculate_regressor_loss(ctrl_elements, densities)
-            control_encoding_loss += density_loss
-
-            loss_adv_density.append(adversarial_density_loss.item())
-            loss_density.append(density_loss.item())
-
-
-        if adversarial_models["syncopation"]["active"]:
-            z_star = separate_control_elements(latent_z, 1)
-            adversarial_syncopation_pred = adversarial_models["syncopation"]["model"].forward(z_star)
-            adversarial_syncopation_loss = calculate_regressor_loss(adversarial_syncopation_pred, syncopations)
-            adversarial_loss += adversarial_syncopation_loss
-
-            syncopation_loss = calculate_regressor_loss(latent_z[:, 1], syncopations)
-            control_encoding_loss += syncopation_loss
-
-            loss_adv_sync.append(adversarial_syncopation_loss)
-            loss_sync.append(syncopation_loss.item())
-
-        if adversarial_models["genre"]["active"]:
-            z_star = separate_control_elements(latent_z, start=2, end=18)
-            adversarial_genre_pred = adversarial_models["genre"]["model"].forward(z_star)
-            adversarial_genre_loss = calculate_classifier_loss(adversarial_genre_pred, genres)
-            adversarial_loss += adversarial_genre_loss
-
-            genre_loss = calculate_classifier_loss(latent_z[:, 2:18], genres)
-            control_encoding_loss += genre_loss
-
-            loss_adv_genre.append(adversarial_genre_loss)
-            loss_genre.append(genre_loss.item())
-
-        # Scale losses according to hyperparams
+        params = {"densities": densities}
+        adversarial_loss, control_encoding_loss = \
+            calculate_adversarial_losses(adversarial_models, latent_z, params, loss_adversarial_trackers)
         adversarial_loss *= adversarial_loss_modifier
         control_encoding_loss *= control_encoding_loss_modifier
 
-        vae_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled + control_encoding_loss - adversarial_loss
+        batch_vae_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled + control_encoding_loss - adversarial_loss
 
         # Backpropagation and optimization step (if training)
         # ---------------------------------------------------------------------------------------
         if vae_optimizer is not None:
             vae_optimizer.zero_grad()
-            vae_loss_total.backward()
+            batch_vae_loss_total.backward()
             vae_optimizer.step()
 
-        # Train the adversarial networks
-        # ---------------------------------------------------------------------------------------
-            if adversarial_models["density"]["active"]:
-                adversarial_models["density"]["optimizer"].zero_grad()
-                z_star, _ = separate_control_elements(latent_z, 0)
-                predictions = adversarial_models["density"]["model"].forward(z_star.detach())
-                loss = calculate_regressor_loss(predictions, densities)
-                loss *= .01
-                # print(f"training adv loss: {loss}")
-                loss.backward()
-                adversarial_models["density"]["optimizer"].step()
-
-            if adversarial_models["syncopation"]["active"]:
-                adversarial_models["syncopation"]["optimizer"].zero_grad()
-                z_star = separate_control_elements(latent_z, 0)
-                predictions = adversarial_models["syncopation"]["model"].forward(z_star.detach())
-                loss = calculate_regressor_loss(predictions, densities)
-                loss.backward()
-                adversarial_models["syncopation"]["optimizer"].step()
-
-            if adversarial_models["genre"]["active"]:
-                adversarial_models["genre"]["optimizer"].zero_grad()
-                z_star = separate_control_elements(latent_z, 0)
-                predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
-                loss = calculate_classifier_loss(predictions, densities)
-                loss.backward()
-                adversarial_models["genre"]["optimizer"].step()
+            # Train the adversarial networks to estimate control values from z_star
+            train_adversarial_models(adversarial_models, latent_z, params, loss_adversarial_trackers)
 
         # Update the per batch loss trackers
         # -----------------------------------------------------------------
@@ -192,10 +137,10 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         loss_v.append(batch_loss_v.item())
         loss_o.append(batch_loss_o.item())
         loss_recon.append(batch_loss_recon.item())
-        loss_KL.append(batch_loss_KL.item())
-        loss_KL_beta_scaled.append(batch_loss_KL_Beta_Scaled.item())
+        loss_kl.append(batch_loss_KL.item())
+        loss_kl_beta_scaled.append(batch_loss_KL_Beta_Scaled.item())
         loss_adversarial_total.append(adversarial_loss.item())
-        loss_total.append(vae_loss_total.item())
+        vae_loss_total.append(batch_vae_loss_total.item())
 
 
         # Increment the step counter
@@ -206,24 +151,30 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     # empty gpu cache if cuda
     if device != 'cpu':
         torch.cuda.empty_cache()
-    print(f"adv density loss: {np.mean(loss_adv_density)}")
-    print(f"enc density loss: {np.mean(loss_density)}")
-    print(f"total adversarial loss (after balancing): {np.mean(loss_adversarial_total)}")
-    print(f"total vae loss without adv: {np.mean(loss_total) + np.mean(loss_adversarial_total)}")
     metrics = {
-        "loss_total": np.mean(loss_total),
+        "vae_loss_total": np.mean(vae_loss_total),
+
+        "loss_recon": np.mean(loss_recon),
         "loss_h": np.mean(loss_h),
         "loss_v": np.mean(loss_v),
         "loss_o": np.mean(loss_o),
-        "loss_KL": np.mean(loss_KL),
-        "loss_KL_beta_scaled": np.mean(loss_KL_beta_scaled),
-        "loss_recon": np.mean(loss_recon),
-        "loss_adv_density": np.mean(loss_adv_density),
-        "loss_enc_density": np.mean(loss_density),
-        "loss_adv_syncopation": np.mean(loss_adv_sync),
-        "loss_enc_syncopation": np.mean(loss_sync),
-        "loss_adv_genre": np.mean(loss_adv_genre),
-        "loss_enc_genre": np.mean(loss_genre)
+
+        "loss_kl": np.mean(loss_kl),
+        "loss_kl_beta_scaled": np.mean(loss_kl_beta_scaled),
+
+        "loss_adversarial_total": np.mean(loss_adversarial_total),
+
+        "loss_adv_density_grl": np.mean(loss_adversarial_trackers["density_grl"]),
+        "loss_adv_density": np.mean(loss_adversarial_trackers["density"]),
+        "loss_enc_density": np.mean(loss_adversarial_trackers["density_encoding"]),
+
+        "loss_adv_syncopation_grl": np.mean(loss_adversarial_trackers["sync_grl"]),
+        "loss_adv_syncopation": np.mean(loss_adversarial_trackers["sync"]),
+        "loss_enc_syncopation": np.mean(loss_adversarial_trackers["sync_encoding"]),
+
+        "loss_adv_genre_grl": np.mean(loss_adversarial_trackers["genre_grl"]),
+        "loss_adv_genre": np.mean(loss_adversarial_trackers["genre"]),
+        "loss_enc_genre": np.mean(loss_adversarial_trackers["genre_encoding"]),
     }
 
     if starting_step is not None:

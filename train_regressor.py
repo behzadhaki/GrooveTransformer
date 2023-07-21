@@ -384,8 +384,8 @@ if __name__ == "__main__":
         )
 
         wandb.log(test_log_metrics, commit=False)
-        logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/loss_total']} "
-                    f"and test loss of {test_log_metrics['test/loss_total']}")
+        logger.info(f"Epoch {epoch} Finished with total train loss of {train_log_metrics['train/vae_loss_total']} "
+                    f"and test loss of {test_log_metrics['test/vae_loss_total']}")
 
         # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------

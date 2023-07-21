@@ -77,15 +77,98 @@ def calculate_kld_loss(mu, log_var):
     log_var = log_var.view(log_var.shape[0], -1)
     kld_loss = -0.5 * (1 + log_var - mu.pow(2) - log_var.exp())
 
-    return kld_loss     # batch_size,  time_steps, n_voices
+    return kld_loss     # batch_size,  time_steps, n_voices\
+
+
+def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers):
+    """
+    Calculate the adversarial + encoding losses for each parameter.
+    :param adversarial_models: (dictionary) in format {active, model, optimizer}
+    :param latent_z: (torch.Tensor) the latent space vector
+    :param params: (dictionary) each element is a tensor of ground truth parameters from current batch
+    :param trackers: (dictionary) lists of each loss value to be tracked. Append and take mean at end of epoch
+    """
+
+    adversarial_loss = 0.0
+    control_encoding_loss = 0.0
+
+    if adversarial_models["density"]["active"]:
+        z_star, ctrl_elements = separate_control_elements(latent_z, 0, squeeze_result=True)
+        adversarial_density_pred = adversarial_models["density"]["model"].forward(z_star)
+        adversarial_density_loss = calculate_regressor_loss(adversarial_density_pred, params["densities"])
+        adversarial_loss += adversarial_density_loss
+
+        density_loss = calculate_regressor_loss(ctrl_elements, params["densities"])
+        control_encoding_loss += density_loss
+
+        trackers["density_grl"].append(adversarial_density_loss.item())
+        trackers["density_encoding"].append(density_loss.item())
+
+    if adversarial_models["syncopation"]["active"]:
+        z_star = separate_control_elements(latent_z, 1)
+        adversarial_syncopation_pred = adversarial_models["syncopation"]["model"].forward(z_star)
+        adversarial_syncopation_loss = calculate_regressor_loss(adversarial_syncopation_pred, params["syncopation"])
+        adversarial_loss += adversarial_syncopation_loss
+
+        syncopation_loss = calculate_regressor_loss(latent_z[:, 1], params["syncopations"])
+        control_encoding_loss += syncopation_loss
+
+        trackers["sync_grl"].append(adversarial_syncopation_loss.item())
+        trackers["sync_encoding"].append(syncopation_loss.item())
+
+    if adversarial_models["genre"]["active"]:
+        z_star = separate_control_elements(latent_z, start=2, end=18)
+        adversarial_genre_pred = adversarial_models["genre"]["model"].forward(z_star)
+        adversarial_genre_loss = calculate_classifier_loss(adversarial_genre_pred, params["genres"])
+        adversarial_loss += adversarial_genre_loss
+
+        genre_loss = calculate_classifier_loss(latent_z[:, 2:18], params["genres"])
+        control_encoding_loss += genre_loss
+
+        trackers["genre_grl"].append(adversarial_genre_loss.item())
+        trackers["genre_encoding"].append(genre_loss.item())
+
+    return adversarial_loss, control_encoding_loss
+
+
+def train_adversarial_models(adversarial_models, latent_z, params, trackers):
+    if adversarial_models["density"]["active"]:
+        adversarial_models["density"]["optimizer"].zero_grad()
+        z_star, _ = separate_control_elements(latent_z, 0)
+        predictions = adversarial_models["density"]["model"].forward(z_star.detach())
+        loss = calculate_regressor_loss(predictions, params["densities"])
+        loss.backward()
+        adversarial_models["density"]["optimizer"].step()
+        trackers["density"].append(loss.item())
+
+    if adversarial_models["syncopation"]["active"]:
+        adversarial_models["syncopation"]["optimizer"].zero_grad()
+        z_star = separate_control_elements(latent_z, 0)
+        predictions = adversarial_models["syncopation"]["model"].forward(z_star.detach())
+        loss = calculate_regressor_loss(predictions, params["syncopations"])
+        loss.backward()
+        adversarial_models["syncopation"]["optimizer"].step()
+        trackers["sync"].append(loss.item())
+
+    if adversarial_models["genre"]["active"]:
+        adversarial_models["genre"]["optimizer"].zero_grad()
+        z_star = separate_control_elements(latent_z, 0)
+        predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
+        loss = calculate_classifier_loss(predictions, params["genres"])
+        loss.backward()
+        adversarial_models["genre"]["optimizer"].step()
+        trackers["genre"].append(loss.item())
+
 
 def calculate_regressor_loss(prediction, target):
     loss_fn = torch.nn.MSELoss()
     return loss_fn(prediction, target)
 
+
 def calculate_classifier_loss(prediction, target):
     loss_fn = torch.nn.BCELoss()
     return loss_fn(prediction, target)
+
 
 def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at_epoch=0):
     """
@@ -135,6 +218,7 @@ def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at
         beta_curve = np.append(beta_curve, single_cycle)
 
     return beta_curve[:n_epochs]
+
 
 def separate_control_elements(tensor, start, end=None, squeeze_result=False):
     """Removes elements from a tensor, either a single element or a slice.
