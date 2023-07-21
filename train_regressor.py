@@ -9,7 +9,7 @@ from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Density, GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers import density_eval
-from model.Control_VAE.shared_model_components import LatentRegressor, LatentClassifier
+from model.Control_VAE.shared_model_components import *
 
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
@@ -25,7 +25,7 @@ logger.setLevel(DEBUG)
 parser = argparse.ArgumentParser()
 
 # ----------------------- Set True When Testing ----------------
-parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=bool,
+parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=strtobool,
                     default=False)
 
 # ----------------------- WANDB Settings -----------------------
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         max_len=32,
         tapped_voice_idx=2,
         collapse_tapped_sequence=True,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        down_sampled_ratio=0.1 if args.is_testing else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
         genre_loss_balancing_beta=0,
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         max_len=32,
         tapped_voice_idx=2,
         collapse_tapped_sequence=True,
-        down_sampled_ratio=0.1 if args.is_testing is True else None,
+        down_sampled_ratio=0.1 if args.is_testing else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
         genre_loss_balancing_beta=0,
@@ -276,15 +276,15 @@ if __name__ == "__main__":
     wandb.watch(density_model, log="all", log_freq=1)
 
     # Regressors and Classifiers for latent space disentanglement
-    adversarial_models = {"density": {"active": False},
+    adversarial_models = {"density":     {"active": False},
                           "syncopation": {"active": False},
-                          "genre": {"active": False}}
+                          "genre":       {"active": False}}
 
     if args.train_density:
-        density_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)
-        optimizer = torch.optim.Adam(density_regressor_model.parameters(), lr=config.lr)
-        adversarial_models["density"] = {"active": True, "model": density_regressor_model, "optimizer": optimizer}
-        wandb.watch(density_regressor_model, log="all", log_freq=1)
+        density_classifier_model = LatentContinuousClassifier(latent_dim=args.latent_dim)
+        optimizer = torch.optim.Adam(density_classifier_model.parameters(), lr=config.lr)
+        adversarial_models["density"] = {"active": True, "model": density_classifier_model, "optimizer": optimizer}
+        wandb.watch(density_classifier_model, log="all", log_freq=1)
 
     if args.train_syncopation:
         syncopation_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)

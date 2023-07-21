@@ -80,3 +80,27 @@ class LatentClassifier(torch.nn.Module):
         logits = self.fc_output_layer(x)
 
         return logits
+
+
+class LatentContinuousClassifier(torch.nn.Module):
+
+    def __init__(self, latent_dim):
+        super(LatentContinuousClassifier, self).__init__()
+        latent_dim -= 1
+        self.fc_layer_1 = torch.nn.Linear(latent_dim, latent_dim)
+        self.fc_layer_2 = torch.nn.Linear(latent_dim, latent_dim)
+        self.output_layer = torch.nn.Linear(latent_dim, 10)
+
+        self.activation_layer_1 = torch.nn.Tanh()
+        self.activation_layer_2 = torch.nn.Tanh()
+        self.output_activation = torch.nn.Sigmoid()
+
+    def forward(self, z_star):
+        x = self.fc_layer_1.forward(z_star)
+        x = self.activation_layer_1(x)
+        x = self.fc_layer_2.forward(x)
+        x = self.activation_layer_2(x)
+        output = self.output_layer.forward(x)
+        output = self.output_activation(output)
+        return output
+

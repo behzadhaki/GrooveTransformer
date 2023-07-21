@@ -93,12 +93,18 @@ def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers)
     control_encoding_loss = 0.0
 
     if adversarial_models["density"]["active"]:
-        z_star, ctrl_elements = separate_control_elements(latent_z, 0, squeeze_result=True)
-        adversarial_density_pred = adversarial_models["density"]["model"].forward(z_star)
-        adversarial_density_loss = calculate_regressor_loss(adversarial_density_pred, params["densities"])
+        densities_gt = params["densities"]
+        densities_onehot_gt = convert_continuous_values_to_onehot_vectors(densities_gt, adversarial=True)
+        z_star, ctrl_encoding = separate_control_elements(latent_z, 0, squeeze_result=True)
+
+        # Get predictions from the classifier
+        density_preds = adversarial_models["density"]["model"].forward(z_star)
+
+        adversarial_density_loss = calculate_classifier_loss(density_preds, densities_onehot_gt)
+        print(f"ADV density loss: {adversarial_density_loss}")
         adversarial_loss += adversarial_density_loss
 
-        density_loss = calculate_regressor_loss(ctrl_elements, params["densities"])
+        density_loss = calculate_regressor_loss(ctrl_encoding, densities_gt)
         control_encoding_loss += density_loss
 
         trackers["density_grl"].append(adversarial_density_loss.item())
@@ -131,15 +137,29 @@ def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers)
     return adversarial_loss, control_encoding_loss
 
 
-def train_adversarial_models(adversarial_models, latent_z, params, trackers):
+def train_classifier_models(adversarial_models, latent_z, params, trackers, backprop, loss_scale=1.0):
+    """
+    Train the adversarial classifier models to accurately determine the control value(s) from
+    the non-control elements of the latent space.
+    """
+    classifier_loss_total = 0.0
+
     if adversarial_models["density"]["active"]:
-        adversarial_models["density"]["optimizer"].zero_grad()
         z_star, _ = separate_control_elements(latent_z, 0)
         predictions = adversarial_models["density"]["model"].forward(z_star.detach())
-        loss = calculate_regressor_loss(predictions, params["densities"])
-        loss.backward()
-        adversarial_models["density"]["optimizer"].step()
-        trackers["density"].append(loss.item())
+        densities_gt_onehot = convert_continuous_values_to_onehot_vectors(params["densities"])
+
+        loss = calculate_classifier_loss(predictions, densities_gt_onehot) * loss_scale
+
+
+        if backprop:
+            #print(f"CLASS density loss: {loss}")
+            adversarial_models["density"]["optimizer"].zero_grad()
+            loss.backward()
+            adversarial_models["density"]["optimizer"].step()
+
+        trackers["density_classifier"].append(loss.item())
+        classifier_loss_total += loss.item()
 
     if adversarial_models["syncopation"]["active"]:
         adversarial_models["syncopation"]["optimizer"].zero_grad()
@@ -159,6 +179,7 @@ def train_adversarial_models(adversarial_models, latent_z, params, trackers):
         adversarial_models["genre"]["optimizer"].step()
         trackers["genre"].append(loss.item())
 
+    return classifier_loss_total
 
 def calculate_regressor_loss(prediction, target):
     loss_fn = torch.nn.MSELoss()
@@ -167,7 +188,8 @@ def calculate_regressor_loss(prediction, target):
 
 def calculate_classifier_loss(prediction, target):
     loss_fn = torch.nn.BCELoss()
-    return loss_fn(prediction, target)
+    loss = loss_fn(prediction, target)
+    return loss
 
 
 def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at_epoch=0):
@@ -247,3 +269,20 @@ def separate_control_elements(tensor, start, end=None, squeeze_result=False):
     #     return torch.cat((tensor[:, :start], tensor[:, start+1:]), dim=1)
     # else:  # If an end index is given, remove a slice
     #     return torch.cat((tensor[:, :start], tensor[:, end+1:]), dim=1)
+
+
+def convert_continuous_values_to_onehot_vectors(values, adversarial=False, num_classes=10):
+    n = values.shape[0]
+    if adversarial:
+        onehot = torch.ones(n, num_classes)
+    else:
+        onehot = torch.zeros(n, num_classes)
+
+    indices = values.round().long()
+    for i in range(n):
+        if adversarial:
+            onehot[i, indices[i]] = 0
+        else:
+            onehot[i, indices[i]] = 1
+
+    return onehot
