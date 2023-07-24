@@ -1,5 +1,5 @@
 from data.src.utils import get_data_directory_using_filters, get_drum_mapping_using_label, load_original_gmd_dataset_pickle, extract_hvo_sequences_dict, pickle_hvo_dict
-from data.control.control_utils import calculate_density
+from data.control.control_utils import *
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -254,7 +254,7 @@ class GrooveDataSet_Control(Dataset):
         self.outputs = list()
         self.hvo_sequences = list()
         self.densities = list()
-        self.syncopations = list()
+        self.intensities = list()
         self.genres = list()
         self.genre_mapping_dict = dict()
         self.tempos = list()
@@ -293,7 +293,8 @@ class GrooveDataSet_Control(Dataset):
                     self.inputs.append(flat_seq)
                     density = calculate_density(hvo_seq.hits)
                     self.densities.append(density)
-                    self.syncopations.append(hvo_seq.get_witek_polyphonic_syncopation())
+                    intensity = calculate_intensity(hvo_seq.hvo[:, 9:18])
+                    self.intensities.append(intensity)
                     self.genres.append(hvo_seq.metadata["style_primary"])
                     self.tempos.append(hvo_seq.tempos[0].qpm)
 
@@ -353,7 +354,6 @@ class GrooveDataSet_Control(Dataset):
              for sample in self.hvo_sequences])
 
 
-
         # Normalize densities
         self.densities = np.array(self.densities)
         if normalize_densities:
@@ -361,12 +361,12 @@ class GrooveDataSet_Control(Dataset):
             self.max_density = np.amax(self.densities)
             self.densities = self.normalize_density(self.densities)
 
-        # Normalize syncopations
-        self.syncopations = np.array(self.syncopations)
+        # Normalize intensities
+        self.intensities = np.array(self.intensities)
         if normalize_syncopations:
-            self.min_syncopation = np.amin(self.syncopations)
-            self.max_syncopation = np.amax(self.syncopations)
-            self.syncopations = self.normalize_syncopations(self.syncopations)
+            self.min_intensity = np.amin(self.intensities)
+            self.max_intensity = np.amax(self.intensities)
+            self.intensities = self.normalize_intensity(self.intensities)
 
 
         # Load as tensor if requested
@@ -376,7 +376,7 @@ class GrooveDataSet_Control(Dataset):
             self.outputs = torch.tensor(self.outputs, dtype=torch.float32)
             self.densities = torch.tensor(self.densities, dtype=torch.float32)
             self.genres = torch.tensor(self.genres, dtype=torch.float32)
-            self.syncopations = torch.tensor(self.syncopations, dtype=torch.float32)
+            self.intensities = torch.tensor(self.intensities, dtype=torch.float32)
             self.tempos = torch.tensor(self.tempos, dtype=torch.float32)
             if hit_loss_balancing_beta is not None:
                 self.hit_balancing_weights_per_sample = torch.tensor(self.hit_balancing_weights_per_sample,
@@ -392,7 +392,7 @@ class GrooveDataSet_Control(Dataset):
             self.outputs = self.outputs.to('cuda')
             self.densities = self.densities.to('cuda')
             self.genres = self.genres.to('cuda')
-            self.syncopations = self.syncopations.to('cuda')
+            self.intensities = self.intensities.to('cuda')
             self.tempos = self.tempos.to('cuda')
             if hit_loss_balancing_beta is not None:
                 self.hit_balancing_weights_per_sample = self.hit_balancing_weights_per_sample.to('cuda')
@@ -405,7 +405,7 @@ class GrooveDataSet_Control(Dataset):
         return len(self.hvo_sequences)
 
     def __getitem__(self, idx):
-        return self.inputs[idx], self.outputs[idx], self.densities[idx], self.syncopations[idx], self.genres[idx],\
+        return self.inputs[idx], self.outputs[idx], self.densities[idx], self.intensities[idx], self.genres[idx],\
             self.hit_balancing_weights_per_sample[idx], self.genre_balancing_weights_per_sample[idx], idx
 
     def get_genre_mapping_dict(self):
@@ -437,8 +437,8 @@ class GrooveDataSet_Control(Dataset):
     def get_densities(self):
         return self.densities
 
-    def get_syncopations(self):
-        return self.syncopations
+    def get_intensities(self):
+        return self.intensities
 
     def get_genres(self):
         return self.genres
@@ -446,11 +446,17 @@ class GrooveDataSet_Control(Dataset):
     def get_tempos(self):
         return self.tempos
 
+    def calculate_normalized_density(self, hits):
+        return self.normalize_density(calculate_density(hits))
+
     def normalize_density(self, density):
         return (density - self.min_density) / (self.max_density - self.min_density)
 
-    def normalize_syncopations(self, syncopations):
-        return (syncopations - self.min_syncopation) / (self.max_syncopation - self.min_syncopation)
+    def calculate_normalized_intensity(self, velocities):
+        return self.normalize_intensity(calculate_intensity(velocities))
+
+    def normalize_intensity(self, intensity):
+        return (intensity - self.min_intensity) / (self.max_intensity - self.min_intensity)
 
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,

@@ -38,31 +38,31 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
-parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=32)
-parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=1)
+parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=16)
+parser.add_argument("--d_model_dec_ratio", type=int,help="Dimension of the decoder model as a ratio of d_model_enc", default=8)
 parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
 parser.add_argument("--embedding_size_tgt",  type=int, help="Dimension of the target embedding", default=27)
-parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
-parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
+parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=4)
+parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=8)
 # d_ff_enc_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_enc_to_dmodel", type=float, help="ration of the dimension of enc feed-frwrd layer relative to "
                                                  "enc dmodel", default=1)
 # d_ff_dec_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_dec_to_dmodel", type=float,
-                    help="ration of the dimension of dec feed-frwrd layer relative to decoder dmodel", default=1)
+                    help="ration of the dimension of dec feed-frwrd layer relative to decoder dmodel", default=4)
 # n_dec_lyrs_ratio denotes the ratio of the dec relative to n_enc_lyrs
-parser.add_argument("--n_enc_lyrs", type=int, help="Number of encoder layers", default=3)
+parser.add_argument("--n_enc_lyrs", type=int, help="Number of encoder layers", default=2)
 parser.add_argument("--n_dec_lyrs_ratio", type=float, help="Number of decoder layers as a ratio of "
-                                               "n_enc_lyrs as a ratio of d_ff_enc", default=1)
+                                               "n_enc_lyrs as a ratio of d_ff_enc", default=5)
 parser.add_argument("--max_len_enc", type=int, help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decoder", default=32)
-parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=256)
+parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=128)
 
 # ----------------------- Control Parameters -----------------------
 parser.add_argument("--model_type", type=str, help="Which type of model to use", default="2D")
 parser.add_argument("--n_params", type=int, help="Number of controllable parameters", default=1)
 parser.add_argument("--train_density", type=strtobool, help="Include density parameter", default=True)
-parser.add_argument("--train_syncopation", type=strtobool, help="Include syncopation parameter", default=False)
+parser.add_argument("--train_intensity", type=strtobool, help="Include intensity parameter", default=False)
 parser.add_argument("--train_genre", type=strtobool, help="Include genre parameter", default=False)
 
 # ----------------------- Loss Parameters -----------------------
@@ -74,19 +74,19 @@ parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_fu
                     default='mse', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
                     default='mse', choices=['bce', 'mse'])
-parser.add_argument("--beta_annealing_activated", help="Use cyclical annealing on KL beta term", type=strtobool,  default=True)
-parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=1.0)
-parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float, help="rising ratio in each cycle to anneal beta", default=1)
+parser.add_argument("--beta_annealing_activated", help="Use cyclical annealing on KL beta term", type=strtobool, default=True)
+parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=0.5)
+parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float, help="rising ratio in each cycle to anneal beta", default=0.75)
 parser.add_argument("--beta_annealing_per_cycle_period", type=int, help="Number of epochs for each cycle of Beta annealing", default=100)
-parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle", default=0)
+parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int, help="Warm up epochs (KL = 0) before starting the first cycle", default=30)
 
 # ----------------------- Training Parameters -----------------------
-parser.add_argument("--dropout", type=float, help="Dropout", default=0.4)
+parser.add_argument("--dropout", type=float, help="Dropout", default=0.2)
 parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
-parser.add_argument("--epochs", type=int, help="Number of epochs", default=100)
+parser.add_argument("--epochs", type=int, help="Number of epochs", default=300)
 parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
-parser.add_argument("--lr", type=float, help="Learning rate", default=1e-4)
-parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="sgd",
+parser.add_argument("--lr", type=float, help="Learning rate", default=0.0003)
+parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="adam",
                     choices=['sgd', 'adam'])
 parser.add_argument("--reduce_loss_by_sum", type=int, help="reduce loss by summing over all dimensions", default=0)
 
@@ -137,13 +137,8 @@ else:
     dim_feedforward_enc = int(float(args.d_ff_enc_to_dmodel)*float(args.d_model_enc))
     dim_feedforward_dec = int(float(args.d_ff_dec_to_dmodel) * d_model_dec)
     num_decoder_layers = int(float(args.n_enc_lyrs) * float(args.n_dec_lyrs_ratio))
-    embedding_size = args.embedding_size_src
-    if args.train_density:
-        embedding_size += 1
-    if args.train_syncopation:
-        embedding_size += 1
-    if args.train_genre:
-        embedding_size += 16
+
+
 
     hparams = dict(
         d_model_enc=args.d_model_enc,
@@ -156,7 +151,7 @@ else:
         embedding_size_tgt=args.embedding_size_tgt,
         n_params=args.n_params,
         train_density=args.train_density,
-        train_syncopation=args.train_syncopation,
+        train_intensity=args.train_intensity,
         train_genre=args.train_genre,
         nhead_enc=args.nhead_enc,
         nhead_dec=args.nhead_dec,
@@ -237,7 +232,7 @@ if __name__ == "__main__":
         subset_tag="train",
         max_len=32,
         tapped_voice_idx=2,
-        collapse_tapped_sequence=True,
+        collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
@@ -252,7 +247,7 @@ if __name__ == "__main__":
         subset_tag="test",
         max_len=32,
         tapped_voice_idx=2,
-        collapse_tapped_sequence=True,
+        collapse_tapped_sequence=collapse_tapped_sequence,
         down_sampled_ratio=0.1 if args.is_testing else None,
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
@@ -265,6 +260,7 @@ if __name__ == "__main__":
     # Initialize the VAEmodel
     # ------------------------------------------------------------------------------------------------------------
     assert args.model_type in ["1D", "2D"], print("Invalid model type specified")
+    print("#--Loading Model--#")
     if args.model_type == "1D":
         config["add_params"] = True
         model = Density1D(config)
@@ -277,20 +273,20 @@ if __name__ == "__main__":
 
     # Regressors and Classifiers for latent space disentanglement
     adversarial_models = {"density":     {"active": False},
-                          "syncopation": {"active": False},
+                          "intensity": {"active": False},
                           "genre":       {"active": False}}
 
     if args.train_density:
         density_classifier_model = LatentContinuousClassifier(latent_dim=args.latent_dim)
-        optimizer = torch.optim.Adam(density_classifier_model.parameters(), lr=config.lr)
+        optimizer = torch.optim.Adam(density_classifier_model.parameters(), lr=0.0004)
         adversarial_models["density"] = {"active": True, "model": density_classifier_model, "optimizer": optimizer}
         wandb.watch(density_classifier_model, log="all", log_freq=1)
 
-    if args.train_syncopation:
-        syncopation_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)
-        optimizer = torch.optim.Adam(syncopation_regressor_model.parameters(), lr=config.lr)
-        adversarial_models["syncopation"] = {"active": True, "model": syncopation_regressor_model, "optimizer": optimizer}
-        wandb.watch(syncopation_regressor_model, log="all", log_freq=1)
+    if args.train_intensity:
+        intensity_regressor_model = LatentRegressor(latent_dim=args.latent_dim, activate_output=True)
+        optimizer = torch.optim.Adam(intensity_regressor_model.parameters(), lr=config.lr)
+        adversarial_models["intensity"] = {"active": True, "model": intensity_regressor_model, "optimizer": optimizer}
+        wandb.watch(intensity_regressor_model, log="all", log_freq=1)
 
     # if args.train_genre:
     #     genre_classifier_model = LatentClassifier(latent_dim=args.latent_dim, )
@@ -336,6 +332,9 @@ if __name__ == "__main__":
         # Run the training loop (trains per batch internally)
         # ------------------------------------------------------------------------------------------
         density_model.train()
+        for model_, component in adversarial_models.items():
+            if component["active"]:
+                component["model"].train()
 
         logger.info("***************************Training...")
 
@@ -368,6 +367,9 @@ if __name__ == "__main__":
         #           rather than all at once
         # ---------------------------------------------------------------------------------------------------
         density_model.eval()       # DON'T FORGET TO SET THE MODEL TO EVAL MODE (check torch no grad)
+        for model, component in adversarial_models.items():
+            if component["active"]:
+                component["model"].eval()
         logger.info("***************************Testing...")
 
         test_log_metrics = control_train_utils.test_loop(
@@ -394,7 +396,9 @@ if __name__ == "__main__":
                 piano_rolls = get_piano_rolls_for_control_model_wandb(vae_model=density_model,
                                                                       device=config.device,
                                                                       test_dataset=test_dataset,
-                                                                      normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None)
+                                                                      normalizing_fn=training_dataset.normalize_density
+                                                                      if args.normalize_densities else None,
+                                                                      reduce_dim=collapse_tapped_sequence)
 
                 wandb.log(piano_rolls, commit=False)
 
@@ -429,7 +433,9 @@ if __name__ == "__main__":
                 densities_predictions = get_density_prediction_averages(model=density_model,
                                                                         test_dataset=test_dataset,
                                                                         device=config.device,
-                                                                        normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None)
+                                                                        normalizing_fn=training_dataset.normalize_density
+                                                                        if args.normalize_densities else None,
+                                                                        reduce_dim=collapse_tapped_sequence)
                 wandb.log(densities_predictions, commit=False)
 
         if args.calculate_hit_scores_on_test:

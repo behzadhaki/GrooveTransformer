@@ -7,7 +7,7 @@ from helpers.Control.loss_functions import *
 
 def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, vae_optimizer=None, starting_step=None,
-               kl_beta=1.0, adversarial_loss_modifier=1.0, control_encoding_loss_modifier=0.2,
+               kl_beta=1.0, adversarial_loss_modifier=0.1, control_encoding_loss_modifier=0.2,
                reduce_by_sum=False, balance_vo=True):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
@@ -41,9 +41,9 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     loss_adversarial_trackers = {"density_grl": [],
                                  "density_classifier": [],
                                  "density_encoding": [],
-                                 "sync_grl": [],
-                                 "sync_classifier": [],
-                                 "sync_encoding": [],
+                                 "intensity_grl": [],
+                                 "intensity_classifier": [],
+                                 "intensity_encoding": [],
                                  "genre_grl": [],
                                  "genre_classifier": [],
                                  "genre_encoding": []}
@@ -52,29 +52,18 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
     # Iterate over batches
     # ------------------------------------------------------------------------------------------
-    for batch_count, (inputs_, outputs_, densities_, syncopations_, genres_,
+    for batch_count, (inputs_, outputs_, densities_, intensities_, genres_,
                       hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_,
                       indices) in enumerate(dataloader_):
 
         # Move data to GPU if available
         # ---------------------------------------------------------------------------------------
-        data_list = [inputs_, outputs_, densities_, syncopations_, genres_,
+        data_list = [inputs_, outputs_, densities_, intensities_, genres_,
                      hit_balancing_weights_per_sample_, genre_balancing_weights_per_sample_]
 
-        inputs, outputs, densities, syncopations, genres, \
+        inputs, outputs, densities, intensities, genres, \
             hit_balancing_weights_per_sample, genre_balancing_weights_per_sample = \
             [tensor.to(device) if tensor.device.type != device else tensor for tensor in data_list]
-        # inputs = inputs_.to(device) if inputs_.device.type!= device else inputs_
-        # outputs = outputs_.to(device) if outputs_.device.type!= device else outputs_
-        # densities = densities_.to(device) if densities_.device.type!= device else densities_
-        # syncopations = syncopations_.to(device) if syncopations_.device.type!= device else syncopations_
-        # genres = genres_.to(device) if genres_.device.type!= device else genres_
-        # hit_balancing_weights_per_sample = hit_balancing_weights_per_sample_.to(device) \
-        #     if hit_balancing_weights_per_sample_.device.type!= device else hit_balancing_weights_per_sample_
-        # genre_balancing_weights_per_sample = genre_balancing_weights_per_sample_.to(device) \
-        #     if genre_balancing_weights_per_sample_.device.type!= device else genre_balancing_weights_per_sample_
-
-
         # Forward pass of VAE
         # ---------------------------------------------------------------------------------------
         (h_logits, v_logits, o_logits), mu, log_var, latent_z = vae_model.forward(inputs, densities)
@@ -119,7 +108,7 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         adversarial_loss *= adversarial_loss_modifier
         encoder_loss *= control_encoding_loss_modifier
 
-        batch_vae_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled + adversarial_loss #+ encoder loss
+        batch_vae_loss_total = batch_loss_recon + batch_loss_KL_Beta_Scaled #- adversarial_loss #+ encoder loss
 
         # Backpropagation and optimization step (if training)
         # ---------------------------------------------------------------------------------------
@@ -130,10 +119,10 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
         # Train the adversarial networks to estimate control values from z_star
         batch_classifier_loss = train_classifier_models(adversarial_models,
-                                                        latent_z, params,
+                                                        latent_z,
+                                                        params,
                                                         loss_adversarial_trackers,
-                                                        backprop=False,
-                                                        #backprop=True if vae_optimizer is not None else False,
+                                                        backprop=True if vae_optimizer is not None else False,
                                                         loss_scale=1.0)
 
         loss_classifier_total.append(batch_classifier_loss)
@@ -150,9 +139,6 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         loss_encoder_total.append(encoder_loss.item())
         vae_loss_total.append(batch_vae_loss_total.item())
 
-
-        # Increment the step counter
-        # ---------------------------------------------------------------------------------------
         if starting_step is not None:
             starting_step += 1
 
@@ -185,9 +171,9 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         "loss_adv_density": np.mean(loss_adversarial_trackers["density_classifier"]),
         "loss_enc_density": np.mean(loss_adversarial_trackers["density_encoding"]),
 
-        "loss_adv_syncopation_grl": np.mean(loss_adversarial_trackers["sync_grl"]),
-        "loss_adv_syncopation": np.mean(loss_adversarial_trackers["sync_classifier"]),
-        "loss_enc_syncopation": np.mean(loss_adversarial_trackers["sync_encoding"]),
+        "loss_adv_intensity_grl": np.mean(loss_adversarial_trackers["intensity_grl"]),
+        "loss_adv_intensity": np.mean(loss_adversarial_trackers["intensity_classifier"]),
+        "loss_enc_intensity": np.mean(loss_adversarial_trackers["intensity_encoding"]),
 
         "loss_adv_genre_grl": np.mean(loss_adversarial_trackers["genre_grl"]),
         "loss_adv_genre": np.mean(loss_adversarial_trackers["genre_classifier"]),
@@ -231,6 +217,9 @@ def train_loop(train_dataloader, model, adversarial_models, vae_optimizer,  hit_
     # ensure model is in training mode
     if model.training is False:
         model.train()
+    for model_, component in adversarial_models.items():
+        if component["active"] and component["model"].training is False:
+            component["model"].train()
 
     # Run the batch loop
     metrics, starting_step = batch_loop(
@@ -279,6 +268,9 @@ def test_loop(test_dataloader, vae_model, adversarial_models, hit_loss_fn, veloc
     # ensure model is in eval mode
     if vae_model.training is True:
         vae_model.eval()
+    for model_, component in adversarial_models.items():
+        if component["active"] and component["model"].training is True:
+            component["model"].eval()
 
     with torch.no_grad():
         # Run the batch loop
