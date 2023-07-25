@@ -28,8 +28,10 @@ class GrooveControl_VAE(torch.nn.Module):
         self.o_activation = config['o_activation']
 
         # Control parameters
+        self.use_in_attention = config['use_in_attention']
         self.n_continuous_params = config['n_continuous_params']
         self.n_genres = config['n_genres']
+        self.n_params = self.n_continuous_params + self.n_genres
 
         self.InputLayerEncoder = Control_components.ControlEncoderInputLayer(
             embedding_size=self.embedding_size_src,
@@ -62,7 +64,8 @@ class GrooveControl_VAE(torch.nn.Module):
             output_embedding_size=self.embedding_size_tgt,
             dropout=self.dropout,
             o_activation=self.o_activation,
-            n_genres=self.n_genres
+            n_genres=self.n_genres,
+            in_attention=self.use_in_attention
         )
 
     def forward(self, hvo, density, intensity, genre):

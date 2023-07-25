@@ -1,4 +1,5 @@
 import torch
+from copy import deepcopy
 from model.VAE.shared_model_components import PositionalEncoding, Encoder, OutputLayer
 from model import get_hits_activation
 
@@ -49,7 +50,7 @@ class Control_Decoder(torch.nn.Module):
 
     """
     def __init__(self, latent_dim, d_model, num_decoder_layers, nhead, dim_feedforward,
-                 output_max_len, output_embedding_size, dropout, o_activation, n_genres):
+                 output_max_len, output_embedding_size, dropout, o_activation, n_genres, in_attention=False):
         super(Control_Decoder, self).__init__()
 
         assert o_activation in ["sigmoid", "tanh"]
@@ -65,6 +66,7 @@ class Control_Decoder(torch.nn.Module):
         self.o_activation = o_activation
         self.n_genres = n_genres
         self.n_params = n_genres + 2  # genre and intensity
+        self.in_attention = in_attention
 
 
         self.DecoderInputLayer = ControlDecoderInputLayer(
@@ -73,12 +75,22 @@ class Control_Decoder(torch.nn.Module):
             d_model=self.d_model,
             n_genres=self.n_genres)
 
-        self.Decoder = Encoder(
-            d_model=self.d_model,
-            nhead=self.nhead,
-            dim_feedforward=self.dim_feedforward,
-            num_encoder_layers=self.num_decoder_layers,
-            dropout=self.dropout)
+        if in_attention:
+            self.Decoder = InAttentionEncoder(
+                d_model=self.d_model,
+                n_head=self.nhead,
+                dim_feedforward=self.dim_feedforward,
+                dropout=self.dropout,
+                num_encoder_layers=self.num_decoder_layers,
+                n_params=self.n_params)
+
+        else:
+            self.Decoder = Encoder(
+                d_model=self.d_model,
+                nhead=self.nhead,
+                dim_feedforward=self.dim_feedforward,
+                num_encoder_layers=self.num_decoder_layers,
+                dropout=self.dropout)
 
         self.OutputLayer = OutputLayer(
             embedding_size=self.output_embedding_size,
@@ -91,7 +103,13 @@ class Control_Decoder(torch.nn.Module):
             :return: (Tensor) h_logits, v_logits, o_logits (each with dimension [N x max_len x num_voices])
         """
         pre_out = self.DecoderInputLayer(latent_z, density, intensity, genre)
-        decoder_ = self.Decoder(pre_out)
+
+        if self.in_attention:
+            decoder_ = self.Decoder(pre_out, density, intensity, genre)
+
+        else:
+            decoder_ = self.Decoder(pre_out)
+
         h_logits, v_logits, o_logits = self.OutputLayer(decoder_)
 
         return h_logits, v_logits, o_logits
@@ -205,6 +223,39 @@ class ControlDecoderInputLayer(torch.nn.Module):
 
 
         return concat
+
+# --- In Attention Decoding --- #
+class InAttentionEncoder(torch.nn.Module):
+    """
+    This function is a modified version of the In-Attention Transformer from Musemorphose paper
+    https://arxiv.org/abs/2105.04090
+    We create a stack of num_encoder_layers transformer encoders. Separately, we expect control parameters to be
+    a vector of num_params length. This vector is expanded to d_model with a learnable Linear layer.
+    Then, at each Layer, it is summed with the source (which initially comes from sampling VAE latent space)
+    and fed through the next iteration of multi-head self-attention.
+    """
+
+    def __init__(self, d_model, n_head, dim_feedforward, dropout, num_encoder_layers, n_params):
+        super(InAttentionEncoder, self).__init__()
+        encoder_layer = torch.nn.TransformerEncoderLayer(d_model, n_head, dim_feedforward, dropout)
+        self.layers = create_layers(encoder_layer, num_encoder_layers)
+        self.parameter_projection = torch.nn.Linear(n_params, d_model)
+
+    def forward(self, x, density, intensity, genre):
+        # Concatenate the three parameters into a single [batch_size, total_params] tensor
+        parameters = torch.concat((density.unsqueeze(dim=-1), intensity.unsqueeze(dim=-1), genre), dim=-1)
+        parameters = self.parameter_projection(parameters).unsqueeze(1)
+
+        # Add the parameters projection prior to each self-attention step
+        for mod in self.layers:
+            x += parameters
+            x = mod(x)
+        return x
+
+
+def create_layers(module, N):
+    # User to stack multiple Encoder layers for In-Attention mechanism
+    return torch.nn.ModuleList([deepcopy(module) for i in range(N)])
 
 
 
