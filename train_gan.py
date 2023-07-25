@@ -9,7 +9,7 @@ from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Density, GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers import density_eval
-from model.Control_VAE.shared_model_components import *
+from model.Control_VAE.GAN_model_components import *
 
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG

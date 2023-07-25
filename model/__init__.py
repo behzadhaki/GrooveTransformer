@@ -11,3 +11,5 @@ import model.VAE.shared_model_components as VAE_components
 from model.VAE.MonotonicGrooveVAE import GrooveTransformerEncoderVAE
 from model.VAE.Density1D import Density1D
 from model.VAE.Density2D import Density2D
+import model.Control_VAE.GAN_model_components as GAN_components
+import model.Control_VAE.VAE_model_components as Control_components
