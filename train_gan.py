@@ -288,7 +288,7 @@ if __name__ == "__main__":
     if args.train_density:
         density_regressor_model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
                                                                   n_classes=10,
-                                                                  loss_function=density_loss_fn)
+                                                                  loss_function=density_loss_fn).to(config.device)
         optimizer = torch.optim.Adam(density_regressor_model.parameters(), lr=config.lr)
         adversarial_models["density"] = {"active": True, "model": density_regressor_model, "optimizer": optimizer}
         wandb.watch(density_regressor_model, log="all", log_freq=1)
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     if args.train_intensity:
         intensity_regressor_model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
                                                                     n_classes=10,
-                                                                    loss_function=intensity_loss_fn)
+                                                                    loss_function=intensity_loss_fn).to(config.device)
         optimizer = torch.optim.Adam(intensity_regressor_model.parameters(), lr=config.lr)
         adversarial_models["intensity"] = {"active": True, "model": intensity_regressor_model, "optimizer": optimizer}
         wandb.watch(intensity_regressor_model, log="all", log_freq=1)
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     if args.train_genre:
         genre_classifier_model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
                                                                  n_classes=len(genre_dict),
-                                                                 loss_function=genre_loss_fn)
+                                                                 loss_function=genre_loss_fn).to(config.device)
         optimizer = torch.optim.Adam(genre_classifier_model.parameters(), lr=config.lr)
         adversarial_models["genre"] = {"active": True, "model": genre_classifier_model, "optimizer": optimizer}
         wandb.watch(genre_classifier_model, log="all", log_freq=1)
