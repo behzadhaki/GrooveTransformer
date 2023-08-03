@@ -93,7 +93,12 @@ def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers,
 
     if adversarial_models["density"]["active"]:
         preds = adversarial_models["density"]["model"].forward(latent_z)
+        if torch.any((preds < 0.) | (preds > 1.)):
+            print("PREDS.")
         target = convert_continuous_values_to_onehot_vectors(params["densities"])
+        if torch.any((target < 0.) | (target > 1.)):
+            print("TARGET.")
+
         adversarial_density_loss = adversarial_models["density"]["model"].calculate_loss(preds, target)
         adversarial_loss += adversarial_density_loss
         trackers["density_regressor_grl"].append(adversarial_density_loss.item())
@@ -173,6 +178,24 @@ def calculate_classifier_loss(prediction, target):
     loss_fn = torch.nn.BCELoss()
     loss = loss_fn(prediction, target)
     return loss
+
+
+def generate_theta_rise(epoch, theta_level, epochs_to_reach_theta, start_first_rise_at_epoch=0):
+    """
+    Generate a linear ramp up for controlling the loss modifer of Adversarial models
+    @param epoch:
+    @param theta_level:
+    @param epochs_to_reach_theta:
+    @param start_first_rise_at_epoch:
+    @return:
+    """
+    if epoch < start_first_rise_at_epoch:
+        return 0.0
+    elif epoch < start_first_rise_at_epoch + epochs_to_reach_theta:
+        progress = (epoch - start_first_rise_at_epoch) / epochs_to_reach_theta
+        return theta_level * progress
+    else:
+        return theta_level
 
 
 def generate_beta_curve(n_epochs, period_epochs, rise_ratio, start_first_rise_at_epoch=0):
