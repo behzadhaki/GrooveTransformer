@@ -146,11 +146,11 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
     if device != 'cpu':
         torch.cuda.empty_cache()
 
-    print(f"vae total: {np.mean(vae_loss_total)}")
-    print(f"recon total: {np.mean(loss_recon)}")
-    print(f"KL total: {np.mean(loss_kl_beta_scaled)}")
-    print(f"adversarial GRL total: {np.mean(loss_adversarial_grl_total)}")
-    print(f"adversarial train total: {np.mean(loss_adversarial_train_total)}")
+    # print(f"vae total: {np.mean(vae_loss_total)}")
+    # print(f"recon total: {np.mean(loss_recon)}")
+    # print(f"KL total: {np.mean(loss_kl_beta_scaled)}")
+    # print(f"adversarial GRL total: {np.mean(loss_adversarial_grl_total)}")
+    # print(f"adversarial train total: {np.mean(loss_adversarial_train_total)}")
 
     metrics = {
         "vae_loss_total": np.mean(vae_loss_total),

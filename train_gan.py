@@ -82,9 +82,9 @@ parser.add_argument("--genre_loss_balancing_beta", type=float, help="beta parame
 parser.add_argument("--hit_loss_function", type=str, help="hit_loss_function - only bce supported for now",
                     default="bce")
 parser.add_argument("--velocity_loss_function", type=str, help="velocity_loss_function - either 'bce' or 'mse' loss",
-                    default='mse', choices=['bce', 'mse'])
+                    default='bce', choices=['bce', 'mse'])
 parser.add_argument("--offset_loss_function", type=str, help="offset_loss_function - either 'bce' or 'mse' loss",
-                    default='mse', choices=['bce', 'mse'])
+                    default='bce', choices=['bce', 'mse'])
 parser.add_argument("--beta_annealing_activated", help="Use cyclical annealing on KL beta term", type=strtobool,
                     default=True)
 parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=0.1)
@@ -286,8 +286,6 @@ if __name__ == "__main__":
                           "intensity": {"active": False},
                           "genre": {"active": False}}
 
-
-    print("\n\nHELLO\n\n")
 
     if args.train_density:
         model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
