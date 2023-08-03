@@ -63,6 +63,14 @@ def load_gmd_hvo_sequences(dataset_setting_json_path, subset_tag, force_regenera
 
     return data
 
+
+
+
+
+
+
+
+
 class GrooveDataSet_Density(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
                  collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
@@ -171,6 +179,8 @@ class GrooveDataSet_Density(Dataset):
             self.densities = self.normalize_density(self.densities)
 
 
+
+
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------
         if load_as_tensor or move_all_to_gpu:
@@ -222,12 +232,14 @@ class GrooveDataSet_Density(Dataset):
     def normalize_density(self, density):
         return (density - self.min_density) / (self.max_density - self.min_density)
 
+
+
 class GrooveDataSet_Control(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,
                  collapse_tapped_sequence=False, load_as_tensor=True, sort_by_metadata_key=None,
                  down_sampled_ratio=None, move_all_to_gpu=False,
                  hit_loss_balancing_beta=0, genre_loss_balancing_beta=0,
-                 normalize_densities=True, normalize_syncopations=True,
+                 normalize_densities=True, normalize_intensities=True,
                  custom_genre_mapping_dict=None):
         """
 
@@ -363,11 +375,15 @@ class GrooveDataSet_Control(Dataset):
 
         # Normalize intensities
         self.intensities = np.array(self.intensities)
-        if normalize_syncopations:
+        if normalize_intensities:
             self.min_intensity = np.amin(self.intensities)
             self.max_intensity = np.amax(self.intensities)
             self.intensities = self.normalize_intensity(self.intensities)
 
+        # Create balancing weights for adversarial model training
+        self.density_weights = calculate_continuous_value_weights(self.densities)
+        self.intensity_weights = calculate_continuous_value_weights(self.intensities)
+        self.genre_weights = calculate_genre_weights(self.genres)
 
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------
@@ -452,11 +468,15 @@ class GrooveDataSet_Control(Dataset):
     def normalize_density(self, density):
         return (density - self.min_density) / (self.max_density - self.min_density)
 
-    def calculate_normalized_intensity(self, velocities):
-        return self.normalize_intensity(calculate_intensity(velocities))
+    def calculate_normalized_intensity(self, intensities):
+        return self.normalize_intensity(calculate_intensity(intensities))
 
     def normalize_intensity(self, intensity):
         return (intensity - self.min_intensity) / (self.max_intensity - self.min_intensity)
+
+    def get_parameter_weights(self):
+        return self.density_weights, self.intensity_weights, self.genre_weights
+
 
 class MonotonicGrooveDataset(Dataset):
     def __init__(self, dataset_setting_json_path, subset_tag, max_len, tapped_voice_idx=2,

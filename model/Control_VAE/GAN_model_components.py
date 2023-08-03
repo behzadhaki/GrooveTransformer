@@ -1,5 +1,5 @@
 import torch
-from copy import deepcopy
+
 
 class LatentRegressor(torch.nn.Module):
     """
@@ -8,7 +8,6 @@ class LatentRegressor(torch.nn.Module):
     """
     def __init__(self, latent_dim, activate_output=True):
         super(LatentRegressor, self).__init__()
-        latent_dim = latent_dim - 1
         self.fc_layer_1 = torch.nn.Linear(latent_dim, latent_dim, bias=True)
         self.fc_layer_2 = torch.nn.Linear(latent_dim, latent_dim, bias=True)
         self.fc_output_layer = torch.nn.Linear(latent_dim, 1)
@@ -29,32 +28,34 @@ class LatentRegressor(torch.nn.Module):
 
 
 class LatentClassifier(torch.nn.Module):
-    def __init__(self, latent_dim, n_classes, class_labels_list):
+    def __init__(self, latent_dim, n_classes, loss_function):
         super(LatentClassifier, self).__init__()
-        assert n_classes == len(class_labels_list)
-        assert all([isinstance(x, str) for x in class_labels_list])
-        self.class_labels_list = class_labels_list
 
-        latent_dim = latent_dim - n_classes
         self.fc_layer_1 = torch.nn.Linear(latent_dim, latent_dim, bias=True)
         self.fc_layer_2 = torch.nn.Linear(latent_dim, latent_dim, bias=True)
         self.fc_output_layer = torch.nn.Linear(latent_dim, n_classes)
-        self.fc_activation_1 = torch.nn.ReLU()
-        self.fc_activation_2 = torch.nn.ReLU()
+        self.fc_activation_1 = torch.nn.Tanh()
+        self.fc_activation_2 = torch.nn.Tanh()
+        self.fc_output_activation = torch.nn.Sigmoid()
+        self.loss_function = loss_function
 
-    def forward(self, input):
-        x = self.fc_layer_1(input)
+    def forward(self, latent_z):
+        x = self.fc_layer_1(latent_z)
         x = self.fc_activation_1(x)
         x = self.fc_layer_2(x)
         x = self.fc_activation_2(x)
-        logits = self.fc_output_layer(x)
+        x = self.fc_output_layer(x)
+        logits = self.fc_output_activation(x)
 
         return logits
 
+    def calculate_loss(self, predictions, targets):
+        return self.loss_function(predictions, targets)
+
 
 class LatentContinuousClassifier(torch.nn.Module):
-
-    def __init__(self, latent_dim):
+    # Potentially deprecated; was trying to recreate a paper's model for continuous classification
+    def __init__(self, latent_dim, loss_function):
         super(LatentContinuousClassifier, self).__init__()
         latent_dim -= 1
         self.fc_layer_1 = torch.nn.Linear(latent_dim, latent_dim)
@@ -65,14 +66,19 @@ class LatentContinuousClassifier(torch.nn.Module):
         self.activation_layer_2 = torch.nn.Tanh()
         self.output_activation = torch.nn.Sigmoid()
 
-    def forward(self, z_star):
-        x = self.fc_layer_1.forward(z_star)
+        self.loss_function = loss_function
+
+    def forward(self, latent_z):
+        x = self.fc_layer_1.forward(latent_z)
         x = self.activation_layer_1(x)
         x = self.fc_layer_2.forward(x)
         x = self.activation_layer_2(x)
         output = self.output_layer.forward(x)
         output = self.output_activation(output)
         return output
+
+    def calculate_loss(self, predictions, targets):
+        return self.loss_function(predictions, targets)
 
 
 

@@ -7,14 +7,18 @@ from model import get_hits_activation
 # --- Encoder Class and Components --- #
 class ControlEncoderInputLayer(torch.nn.Module):
     """
-    Takes two inputs: HVO (N x 32 x embed_size) and params (N x 1 x n_params)
-    Projects both to d_model and concatenates, returning a (N x 33 x d_model) tensor
+    Input layer for the Encoder portion of the VAE control model.
+    It takes a single, collapsed HVO input of size [batch, 32, 3] and returns a
+    tensor of shape [batch, 32, d_model].
     """
 
-    def __init__(self, embedding_size, n_params, d_model, dropout, max_len):
+    def __init__(self, embedding_size, d_model,
+                 dropout, velocity_dropout, offset_dropout, max_len):
         super(ControlEncoderInputLayer, self).__init__()
 
-        self.Linear = torch.nn.Linear((embedding_size + n_params), d_model, bias=True)
+        self.velocity_dropout = torch.nn.Dropout(velocity_dropout)
+        self.offset_dropout = torch.nn.Dropout(offset_dropout)
+        self.Linear = torch.nn.Linear(embedding_size, d_model, bias=True)
         self.ReLU = torch.nn.ReLU()
         self.PositionalEncoding = PositionalEncoding(d_model, max_len, dropout)
 
@@ -22,10 +26,19 @@ class ControlEncoderInputLayer(torch.nn.Module):
         self.Linear.bias.data.zero_()
         self.Linear.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, hvo, density, intensity):
-        density = density.unsqueeze(1).unsqueeze(2).expand(-1, hvo.shape[1], -1) # [N, 32, 1]
-        intensity = intensity.unsqueeze(1).unsqueeze(2).expand(-1, hvo.shape[1], -1)
-        src = torch.cat((hvo, density, intensity), dim=2)
+    def forward(self, hvo):
+        """
+        Apply dropout to V and O tensors, as well as a FFN and positional encoding
+        @param hvo: (tensor) of shape [batch, max_len, 3]
+        @return: tensor of shape [batch, max_len, d_model]
+        """
+        # Apply dropouts to velocity and offset
+        h, v, o = hvo.split(1, dim=-1)
+        v = self.velocity_dropout(v)
+        o = self.velocity_dropout(o)
+        src = torch.cat((h, v, o), dim=-1)
+
+        # FFN and positional encoding
         x = self.Linear(src)
         x = self.ReLU(x)
         out = self.PositionalEncoding(x)
@@ -35,20 +48,7 @@ class ControlEncoderInputLayer(torch.nn.Module):
 
 # --- Decoder Class and Components --- #
 class Control_Decoder(torch.nn.Module):
-    """
-    Decoder for the VAE model
-    This is a class, wrapping an original transformer encoder and an output layer
-    into a single module.
 
-    The implementation such that the activation functions are not hard-coded into the forward function.
-    This allows for easy extension of the model with different activation functions. That said, the decode function
-    is hard-coded to use sigmoid for hits and velocity and sigmoid OR tanh for offset, depending on the value of the
-    o_activation parameter. The reasoning behind this is that, this way we can easily compare the performance of the
-    model with different activation functions as well as different loss functions (i.e. similar to GrooVAE and
-    MonotonicGrooveTransformer, we can use tanh for offsets and use MSE loss for training, OR ALTERNATIVELY,
-     use sigmoid for offsets and train with BCE loss).
-
-    """
     def __init__(self, latent_dim, d_model, num_decoder_layers, nhead, dim_feedforward,
                  output_max_len, output_embedding_size, dropout, o_activation, n_genres, in_attention=False):
         super(Control_Decoder, self).__init__()
@@ -75,37 +75,42 @@ class Control_Decoder(torch.nn.Module):
             d_model=self.d_model,
             n_genres=self.n_genres)
 
-        if in_attention:
-            self.Decoder = InAttentionEncoder(
-                d_model=self.d_model,
-                n_head=self.nhead,
-                dim_feedforward=self.dim_feedforward,
-                dropout=self.dropout,
-                num_encoder_layers=self.num_decoder_layers,
-                n_params=self.n_params)
 
-        else:
-            self.Decoder = Encoder(
-                d_model=self.d_model,
-                nhead=self.nhead,
-                dim_feedforward=self.dim_feedforward,
-                num_encoder_layers=self.num_decoder_layers,
-                dropout=self.dropout)
+        self.InAttentionDecoder = InAttentionEncoder(
+            d_model=self.d_model,
+            n_head=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            dropout=self.dropout,
+            num_encoder_layers=self.num_decoder_layers,
+            n_params=self.n_params)
+
+
+        self.Decoder = Encoder(
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            num_encoder_layers=self.num_decoder_layers,
+            dropout=self.dropout)
 
         self.OutputLayer = OutputLayer(
             embedding_size=self.output_embedding_size,
             d_model=self.d_model)
 
     def forward(self, latent_z, density, intensity, genre):
-        """Converts the latent vector into hit, vel, offset logits (i.e. Values **PRIOR** to activation).
-
-            :param latent_z: (Tensor) [N x latent_dim]
-            :return: (Tensor) h_logits, v_logits, o_logits (each with dimension [N x max_len x num_voices])
+        """
+        Takes the latent vector z, as well as ground truth (or predicted) control values of
+        density, intensity and genre and outputs prediction logits for hits, velocities and offsets
+        @param latent_z: (Tensor) [N x latent_dim] latent vector from encoder
+        @param density: (Tensor) [batch] single float values of ground-truth densities
+        @param intensity: (Tensor) [batch] single float values of ground-truth intensities
+        @param genre: (tensor) [batch, n_genres] one-hot encoded ground-truth genre id
+        @return: h, v, o (tensors) [N, output_max_len, output_embedding_size/3]
         """
         pre_out = self.DecoderInputLayer(latent_z, density, intensity, genre)
 
+
         if self.in_attention:
-            decoder_ = self.Decoder(pre_out, density, intensity, genre)
+            decoder_ = self.InAttentionDecoder(pre_out, density, intensity, genre)
 
         else:
             decoder_ = self.Decoder(pre_out)
@@ -115,12 +120,12 @@ class Control_Decoder(torch.nn.Module):
         return h_logits, v_logits, o_logits
 
     def decode(self, latent_z, density, intensity, genre,
-               threshold=0.5, use_thres=True, use_pd=False, return_concatenated=False):
+               threshold=0.5, use_thresh=True, use_pd=False, return_concatenated=False):
         """Converts the latent vector into hit, vel, offset values
 
         :param latent_z: (Tensor) [N x latent_dim]
         :param threshold: (float) Threshold for hit prediction
-        :param use_thres: (bool) Whether to use thresholding for hit prediction
+        :param use_thresh: (bool) Whether to use thresholding for hit prediction
         :param use_pd: (bool) Whether to use a pd for hit prediction
         :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
         **For now only thresholding is supported**
@@ -130,7 +135,7 @@ class Control_Decoder(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             h_logits, v_logits, o_logits = self.forward(latent_z, density, intensity, genre)
-            h = get_hits_activation(h_logits, use_thres=use_thres, thres=threshold, use_pd=use_pd)
+            h = get_hits_activation(h_logits, use_thres=use_thresh, thres=threshold, use_pd=use_pd)
             v = torch.sigmoid(v_logits)
 
             if self.o_activation == "tanh":
@@ -214,6 +219,13 @@ class ControlDecoderInputLayer(torch.nn.Module):
         self.genre_linear.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, latent_z, density, intensity, genre):
+        """
+        @param latent_z: (tensor) [batch, latent_dim] the latent vector produced by the VAE encoder
+        @param density: (tensor) [batch] single float values of ground-truth densities
+        @param intensity: (tensor) [batch] single float values of ground-truth intensities
+        @param genre: (tensor) [batch, n_genres] one-hot encoded ground-truth genre id
+        @return: (tensor) [batch, max_len, d_model]
+        """
         latent_z = self.latent_linear.forward(latent_z)
         latent_z = latent_z.view(-1, self.max_len, (self.d_model - 3))
         density = density.view(density.shape[0], 1).repeat(1, self.max_len).unsqueeze(dim=-1)
@@ -223,6 +235,7 @@ class ControlDecoderInputLayer(torch.nn.Module):
 
 
         return concat
+
 
 # --- In Attention Decoding --- #
 class InAttentionEncoder(torch.nn.Module):

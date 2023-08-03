@@ -1,7 +1,7 @@
 import os
 import torch
 from model import Density1D
-from helpers.Control.density_eval import get_piano_rolls_for_control_model_wandb
+from helpers.Control.density_eval import get_piano_rolls_for_density_model_wandb
 from data.src.dataLoaders import GrooveDataSet_Density
 
 
@@ -36,7 +36,7 @@ test_dataset = GrooveDataSet_Density(
         max_len=32,
         tapped_voice_idx=2,)
 
-piano_rolls = get_piano_rolls_for_control_model_wandb(vae_model=model, device='cpu',
+piano_rolls = get_piano_rolls_for_density_model_wandb(vae_model=model, device='cpu',
                                                       test_dataset=test_dataset)
 
 print("lol")

@@ -80,7 +80,7 @@ def calculate_kld_loss(mu, log_var):
     return kld_loss     # batch_size,  time_steps, n_voices\
 
 
-def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers):
+def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers, loss_modifier):
     """
     Calculate the adversarial + encoding losses for each parameter.
     :param adversarial_models: (dictionary) in format {active, model, optimizer}
@@ -90,54 +90,32 @@ def calculate_adversarial_losses(adversarial_models, latent_z, params, trackers)
     """
 
     adversarial_loss = 0.0
-    control_encoding_loss = 0.0
 
     if adversarial_models["density"]["active"]:
-        densities_gt = params["densities"]
-        densities_onehot_gt = convert_continuous_values_to_onehot_vectors(densities_gt, adversarial=False)
-
-        z_star, ctrl_encoding = separate_control_elements(latent_z, 0, squeeze_result=True)
-
-        # Get predictions from the classifier
-        density_preds = adversarial_models["density"]["model"].forward(z_star)
-
-        adversarial_density_loss = calculate_classifier_loss(density_preds, densities_onehot_gt)
+        preds = adversarial_models["density"]["model"].forward(latent_z)
+        target = convert_continuous_values_to_onehot_vectors(params["densities"])
+        adversarial_density_loss = adversarial_models["density"]["model"].calculate_loss(preds, target)
         adversarial_loss += adversarial_density_loss
-
-        density_loss = calculate_regressor_loss(ctrl_encoding, densities_gt)
-        control_encoding_loss += density_loss
-
-        trackers["density_grl"].append(adversarial_density_loss.item())
-        trackers["density_encoding"].append(density_loss.item())
+        trackers["density_regressor_grl"].append(adversarial_density_loss.item())
 
     if adversarial_models["intensity"]["active"]:
-        z_star = separate_control_elements(latent_z, 1)
-        adversarial_intensity_preds = adversarial_models["intensity"]["model"].forward(z_star)
-        adversarial_intensity_loss = calculate_regressor_loss(adversarial_intensity_preds, params["intensities"])
+        preds = adversarial_models["intensity"]["model"].forward(latent_z)
+        target = convert_continuous_values_to_onehot_vectors(params["intensities"])
+        adversarial_intensity_loss = adversarial_models["intensity"]["model"].calculate_loss(preds, target)
         adversarial_loss += adversarial_intensity_loss
-
-        intensity_loss = calculate_regressor_loss(latent_z[:, 1], params["intensities"])
-        control_encoding_loss += intensity_loss
-
-        trackers["intensity_grl"].append(adversarial_intensity_loss.item())
-        trackers["intensity_encoding"].append(intensity_loss.item())
+        trackers["intensity_regressor_grl"].append(adversarial_intensity_loss.item())
 
     if adversarial_models["genre"]["active"]:
-        z_star = separate_control_elements(latent_z, start=2, end=18)
-        adversarial_genre_pred = adversarial_models["genre"]["model"].forward(z_star)
-        adversarial_genre_loss = calculate_classifier_loss(adversarial_genre_pred, params["genres"])
+        preds = adversarial_models["genre"]["model"].forward(latent_z)
+        adversarial_genre_loss = adversarial_models["genre"]["model"].calculate_loss(preds, params["genres"])
         adversarial_loss += adversarial_genre_loss
-
-        genre_loss = calculate_classifier_loss(latent_z[:, 2:18], params["genres"])
-        control_encoding_loss += genre_loss
-
-        trackers["genre_grl"].append(adversarial_genre_loss.item())
-        trackers["genre_encoding"].append(genre_loss.item())
-
-    return adversarial_loss, control_encoding_loss
+        trackers["genre_classifier_grl"].append(adversarial_genre_loss.item())
 
 
-def train_classifier_models(adversarial_models, latent_z, params, trackers, backprop, loss_scale=1.0):
+    return adversarial_loss * loss_modifier
+
+
+def train_adversarial_models(adversarial_models, latent_z, params, trackers, backprop, loss_scale=1.0):
     """
     Train the adversarial classifier models to accurately determine the control value(s) from
     the non-control elements of the latent space.
@@ -145,39 +123,46 @@ def train_classifier_models(adversarial_models, latent_z, params, trackers, back
     classifier_loss_total = 0.0
 
     if adversarial_models["density"]["active"]:
-        z_star, _ = separate_control_elements(latent_z, 0)
-        predictions = adversarial_models["density"]["model"].forward(z_star.detach())
-        densities_gt_onehot = convert_continuous_values_to_onehot_vectors(params["densities"])
-
-        loss = calculate_classifier_loss(predictions, densities_gt_onehot) * loss_scale
+        predictions = adversarial_models["density"]["model"].forward(latent_z.detach())
+        #print(predictions[0, :])
+        targets = convert_continuous_values_to_onehot_vectors(params["densities"])
+        loss = adversarial_models["density"]["model"].calculate_loss(predictions, targets) * loss_scale
 
         if backprop:
             adversarial_models["density"]["optimizer"].zero_grad()
             loss.backward()
             adversarial_models["density"]["optimizer"].step()
 
-        trackers["density_classifier"].append(loss.item())
+        trackers["density_regressor_train"].append(loss.item())
         classifier_loss_total += loss.item()
 
     if adversarial_models["intensity"]["active"]:
-        adversarial_models["intensity"]["optimizer"].zero_grad()
-        z_star = separate_control_elements(latent_z, 0)
-        predictions = adversarial_models["intensity"]["model"].forward(z_star.detach())
-        loss = calculate_regressor_loss(predictions, params["intensities"])
-        loss.backward()
-        adversarial_models["intensity"]["optimizer"].step()
-        trackers["intensity"].append(loss.item())
+        predictions = adversarial_models["intensity"]["model"].forward(latent_z.detach())
+        targets = convert_continuous_values_to_onehot_vectors(params["intensities"])
+        loss = adversarial_models["intensity"]["model"].calculate_loss(predictions, targets) * loss_scale
+
+        if backprop:
+            adversarial_models["intensity"]["optimizer"].zero_grad()
+            loss.backward()
+            adversarial_models["intensity"]["optimizer"].step()
+
+        trackers["intensity_regressor_train"].append(loss.item())
+        classifier_loss_total += loss.item()
 
     if adversarial_models["genre"]["active"]:
-        adversarial_models["genre"]["optimizer"].zero_grad()
-        z_star = separate_control_elements(latent_z, 0)
-        predictions = adversarial_models["genre"]["model"].forward(z_star.detach())
-        loss = calculate_classifier_loss(predictions, params["genres"])
-        loss.backward()
-        adversarial_models["genre"]["optimizer"].step()
-        trackers["genre"].append(loss.item())
+        predictions = adversarial_models["genre"]["model"].forward(latent_z.detach())
+        loss = adversarial_models["genre"]["model"].calculate_loss(predictions, params["genres"]) * loss_scale
+
+        if backprop:
+            adversarial_models["genre"]["optimizer"].zero_grad()
+            loss.backward()
+            adversarial_models["genre"]["optimizer"].step()
+
+        trackers["genre_classifier_train"].append(loss.item())
+        classifier_loss_total += loss.item()
 
     return classifier_loss_total
+
 
 def calculate_regressor_loss(prediction, target):
     loss_fn = torch.nn.MSELoss()
@@ -271,10 +256,7 @@ def separate_control_elements(tensor, start, end=None, squeeze_result=False):
 
 def convert_continuous_values_to_onehot_vectors(values, adversarial=False, num_classes=10):
     n = values.shape[0]
-    # if adversarial:
-    #     onehot = torch.ones(n, num_classes)
-    # else:
-    #     onehot = torch.zeros(n, num_classes)
+
 
     indices = (values * num_classes).round().long().unsqueeze(1)
     indices = torch.clamp(indices, max=9)
