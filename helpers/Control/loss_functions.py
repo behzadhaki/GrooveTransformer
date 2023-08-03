@@ -255,15 +255,14 @@ def separate_control_elements(tensor, start, end=None, squeeze_result=False):
 
 
 def convert_continuous_values_to_onehot_vectors(values, adversarial=False, num_classes=10):
+    device = values.device  # Get the device of 'values'
     n = values.shape[0]
 
-
-    indices = (values * num_classes).round().long().unsqueeze(1)
+    indices = (values * num_classes).round().long().unsqueeze(1).to(device)
     indices = torch.clamp(indices, max=9)
-    # for i in range(n):
     if adversarial:
-        onehot = torch.ones(n, num_classes).scatter_(1, indices, 0)
+        onehot = torch.ones(n, num_classes, device=device).scatter_(1, indices, 0)
     else:
-        onehot = torch.zeros(n, num_classes).scatter_(1, indices, 1)
+        onehot = torch.zeros(n, num_classes, device=device).scatter_(1, indices, 1)
 
     return onehot
