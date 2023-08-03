@@ -7,8 +7,8 @@ from helpers.Control.loss_functions import *
 
 def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity_loss_fn,
                offset_loss_fn, device, vae_optimizer=None, starting_step=None,
-               kl_beta=1.0, adversarial_loss_modifier=0.1, control_encoding_loss_modifier=0.2,
-               reduce_by_sum=False, balance_vo=True, loss_classifier_total=None):
+               kl_beta=1.0, adversarial_loss_modifier=0.1,
+               reduce_by_sum=False, balance_vo=True):
     """
     This function iteratively loops over the given dataloader and calculates the loss for each batch. If an optimizer is
     provided, it will also perform the backward pass and update the model parameters. The loss values are accumulated
@@ -183,7 +183,8 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
 
 
 def train_loop(train_dataloader, vae_model, adversarial_models, vae_optimizer, hit_loss_fn, velocity_loss_fn,
-               offset_loss_fn, device, starting_step, kl_beta=1, reduce_by_sum=False, balance_vo=True):
+               offset_loss_fn, device, starting_step, kl_beta=1, adversarial_loss_modifier=1.0,
+               reduce_by_sum=False, balance_vo=True):
     """
     This function performs the training loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward and backward pass for each batch. The loss values are accumulated and the average is
@@ -228,6 +229,7 @@ def train_loop(train_dataloader, vae_model, adversarial_models, vae_optimizer, h
         vae_optimizer=vae_optimizer,
         starting_step=starting_step,
         kl_beta=kl_beta,
+        adversarial_loss_modifier=adversarial_loss_modifier,
         reduce_by_sum=reduce_by_sum,
         balance_vo=balance_vo)
 
@@ -236,7 +238,8 @@ def train_loop(train_dataloader, vae_model, adversarial_models, vae_optimizer, h
 
 
 def test_loop(test_dataloader, vae_model, adversarial_models, hit_loss_fn, velocity_loss_fn,
-              offset_loss_fn, device, kl_beta=1, reduce_by_sum=False, balance_vo=True):
+              offset_loss_fn, device, kl_beta=1, adversarial_loss_modifier=1.0,
+              reduce_by_sum=False, balance_vo=True):
     """
     This function performs the test loop for the given model and dataloader. It will iterate over the dataloader
     and perform the forward pass for each batch. The loss values are accumulated and the average is returned at the end
@@ -278,6 +281,7 @@ def test_loop(test_dataloader, vae_model, adversarial_models, hit_loss_fn, veloc
             device=device,
             vae_optimizer=None,
             kl_beta=kl_beta,
+            adversarial_loss_modifier=adversarial_loss_modifier,
             reduce_by_sum=reduce_by_sum,
             balance_vo=balance_vo)
 

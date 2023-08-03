@@ -9,6 +9,7 @@ from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers import density_eval
+from helpers.Control.loss_functions import generate_theta_rise
 
 
 from torch.utils.data import DataLoader
@@ -366,6 +367,10 @@ if __name__ == "__main__":
         else:
             beta = args.beta_level
 
+        adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=0.1,
+                                                        epochs_to_reach_theta=50,
+                                                        start_first_rise_at_epoch=50)
+
         train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,
             vae_model=groovecontrol_model,
@@ -377,6 +382,7 @@ if __name__ == "__main__":
             device=config.device,
             starting_step=step_,
             kl_beta=beta,
+            adversarial_loss_modifier=adversarial_loss_modifier,
             reduce_by_sum=config.reduce_loss_by_sum,
             balance_vo=args.balance_vo,
         )
@@ -404,6 +410,7 @@ if __name__ == "__main__":
             offset_loss_fn=offset_loss_fn,
             device=config.device,
             kl_beta=beta,
+            adversarial_loss_modifier=adversarial_loss_modifier,
             reduce_by_sum=config.reduce_loss_by_sum,
             balance_vo=args.balance_vo
         )
