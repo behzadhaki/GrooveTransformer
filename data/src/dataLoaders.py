@@ -285,6 +285,8 @@ class GrooveDataSet_Control(Dataset):
                 cache_down_sampled_set=True
             )
 
+        # !right here, remove the sample!
+
         # Sort data by a given metadata key if provided (e.g. "style_primary")
         # ------------------------------------------------------------------------------------------
         if sort_by_metadata_key:
