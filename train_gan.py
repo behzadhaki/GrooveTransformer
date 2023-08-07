@@ -17,10 +17,10 @@ import yaml
 import argparse
 from distutils.util import strtobool
 
+
 logger = getLogger("train_gan.py")
 logger.setLevel(WARNING)
-numba_logger = getLogger('numba')
-numba_logger.setLevel(WARNING)
+
 
 parser = argparse.ArgumentParser()
 
@@ -94,11 +94,11 @@ parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float,
 parser.add_argument("--beta_annealing_per_cycle_period", type=int,
                     help="Number of epochs for each cycle of Beta annealing", default=100)
 parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int,
-                    help="Warm up epochs (KL = 0) before starting the first cycle", default=30)
+                    help="Warm up epochs (KL = 0) before starting the first cycle", default=70)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
-parser.add_argument("--epochs", type=int, help="Number of epochs", default=300)
+parser.add_argument("--epochs", type=int, help="Number of epochs", default=500)
 parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
 parser.add_argument("--lr", type=float, help="Learning rate", default=0.0003)
 parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="adam",
@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
         adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=0.1,
                                                         epochs_to_reach_theta=40,
-                                                        start_first_rise_at_epoch=80)
+                                                        start_first_rise_at_epoch=100)
 
         train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,
