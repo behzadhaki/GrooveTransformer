@@ -8,9 +8,10 @@ from model import GrooveControl_VAE, Control_components, GAN_components
 from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
-from helpers import density_eval
+from helpers.Control.control_eval import *
 from helpers.Control.loss_functions import generate_theta_rise
-
+import matplotlib
+import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
@@ -37,32 +38,32 @@ parser.add_argument("--wandb_project", type=str, help="WANDB Project Name",
 
 # ----------------------- Model Parameters -----------------------
 # d_model_dec_ratio denotes the ratio of the dec relative to enc size
-parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=128)
+parser.add_argument("--d_model_enc", type=int, help="Dimension of the encoder model", default=16)
 parser.add_argument("--d_model_dec_ratio", type=int, help="Dimension of the decoder model as a ratio of d_model_enc",
                     default=2)
 parser.add_argument("--embedding_size_src", type=int, help="Dimension of the source embedding", default=3)
 parser.add_argument("--embedding_size_tgt", type=int, help="Dimension of the target embedding", default=27)
-parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=4)
-parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=8)
+parser.add_argument("--nhead_enc", type=int, help="Number of attention heads for the encoder", default=2)
+parser.add_argument("--nhead_dec", type=int, help="Number of attention heads for the decoder", default=2)
 # d_ff_enc_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_enc_to_dmodel", type=float,
                     help="ration of the dimension of enc feed-frwrd layer relative to "
-                         "enc dmodel", default=1)
+                         "enc dmodel", default=2)
 # d_ff_dec_to_dmodel denotes the ratio of the feed_forward ratio in encoder relative to the encoder dim (d_model_enc)
 parser.add_argument("--d_ff_dec_to_dmodel", type=float,
-                    help="ration of the dimension of dec feed-frwrd layer relative to decoder dmodel", default=4)
+                    help="ration of the dimension of dec feed-frwrd layer relative to decoder dmodel", default=1)
 # n_dec_lyrs_ratio denotes the ratio of the dec relative to n_enc_lyrs
 parser.add_argument("--n_enc_lyrs", type=int, help="Number of encoder layers", default=2)
 parser.add_argument("--n_dec_lyrs_ratio", type=float, help="Number of decoder layers as a ratio of "
-                                                           "n_enc_lyrs as a ratio of d_ff_enc", default=5)
+                                                           "n_enc_lyrs as a ratio of d_ff_enc", default=1)
 parser.add_argument("--max_len_enc", type=int, help="Maximum length of the encoder", default=32)
 parser.add_argument("--max_len_dec", type=int, help="Maximum length of the decoder", default=32)
-parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=128)
+parser.add_argument("--latent_dim", type=int, help="Overall Dimension of the latent space", default=32)
 
 # ----------------------- Dropout Training Parameters -----------------------
 parser.add_argument("--dropout", type=float, help="Dropout", default=0.2)
-parser.add_argument("--velocity_dropout", type=float, help="Velocity Dropout", default=0.2)
-parser.add_argument("--offset_dropout", type=float, help="Offset Dropout", default=0.2)
+parser.add_argument("--velocity_dropout", type=float, help="Velocity Dropout", default=0.1)
+parser.add_argument("--offset_dropout", type=float, help="Offset Dropout", default=0.1)
 
 # ----------------------- Control Parameters -----------------------
 parser.add_argument("--use_in_attention", type=strtobool, help="In Attention Decoder", default=False)
@@ -87,7 +88,7 @@ parser.add_argument("--offset_loss_function", type=str, help="offset_loss_functi
                     default='bce', choices=['bce', 'mse'])
 parser.add_argument("--beta_annealing_activated", help="Use cyclical annealing on KL beta term", type=strtobool,
                     default=True)
-parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=0.1)
+parser.add_argument("--beta_level", type=float, help="Max level of beta term on KL", default=0.2)
 parser.add_argument("--beta_annealing_per_cycle_rising_ratio", type=float,
                     help="rising ratio in each cycle to anneal beta", default=0.75)
 parser.add_argument("--beta_annealing_per_cycle_period", type=int,
@@ -119,12 +120,13 @@ parser.add_argument("--evaluate_on_subset", type=str,
 # ----------------------- Evaluation Params -----------------------
 parser.add_argument("--calculate_hit_scores_on_train", type=strtobool,
                     help="Evaluates the quality of the hit models on training set",
-                    default=False)
+                    default=True)
 parser.add_argument("--calculate_hit_scores_on_test", type=strtobool,
                     help="Evaluates the quality of the hit models on test/evaluation set",
-                    default=False)
-parser.add_argument("--piano_roll_samples", type=strtobool, help="Generate piano rolls", default=False)
-parser.add_argument("--piano_roll_frequency", type=int, help="Frequency of piano roll generation", default=20)
+                    default=True)
+parser.add_argument("--piano_roll_samples", type=strtobool, help="Generate piano rolls", default=True)
+parser.add_argument("--generate_umap_plots", type=strtobool, help="Create UMAP plots", default=True)
+parser.add_argument("--plot_frequency", type=int, help="Frequency of piano roll generation", default=20)
 parser.add_argument("--hit_score_frequency", type=int, help="Frequency of hit score generation", default=10)
 
 # ----------------------- Misc Params -----------------------
@@ -258,6 +260,8 @@ if __name__ == "__main__":
         move_all_to_gpu=False,
         hit_loss_balancing_beta=0,
         genre_loss_balancing_beta=0,
+        normalize_densities=False,
+        normalize_intensities=False,
         custom_genre_mapping_dict=genre_dict
     )
 
@@ -281,16 +285,14 @@ if __name__ == "__main__":
         intensity_loss_fn = torch.nn.BCELoss()
         genre_loss_fn = torch.nn.BCELoss()
 
-
     adversarial_models = {"density": {"active": False},
                           "intensity": {"active": False},
                           "genre": {"active": False}}
 
-
     if args.train_density:
         model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
-                                                                  n_classes=10,
-                                                                  loss_function=density_loss_fn)
+                                                n_classes=10,
+                                                loss_function=density_loss_fn)
         density_regressor_model = model.to(config.device)
         optimizer = torch.optim.Adam(density_regressor_model.parameters(), lr=config.lr)
         adversarial_models["density"] = {"active": True, "model": density_regressor_model, "optimizer": optimizer}
@@ -298,8 +300,8 @@ if __name__ == "__main__":
 
     if args.train_intensity:
         model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
-                                                                    n_classes=10,
-                                                                    loss_function=intensity_loss_fn)
+                                                n_classes=10,
+                                                loss_function=intensity_loss_fn)
         intensity_regressor_model = model.to(config.device)
         optimizer = torch.optim.Adam(intensity_regressor_model.parameters(), lr=config.lr)
         adversarial_models["intensity"] = {"active": True, "model": intensity_regressor_model, "optimizer": optimizer}
@@ -307,8 +309,8 @@ if __name__ == "__main__":
 
     if args.train_genre:
         model = GAN_components.LatentClassifier(latent_dim=args.latent_dim,
-                                                                 n_classes=len(genre_dict),
-                                                                 loss_function=genre_loss_fn)
+                                                n_classes=len(genre_dict),
+                                                loss_function=genre_loss_fn)
         genre_classifier_model = model.to(config.device)
         optimizer = torch.optim.Adam(genre_classifier_model.parameters(), lr=config.lr)
         adversarial_models["genre"] = {"active": True, "model": genre_classifier_model, "optimizer": optimizer}
@@ -366,8 +368,8 @@ if __name__ == "__main__":
             beta = args.beta_level
 
         adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=0.1,
-                                                        epochs_to_reach_theta=50,
-                                                        start_first_rise_at_epoch=50)
+                                                        epochs_to_reach_theta=40,
+                                                        start_first_rise_at_epoch=80)
 
         train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,
@@ -419,66 +421,85 @@ if __name__ == "__main__":
 
         # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
-        if args.piano_roll_samples:
-            if epoch % args.piano_roll_frequency == 0:
-                piano_rolls = get_piano_rolls_for_density_model_wandb(vae_model=groovecontrol_model,
-                                                                      device=config.device,
-                                                                      test_dataset=test_dataset,
-                                                                      normalizing_fn=training_dataset.normalize_density
-                                                                      if args.normalize_densities else None,
-                                                                      reduce_dim=collapse_tapped_sequence)
-
+        if epoch % args.plot_frequency == 0:
+            if args.piano_roll_samples:
+                piano_rolls = get_piano_rolls_for_control_model(vae_model=groovecontrol_model,
+                                                                dataset=test_dataset,
+                                                                device=config.device,
+                                                                genre_mapping_dict=genre_dict,
+                                                                density_normalizing_fn=training_dataset.normalize_density,
+                                                                intensity_normalizing_fn=training_dataset.normalize_intensity,
+                                                                reduce_dim=collapse_tapped_sequence)
                 wandb.log(piano_rolls, commit=False)
 
-                media = generate_umap_for_density_model_wandb(
-                    model=groovecontrol_model,
-                    device=config.device,
-                    test_dataset=test_dataset,
-                    subset_name='test',
-                    collapse_tapped_sequence=collapse_tapped_sequence,
-                )
-                wandb.log(media, commit=False)
+            if args.generate_umap_plots:
+                umap_plot = generate_density_intensity_umap \
+                    (model=groovecontrol_model,
+                     device=config.device,
+                     dataset=test_dataset,
+                     collapse_tapped_sequence=collapse_tapped_sequence,
+                     density_norm_fn=training_dataset.normalize_density,
+                     intensity_norm_fn=training_dataset.normalize_intensity)
+
+                wandb.log(umap_plot, commit=False)
 
         # Get Hit Scores for the entire train and the entire test set
         # ---------------------------------------------------------------------------------------------------
         if args.calculate_hit_scores_on_train:
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Train Set...")
-                train_set_hit_scores = get_hit_scores_for_density_model(
+                # Todo: RE ADD THIS
+                train_set_hit_scores = get_hit_scores_for_control_model(
                     model=groovecontrol_model,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name='train',
                     down_sampled_ratio=0.1,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None,
+                    genre_mapping_dict=genre_dict,
+                    density_normalizing_fn=training_dataset.normalize_density,
+                    intensity_normalizing_fn=training_dataset.normalize_intensity,
                     cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=False
-                )
+                    divide_by_genre=False)
                 wandb.log(train_set_hit_scores, commit=False)
 
-                densities_predictions = get_density_prediction_averages(model=groovecontrol_model,
-                                                                        test_dataset=test_dataset,
-                                                                        device=config.device,
-                                                                        normalizing_fn=training_dataset.normalize_density
-                                                                        if args.normalize_densities else None,
-                                                                        reduce_dim=collapse_tapped_sequence)
+                densities_predictions = get_control_model_density_prediction_averages(
+                    model=groovecontrol_model,
+                    dataset=test_dataset,
+                    device=config.device,
+                    n_genres=len(genre_dict),
+                    batch_size=128,
+                    density_normalizing_fn=training_dataset.normalize_density
+                )
                 wandb.log(densities_predictions, commit=False)
+
+                intensities_predictions = get_control_model_intensity_prediction_averages(
+                    model=groovecontrol_model,
+                    dataset=test_dataset,
+                    device=config.device,
+                    n_genres=len(genre_dict),
+                    batch_size=128,
+                    intensity_normalizing_fn=training_dataset.normalize_intensity
+                )
+                wandb.log(intensities_predictions, commit=False)
 
         if args.calculate_hit_scores_on_test:
             if epoch % args.hit_score_frequency == 0:
                 logger.info("________Calculating Hit Scores on Test Set...")
-                test_set_hit_scores = get_hit_scores_for_density_model(
+
+                test_set_hit_scores = get_hit_scores_for_control_model(
                     model=groovecontrol_model,
                     device=config.device,
                     dataset_setting_json_path=f"{config.dataset_json_dir}/{config.dataset_json_fname}",
                     subset_name=args.evaluate_on_subset,
                     down_sampled_ratio=None,
                     collapse_tapped_sequence=collapse_tapped_sequence,
-                    normalizing_fn=training_dataset.normalize_density if args.normalize_densities else None,
+                    genre_mapping_dict=genre_dict,
+                    density_normalizing_fn=training_dataset.normalize_density,
+                    intensity_normalizing_fn=training_dataset.normalize_intensity,
                     cached_folder="eval/GrooveEvaluator/templates",
-                    divide_by_genre=False
-                )
+                    divide_by_genre=False)
+
                 wandb.log(test_set_hit_scores, commit=False)
 
         # Commit the metrics to wandb

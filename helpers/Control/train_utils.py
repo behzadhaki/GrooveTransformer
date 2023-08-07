@@ -89,6 +89,7 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
             offset_logits=o_logits, offset_targets=o_targets, offset_loss_function=offset_loss_fn)
         batch_loss_o = (batch_loss_o * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_o = batch_loss_o.sum() if reduce_by_sum else batch_loss_o.mean()
+        batch_loss_o *= 0.5
 
         batch_loss_recon = batch_loss_h + batch_loss_v + batch_loss_o
 

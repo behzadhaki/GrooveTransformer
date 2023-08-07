@@ -468,13 +468,34 @@ class GrooveDataSet_Control(Dataset):
         return self.normalize_density(calculate_density(hits))
 
     def normalize_density(self, density):
-        return (density - self.min_density) / (self.max_density - self.min_density)
+        if isinstance(density, (float, np.float32, np.float64)):
+            normalized_density = (density - self.min_density) / (self.max_density - self.min_density)
+            return max(0.0, min(normalized_density, 1.0))
+
+        elif isinstance(density, np.ndarray):
+            normalized_density = (density - self.min_density) / (self.max_density - self.min_density)
+            return np.clip(normalized_density, 0.0, 1.0)
+
+        elif torch.is_tensor(density):
+            normalized_density = (density - self.min_density) / (self.max_density - self.min_density)
+            return torch.clamp(normalized_density, 0.0, 1.0)
 
     def calculate_normalized_intensity(self, intensities):
         return self.normalize_intensity(calculate_intensity(intensities))
 
     def normalize_intensity(self, intensity):
-        return (intensity - self.min_intensity) / (self.max_intensity - self.min_intensity)
+        """
+        Normalize a single (or number of) intensity floats according to the min/max of this dataset
+        @param intensity: float, np array or tensor
+        @return: normalized values in the original format
+        """
+        normalized_intensity = (intensity - self.min_intensity) / (self.max_intensity - self.min_intensity)
+        if isinstance(intensity, (float, np.float32, np.float64)):
+            return max(0.0, min(normalized_intensity, 1.0))
+        elif isinstance(intensity, np.ndarray):
+            return np.clip(normalized_intensity, 0.0, 1.0)
+        elif torch.is_tensor(intensity):
+            return torch.clamp(normalized_intensity, 0.0, 1.0)
 
     def get_parameter_weights(self):
         return self.density_weights, self.intensity_weights, self.genre_weights
