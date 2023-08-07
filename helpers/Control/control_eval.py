@@ -23,9 +23,9 @@ import wandb
 def create_parameters_dataframe(latent_z, densities, intensities, genres):
     # Convert to pandas df
     z_df = pd.DataFrame(latent_z.detach().numpy())
-    densities_series = pd.Series(densities.squeeze().detach().numpy(), name='density')
-    intensities_series = pd.Series(intensities.squeeze().detach().numpy(), name='intensity')
-    genres_np = genres.squeeze().detach().numpy()
+    densities_series = pd.Series(densities.squeeze().detach().cpu().numpy(), name='density')
+    intensities_series = pd.Series(intensities.squeeze().detach().cpu().numpy(), name='intensity')
+    genres_np = genres.squeeze().detach().cpu().numpy()
     genres_np = np.argmax(genres_np, axis=1)
     genres_series = pd.Series(genres_np, name='genre')  # this is an integer representation of the genre
 
