@@ -1,4 +1,4 @@
-from umap import UMAP
+from umap import umap_ as UMAP
 import os, bz2, pickle
 from pandas import DataFrame
 
