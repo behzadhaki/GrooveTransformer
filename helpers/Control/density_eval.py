@@ -198,6 +198,7 @@ def get_hit_scores_for_density_model(model, device, dataset_setting_json_path, s
     score_dict.update({f"{subset_name}/{key}_std".replace(" ","_").replace("-","_"): float(value['std']) for key, value in hit_dict.items()})
     return score_dict
 
+
 def get_density_prediction_averages(model, test_dataset, device, batch_size=64, normalizing_fn=None, reduce_dim=True):
 
     hvo_seq_set = test_dataset.get_hvo_sequences()
