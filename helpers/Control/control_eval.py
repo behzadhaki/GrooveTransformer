@@ -60,7 +60,11 @@ def generate_density_intensity_umap(model, device, dataset,
     if intensity_norm_fn is not None:
         intensities = intensity_norm_fn(intensities)
 
-    _, _, _, latents_z = model.predict(in_groove, densities, intensities, genres, return_concatenated=True)
+    _, _, _, latents_z = model.predict(in_groove.to(device),
+                                       densities.to(device),
+                                       intensities.to(device),
+                                       genres.to(device),
+                                       return_concatenated=True)
 
     umap_df = create_parameters_dataframe(latents_z, densities, intensities, genres)
     plt.clf()
