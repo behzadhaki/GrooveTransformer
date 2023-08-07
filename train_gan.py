@@ -12,13 +12,15 @@ from helpers.Control.loss_functions import generate_theta_rise
 
 
 from torch.utils.data import DataLoader
-from logging import getLogger, DEBUG
+from logging import getLogger, DEBUG, WARNING
 import yaml
 import argparse
 from distutils.util import strtobool
 
-logger = getLogger("train.py")
-logger.setLevel(DEBUG)
+logger = getLogger("train_gan.py")
+logger.setLevel(WARNING)
+numba_logger = getLogger('numba')
+numba_logger.setLevel(WARNING)
 
 parser = argparse.ArgumentParser()
 
