@@ -22,7 +22,7 @@ import wandb
 
 def create_parameters_dataframe(latent_z, densities, intensities, genres):
     # Convert to pandas df
-    z_df = pd.DataFrame(latent_z.detach().numpy())
+    z_df = pd.DataFrame(latent_z.detach().cpu().numpy())
     densities_series = pd.Series(densities.squeeze().detach().cpu().numpy(), name='density')
     intensities_series = pd.Series(intensities.squeeze().detach().cpu().numpy(), name='intensity')
     genres_np = genres.squeeze().detach().cpu().numpy()
