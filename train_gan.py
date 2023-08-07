@@ -5,13 +5,11 @@ import json
 import torch
 from model import GrooveControl_VAE, Control_components, GAN_components
 
-from helpers.Control.density_eval import *
 from data.src.dataLoaders import GrooveDataSet_Control
 from helpers import vae_train_utils, control_train_utils, control_loss_functions
 from helpers.Control.control_eval import *
 from helpers.Control.loss_functions import generate_theta_rise
-import matplotlib
-import matplotlib.pyplot as plt
+
 
 from torch.utils.data import DataLoader
 from logging import getLogger, DEBUG
