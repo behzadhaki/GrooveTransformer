@@ -1,8 +1,9 @@
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import copy
 import torch
 import numpy as np
 from eval.GrooveEvaluator import load_evaluator_template
-from eval.UMAP import UMapper
 from data.control.control_utils import calculate_density, calculate_intensity
 import random
 from bokeh.embed import file_html
@@ -11,9 +12,6 @@ from bokeh.models.widgets import Panel, Tabs
 from bokeh.io import save
 from bokeh.models import DataRange1d
 import umap
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 import os
