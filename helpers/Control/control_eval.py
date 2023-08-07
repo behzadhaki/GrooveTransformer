@@ -11,7 +11,7 @@ from bokeh.resources import CDN
 from bokeh.models.widgets import Panel, Tabs
 from bokeh.io import save
 from bokeh.models import DataRange1d
-import umap
+from umap import umap_ as UMAP
 import seaborn as sns
 import pandas as pd
 import os
@@ -29,7 +29,8 @@ def create_parameters_dataframe(latent_z, densities, intensities, genres):
 
     # Combine and collapse to 2D umap
     df = pd.concat([z_df, densities_series, intensities_series, genres_series], axis=1)
-    reducer = umap.UMAP()
+    #reducer = umap.UMAP()
+    reducer = UMAP.UMAP()
     embedding = reducer.fit_transform(df.drop(columns=['density', 'intensity']))
 
     # Create a DataFrame from the embedding
