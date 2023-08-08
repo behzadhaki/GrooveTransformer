@@ -23,7 +23,6 @@ logger.setLevel(WARNING)
 
 
 parser = argparse.ArgumentParser()
-
 # ----------------------- Set True When Testing ----------------
 parser.add_argument("--is_testing", help="Use testing dataset (1% of full date) for testing the script", type=strtobool,
                     default=False)
@@ -421,12 +420,17 @@ if __name__ == "__main__":
 
         # Generate PianoRolls and UMAP Plots  and KL/OA PLots if Needed
         # ---------------------------------------------------------------------------------------------------
+        if config.device != 'cpu':
+            torch.cuda.empty_cache()
+
         if epoch % args.plot_frequency == 0:
             if args.piano_roll_samples:
+
                 piano_rolls = get_piano_rolls_for_control_model(vae_model=groovecontrol_model,
                                                                 dataset=test_dataset,
                                                                 device=config.device,
                                                                 genre_mapping_dict=genre_dict,
+                                                                num_examples=20,
                                                                 density_normalizing_fn=training_dataset.normalize_density,
                                                                 intensity_normalizing_fn=training_dataset.normalize_intensity,
                                                                 reduce_dim=collapse_tapped_sequence)
@@ -447,6 +451,8 @@ if __name__ == "__main__":
         # ---------------------------------------------------------------------------------------------------
         if args.calculate_hit_scores_on_train:
             if epoch % args.hit_score_frequency == 0:
+                if config.device != 'cpu':
+                    torch.cuda.empty_cache()
                 logger.info("________Calculating Hit Scores on Train Set...")
                 # Todo: RE ADD THIS
                 train_set_hit_scores = get_hit_scores_for_control_model(
@@ -485,6 +491,8 @@ if __name__ == "__main__":
 
         if args.calculate_hit_scores_on_test:
             if epoch % args.hit_score_frequency == 0:
+                if config.device != 'cpu':
+                    torch.cuda.empty_cache()
                 logger.info("________Calculating Hit Scores on Test Set...")
 
                 test_set_hit_scores = get_hit_scores_for_control_model(

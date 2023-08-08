@@ -285,7 +285,17 @@ class GrooveDataSet_Control(Dataset):
                 cache_down_sampled_set=True
             )
 
-        # !right here, remove the sample!
+        # Remove lowest intensity sample for data normalization
+        min_intensity = 1.0
+        min_id = 0
+        for idx, eg_hvo in enumerate(subset):
+            intensity = calculate_intensity(eg_hvo.hvo[:, 9:18])
+            if intensity < min_intensity:
+                min_intensity = intensity
+                min_id = idx
+        del subset[min_id]
+
+
 
         # Sort data by a given metadata key if provided (e.g. "style_primary")
         # ------------------------------------------------------------------------------------------
