@@ -97,7 +97,7 @@ parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int,
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
-parser.add_argument("--epochs", type=int, help="Number of epochs", default=500)
+parser.add_argument("--epochs", type=int, help="Number of epochs", default=250)
 parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
 parser.add_argument("--lr", type=float, help="Learning rate", default=0.0003)
 parser.add_argument("--optimizer", type=str, help="optimizer to use - either 'sgd' or 'adam' loss", default="adam",
