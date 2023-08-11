@@ -48,6 +48,7 @@ def calculate_continuous_value_weights(values, num_bins=10):
 
     return weights
 
+
 def calculate_genre_weights(genres):
     """
     Calculate the inverse weight distribution of genres, to balance the cross entropy loss functions
@@ -56,7 +57,6 @@ def calculate_genre_weights(genres):
     """
     genres = np.stack(genres)  # Convert list of arrays to 2D array
     genre_counts = genres.sum(axis=0)  # Count occurrence of each genre
-
     total_count = len(genres)  # Total number of samples
     weights = total_count / genre_counts  # Calculate weights
 

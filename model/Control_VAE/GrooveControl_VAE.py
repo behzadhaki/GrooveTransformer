@@ -149,6 +149,15 @@ class GrooveControl_VAE(torch.nn.Module):
                                    genre, voice_thresholds, voice_max_count_allowed,
                                    return_concatenated, sampling_mode)
 
+    def get_latent_z_with_params(self, latent_z, density, intensity, genre):
+        """
+        For eval purposes, this returns the input layer of the Decoder to understand how the model is
+        incorporating the control parameters into the encoder's latent space prior to decoding.
+        @return: (tensor) latent z along with the new values
+        """
+        z = self.Decoder.get_decoder_input_layer_output(latent_z, density, intensity, genre)
+        return z.flatten()
+
     def save(self, save_path, additional_info=None):
         """ Saves the model to the given path. The Saved pickle has all the parameters ('params' field) as well as
         the state_dict ('state_dict' field) """
@@ -180,7 +189,7 @@ class GrooveControl_VAE(torch.nn.Module):
 
             'use_in_attention': self.use_in_attention,
             'n_continuous_params': self.n_continuous_params,
-            'n_genres': self.n_genres,
+            'genre_dict': self.genre_dict
         }
 
         json.dump(params_dict, open(save_path.replace('.pth', '.json'), 'w'))

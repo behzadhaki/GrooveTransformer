@@ -303,6 +303,8 @@ class GrooveDataSet_Control(Dataset):
             if sort_by_metadata_key in subset[0].metadata[sort_by_metadata_key]:
                 subset = sorted(subset, key=lambda x: x.metadata[sort_by_metadata_key])
 
+
+
         # collect input tensors, output tensors, and hvo_sequences
         # ------------------------------------------------------------------------------------------
         print(f"subset length: {len(subset)}")
@@ -324,6 +326,8 @@ class GrooveDataSet_Control(Dataset):
 
         self.inputs = np.array(self.inputs)
         self.outputs = np.array(self.outputs)
+
+
 
         # Convert Genres to one-hot vectors
         # ------------------------------------------------------------------------------------------
@@ -358,6 +362,8 @@ class GrooveDataSet_Control(Dataset):
         num_classes = hit_balancing_weights.shape[0] * hit_balancing_weights.shape[1]
         hit_balancing_weights = hit_balancing_weights / hit_balancing_weights.sum() * num_classes
         self.hit_balancing_weights_per_sample = [hit_balancing_weights for _ in range(len(self.outputs))]
+
+
 
         # Get genre balancing weights if a beta parameter is provided
         # ------------------------------------------------------------------------------------------
@@ -395,7 +401,9 @@ class GrooveDataSet_Control(Dataset):
         # Create balancing weights for adversarial model training
         self.density_weights = calculate_continuous_value_weights(self.densities)
         self.intensity_weights = calculate_continuous_value_weights(self.intensities)
-        self.genre_weights = calculate_genre_weights(self.genres)
+        #self.genre_weights = calculate_genre_weights(self.genres)
+        self.genre_weights = 0
+
 
         # Load as tensor if requested
         # ------------------------------------------------------------------------------------------

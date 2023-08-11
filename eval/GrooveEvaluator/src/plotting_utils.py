@@ -773,6 +773,7 @@ def tabulated_violin_plot(data_dictionary, save_path=None, kernel_bandwidth=0.01
     # source https://holoviews.org/reference/elements/bokeh/Violin.html
 
     if _HAS_HOLOVIEWS:
+        print("HAS HOLOVIEWS")
         groups = []
         categories = []
         values = []

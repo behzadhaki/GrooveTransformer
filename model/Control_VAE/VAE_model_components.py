@@ -147,6 +147,9 @@ class Control_Decoder(torch.nn.Module):
 
         return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
 
+    def get_decoder_input_layer_output(self, latent_z, density, intensity, genre):
+        return self.DecoderInputLayer.forward(latent_z, density, intensity, genre)
+
     def sample(self, latent_z, density, intensity, genre, voice_thresholds,
                voice_max_count_allowed, return_concatenated=False, sampling_mode=0):
         """Converts the latent vector into hit, vel, offset values
@@ -232,6 +235,7 @@ class ControlDecoderInputLayer(torch.nn.Module):
         intensity = intensity.view(intensity.shape[0], 1).repeat(1, self.max_len).unsqueeze(dim=-1)
         genre = self.genre_linear.forward(genre).unsqueeze(dim=-1)
         concat = torch.cat((latent_z, density, intensity, genre), dim=-1)
+
 
 
         return concat
