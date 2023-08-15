@@ -25,6 +25,7 @@ from bokeh.io import save
 from eval.MultiSetEvaluator import MultiSetEvaluator
 from copy import deepcopy
 
+
 def flatten(t):
     if len(t) >=1:
         if isinstance(t[0], list):

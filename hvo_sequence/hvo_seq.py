@@ -1176,10 +1176,14 @@ class HVO_Sequence(object):
                     # the utiming value in ms
 
             start_time = grid_lines[grid_pos] + utiming  # starting time of note in sec
+            a = 0
 
-            end_time = start_time + note_duration  # ending time of note in sec
+            # todo: check with behzad
+            start_time = 0.0 if start_time.item() < 0.0 else start_time.item()
 
-            ns.notes.add(pitch=pitch, start_time=start_time.item(), end_time=end_time.item(),
+            end_time = start_time + note_duration.item()  # ending time of note in sec
+
+            ns.notes.add(pitch=pitch, start_time=start_time, end_time=end_time,
                          is_drum=True, instrument=midi_track_n, velocity=int(velocity.item() * 127))
 
         # ns.total_time = self.total_len

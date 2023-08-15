@@ -171,32 +171,15 @@ def create_combined_scatter(umap_df1, umap_df2):
     return fig
 
 
-def generate_vaeder_midi_examples(model, dataset, n_midi_inputs, genre_dict,
-                                  density_norm_fn, intensity_norm_fn, make_subdirectory=True):
-
-    if make_subdirectory:
-        folder_name = "midi_files"
-        os.makedirs(folder_name, exist_ok=True)
-        # Delete all contents inside the folder
-        for filename in os.listdir(folder_name):
-            file_path = os.path.join(folder_name, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(f'Failed to delete {file_path}. Reason: {e}')
-        os.chdir(folder_name)
-
-    # Select sample idx
-    sample_range = len(dataset.hvo_sequences)
-    sample_indices = [random.randint(0, sample_range) for _ in range(n_midi_inputs)]
+def generate_vaeder_midi_examples(model_name, model, dataset, sample_indices, genres,
+                                  density_norm_fn, intensity_norm_fn):
 
     densities = [0.1, 0.3, 0.5, 0.7, 0.9]
     intensities = densities
-    genres = len(genre_dict)
+    genre_dict = model.get_genre_dict()
     rev_genre_dict = {v: k for k, v in genre_dict.items()}
+
+
 
     for idx in sample_indices:
         hvo_gt_seq = dataset.get_hvo_sequences_at(idx)
@@ -213,27 +196,61 @@ def generate_vaeder_midi_examples(model, dataset, n_midi_inputs, genre_dict,
         output_seq = deepcopy(hvo_gt_seq)
         hvo, _, _, _ = model.predict(input_hvo, gt_density, gt_intensity, gt_genre, return_concatenated=True)
         output_seq.hvo = torch.squeeze(hvo, dim=0).numpy()
-        output_seq.save_hvo_to_midi(filename=f"{idx}_gt_pred.mid")
+        output_seq.save_hvo_to_midi(filename=f"{idx}_{model_name}_gt_pred.mid")
+
+
+
 
         for density in densities:
+            output_hvo = np.empty((0, 27))
             d = torch.unsqueeze(torch.tensor(density), dim=0)
             for intensity in intensities:
                 i = torch.unsqueeze(torch.tensor(intensity), dim=0)
 
                 hvo, _, _, _ = model.predict(input_hvo, d, i, gt_genre, return_concatenated=True)
-                output_seq.hvo = torch.squeeze(hvo, dim=0).numpy()
-                output_seq.save_hvo_to_midi(filename=f"{idx}_i{intensity}_d{density}.mid")
+                #output_seq.hvo = torch.squeeze(hvo, dim=0).numpy()
+                hvo = torch.squeeze(hvo, dim=0).numpy()
+                output_hvo = np.concatenate((output_hvo, hvo), axis=0)
 
-        for genre in range(len(rev_genre_dict)):
-            genre_input = torch.nn.functional.one_hot(torch.tensor([genre]),
-                                                      num_classes=len(rev_genre_dict)).to(dtype=torch.float32)
+            output_seq.hvo = output_hvo
+
+
+            output_seq.save_hvo_to_midi(filename=f"{idx}_{model_name}_d{density}.mid")
+
+        for genre in genres:
+            genre_id = genre_dict[genre]
+            genre_input = torch.nn.functional.one_hot(torch.tensor([genre_id]),
+                                                      num_classes=len(genre_dict)).to(dtype=torch.float32)
             hvo, _, _, _ = model.predict(input_hvo, gt_density, gt_intensity,
                                          genre_input, return_concatenated=True)
             output_seq.hvo = torch.squeeze(hvo, dim=0).numpy()
-            output_seq.save_hvo_to_midi(filename=f"{idx}_genre_{rev_genre_dict[genre]}.mid")
+            output_seq.save_hvo_to_midi(filename=f"{idx}_{model_name}_genre_{genre}.mid")
 
-    if make_subdirectory:
-        os.chdir("../")
+
+
+        # for genre in range(len(rev_genre_dict)):
+        #     genre_input = torch.nn.functional.one_hot(torch.tensor([genre]),
+        #                                               num_classes=len(rev_genre_dict)).to(dtype=torch.float32)
+        #     hvo, _, _, _ = model.predict(input_hvo, gt_density, gt_intensity,
+        #                                  genre_input, return_concatenated=True)
+        #     output_seq.hvo = torch.squeeze(hvo, dim=0).numpy()
+        #     output_seq.save_hvo_to_midi(filename=f"{idx}_genre_{rev_genre_dict[genre]}.mid")
+
+
+def make_empty_folder(folder_name, delete_existing_files=True):
+    os.makedirs(folder_name, exist_ok=True)
+    # Delete all contents inside the folder
+    if delete_existing_files:
+        for filename in os.listdir(folder_name):
+            file_path = os.path.join(folder_name, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}')
+    os.chdir(folder_name)
 
 
 

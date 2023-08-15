@@ -17,7 +17,8 @@ soundfile~=0.12.1
 tqdm==4.64.1
 
 umap-learn
-holoviews~=1.15.1
+holoviews~=1.15.4
+panel==0.14.4
 torch~=1.13.1
 wandb~=0.15.8
 umap~=0.1.1

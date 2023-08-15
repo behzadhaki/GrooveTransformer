@@ -22,7 +22,6 @@ logger.setLevel(logging.DEBUG)
 
 import pandas as pd
 try:
-    print("HELLO")
     import holoviews as hv
     from holoviews import opts
     hv.extension('bokeh')

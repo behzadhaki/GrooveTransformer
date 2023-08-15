@@ -1,3 +1,12 @@
+import logging
+wandb_logger = logging.getLogger('wandb')
+wandb_logger.setLevel(logging.WARNING)
+matplotlib_logger = logging.getLogger('matplotlib')
+matplotlib_logger.setLevel(logging.WARNING)
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)  # or logging.INFO if you want to see INFO messages
+
+
 import os
 import matplotlib.pyplot as plt
 import wandb
@@ -11,15 +20,14 @@ from helpers.Control.control_eval import *
 from helpers.Control.loss_functions import generate_theta_rise
 
 
-from torch.utils.data import DataLoader
-from logging import getLogger, DEBUG, WARNING
+from torch.utils.data import DataLoader, WeightedRandomSampler
+from logging import getLogger, DEBUG
 import yaml
 import argparse
 from distutils.util import strtobool
 
-
 logger = getLogger("train_gan.py")
-logger.setLevel(WARNING)
+logger.setLevel(DEBUG)
 
 
 parser = argparse.ArgumentParser()
@@ -94,6 +102,8 @@ parser.add_argument("--beta_annealing_per_cycle_period", type=int,
                     help="Number of epochs for each cycle of Beta annealing", default=100)
 parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int,
                     help="Warm up epochs (KL = 0) before starting the first cycle", default=70)
+parser.add_argument("--use_genre_weighted_tensor", type=strtobool, help="Balance dataloader with weighted tensor",
+                    default=True)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
@@ -198,7 +208,8 @@ else:
         reduce_loss_by_sum=True if args.reduce_loss_by_sum == 1 else False,
         is_testing=args.is_testing,
         dataset_json_dir=args.dataset_json_dir,
-        dataset_json_fname=args.dataset_json_fname
+        dataset_json_fname=args.dataset_json_fname,
+        use_genre_weighted_tensor=args.use_genre_weighted_tensor
     )
 
 # config files without wandb_project specified
@@ -247,7 +258,35 @@ if __name__ == "__main__":
         custom_genre_mapping_dict=genre_dict
     )
 
-    train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
+    # Ensure each genre is represented in every training batch
+    if args.use_genre_weighted_tensor:
+        print("\nWEIGHTING\n")
+        genres = training_dataset.genres
+        # Count the occurrences of each class
+        class_counts = [0] * len(genres[0])
+        for genre in genres:
+            class_index = torch.argmax(genre).item()
+            class_counts[class_index] += 1
+
+        # Calculate the weights for each class
+        num_samples = sum(class_counts)
+        class_weights = [num_samples / count for count in class_counts]
+
+        # Assign the weights to individual samples
+        sample_weights = [class_weights[torch.argmax(genre).item()] for genre in genres]
+
+        # Create the WeightedRandomSampler
+        sampler = WeightedRandomSampler(weights=sample_weights, num_samples=num_samples, replacement=True)
+
+        # Pass the sampler to the DataLoader
+        train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, sampler=sampler)
+
+
+    else:
+        train_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, shuffle=True)
+
+
+
 
     test_dataset = GrooveDataSet_Control(
         dataset_setting_json_path="data/dataset_json_settings/4_4_BeatsAndFills_gmd.json",
