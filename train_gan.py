@@ -81,6 +81,7 @@ parser.add_argument("--train_genre", type=strtobool, help="Include genre paramet
 parser.add_argument("--balance_param_loss_weights", type=strtobool,
                     help="Weight losses according to data", default=False)
 
+
 # ----------------------- Training Loss Parameters -----------------------
 parser.add_argument("--balance_vo", type=strtobool, help="Whether to make vel/off loss proportional to h",
                     default=False)
@@ -104,9 +105,11 @@ parser.add_argument("--beta_annealing_start_first_rise_at_epoch", type=int,
                     help="Warm up epochs (KL = 0) before starting the first cycle", default=70)
 parser.add_argument("--use_genre_weighted_tensor", type=strtobool, help="Balance dataloader with weighted tensor",
                     default=True)
+parser.add_argument("--adversarial_loss_modifier", type=float, help="Scale the adversarial loss against encoder",
+                    default=0.1)
 
 # ----------------------- Training Parameters -----------------------
-parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cude", default=True)
+parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cuda", default=True)
 parser.add_argument("--epochs", type=int, help="Number of epochs", default=250)
 parser.add_argument("--batch_size", type=int, help="Batch size", default=64)
 parser.add_argument("--lr", type=float, help="Learning rate", default=0.0003)
@@ -200,6 +203,7 @@ else:
         beta_annealing_per_cycle_rising_ratio=float(args.beta_annealing_per_cycle_rising_ratio),
         beta_annealing_per_cycle_period=args.beta_annealing_per_cycle_period,
         beta_annealing_start_first_rise_at_epoch=args.beta_annealing_start_first_rise_at_epoch,
+        adversarial_loss_modifier=args.adversarial_loss_modifier,
 
         epochs=args.epochs,
         batch_size=args.batch_size,
@@ -405,7 +409,7 @@ if __name__ == "__main__":
         else:
             beta = args.beta_level
 
-        adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=0.1,
+        adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=args.adversarial_loss_modifier,
                                                         epochs_to_reach_theta=40,
                                                         start_first_rise_at_epoch=100)
 
