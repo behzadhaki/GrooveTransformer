@@ -27,7 +27,7 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, mask=Non
     """
 
     if mask is not None:
-        vel_logits *= mask
+        vel_logits = vel_logits * mask
 
     if isinstance(vel_loss_function, torch.nn.MSELoss):
         loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets)
@@ -63,7 +63,7 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, m
 
         offset_logits = torch.tanh(offset_logits) * 0.5
         if mask is not None:
-            offset_logits *= mask
+            offset_logits = offset_logits * mask
 
         loss_o = offset_loss_function(offset_logits, offset_targets)
 
@@ -71,7 +71,7 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, m
         # here the offsets MUST be in the range of [0, 1]. Our existing targets are from [-0.5, 0.5].
         # So we need to shift them to [0, 1] range by adding 0.5
         if mask is not None:
-            offset_logits *= mask
+            offset_logits = offset_logits * mask
 
         print("\nlogits:")
         print(offset_logits[0, :6, :])
