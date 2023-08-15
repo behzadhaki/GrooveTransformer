@@ -75,7 +75,7 @@ def batch_loop(dataloader_, vae_model, adversarial_models, hit_loss_fn, velocity
         batch_loss_h = (batch_loss_h * hit_balancing_weights_per_sample * genre_balancing_weights_per_sample)
         batch_loss_h = batch_loss_h.sum() if reduce_by_sum else batch_loss_h.mean()
 
-        mask = h_logits.detach().clone() if balance_vo else None
+        mask = h_targets.detach().clone() if balance_vo else None
 
         # if balance_vo:
         #     mask = h_logits.detach().clone()
