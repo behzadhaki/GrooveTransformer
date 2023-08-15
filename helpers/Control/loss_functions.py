@@ -77,10 +77,10 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, m
             offset_logits = offset_logits * mask
             offset_targets = offset_targets * mask
 
-        print("\nlogits:")
-        print(offset_logits[0, :6, :])
-        print("gt:")
-        print(offset_targets[0, :6, :])
+        # print("\nlogits:")
+        # print(offset_logits[0, :6, :])
+        # print("gt:")
+        # print(offset_targets[0, :6, :])
         loss_o = offset_loss_function(offset_logits, offset_targets)
     else:
         raise NotImplementedError(f"the offset_loss_function {offset_loss_function} is not implemented")
