@@ -16,7 +16,7 @@ def calculate_hit_loss(hit_logits, hit_targets, hit_loss_function):
     return loss_h       # batch_size,  time_steps, n_voices
 
 
-def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function):
+def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, mask=None):
     """
     Calculate the velocity loss for the velocity targets and the **Pre-Activation** output of the model.
     The loss is calculated using either MSE or BCE loss function.
@@ -25,9 +25,14 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function):
     :param vel_loss_function:     (str)  either "mse" or "bce"
     :return:    vel_loss (batch_size, time_steps, n_voices)  the velocity loss value per each step and voice (unreduced)
     """
+
+    if mask is not None:
+        vel_logits *= mask
+
     if isinstance(vel_loss_function, torch.nn.MSELoss):
         loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets)
     elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):
+
         loss_v = vel_loss_function(vel_logits, vel_targets)
     else:
         raise NotImplementedError(f"the vel_loss_function {vel_loss_function} is not implemented")
@@ -35,7 +40,7 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function):
     return loss_v       # batch_size,  time_steps, n_voices
 
 
-def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function):
+def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function, mask=None):
     """
     Calculate the offset loss for the offset targets and the **Pre-Activation** output of the model.
     The loss is calculated using either MSE or BCE loss function.
@@ -55,11 +60,19 @@ def calculate_offset_loss(offset_logits, offset_targets, offset_loss_function):
         # the offset logits after the tanh activation are in the range of -1 to 1 . Therefore, we need to
         # scale the offset targets to the same range. This is done by multiplying the offset values after
         # the tanh activation by 0.5
-        loss_o = offset_loss_function(torch.tanh(offset_logits)*0.5, offset_targets)
+
+        offset_logits = torch.tanh(offset_logits) * 0.5
+        if mask is not None:
+            offset_logits *= mask
+
+        loss_o = offset_loss_function(offset_logits, offset_targets)
 
     elif isinstance(offset_loss_function, torch.nn.BCEWithLogitsLoss):
         # here the offsets MUST be in the range of [0, 1]. Our existing targets are from [-0.5, 0.5].
         # So we need to shift them to [0, 1] range by adding 0.5
+        if mask is not None:
+            offset_logits *= mask
+
         print("\nlogits:")
         print(offset_logits[0, :6, :])
         print("gt:")
