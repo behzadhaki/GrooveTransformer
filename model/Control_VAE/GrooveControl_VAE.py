@@ -230,3 +230,6 @@ class GrooveControl_VAE(torch.nn.Module):
 
     def get_genre_dict(self):
         return self.genre_dict
+
+    def get_latent_dim(self):
+        return int(self.latent_dim)

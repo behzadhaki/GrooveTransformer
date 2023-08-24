@@ -29,7 +29,6 @@ def calculate_velocity_loss(vel_logits, vel_targets, vel_loss_function, mask=Non
     if mask is not None:
         vel_logits = vel_logits * mask
 
-
     if isinstance(vel_loss_function, torch.nn.MSELoss):
         loss_v = vel_loss_function(torch.sigmoid(vel_logits), vel_targets)
     elif isinstance(vel_loss_function, torch.nn.BCEWithLogitsLoss):

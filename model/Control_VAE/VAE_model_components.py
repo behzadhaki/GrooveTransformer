@@ -234,11 +234,9 @@ class ControlDecoderInputLayer(torch.nn.Module):
         density = density.view(density.shape[0], 1).repeat(1, self.max_len).unsqueeze(dim=-1)
         intensity = intensity.view(intensity.shape[0], 1).repeat(1, self.max_len).unsqueeze(dim=-1)
         genre = self.genre_linear.forward(genre).unsqueeze(dim=-1)
-        concat = torch.cat((latent_z, density, intensity, genre), dim=-1)
+        z_star = torch.cat((latent_z, density, intensity, genre), dim=-1)
 
-
-
-        return concat
+        return z_star
 
 
 # --- In Attention Decoding --- #

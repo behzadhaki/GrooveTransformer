@@ -107,6 +107,8 @@ parser.add_argument("--use_genre_weighted_tensor", type=strtobool, help="Balance
                     default=True)
 parser.add_argument("--adversarial_loss_modifier", type=float, help="Scale the adversarial loss against encoder",
                     default=0.1)
+parser.add_argument("--adversarial_loss_start_epoch", type=int, help="When to begin adversarial loss",
+                    default=70)
 
 # ----------------------- Training Parameters -----------------------
 parser.add_argument("--force_data_on_cuda", type=bool, help="places all training data on cuda", default=True)
@@ -204,6 +206,7 @@ else:
         beta_annealing_per_cycle_period=args.beta_annealing_per_cycle_period,
         beta_annealing_start_first_rise_at_epoch=args.beta_annealing_start_first_rise_at_epoch,
         adversarial_loss_modifier=args.adversarial_loss_modifier,
+        adversarial_loss_start_epoch=args.adversarial_loss_start_epoch,
 
         epochs=args.epochs,
         batch_size=args.batch_size,
@@ -411,7 +414,7 @@ if __name__ == "__main__":
 
         adversarial_loss_modifier = generate_theta_rise(epoch, theta_level=args.adversarial_loss_modifier,
                                                         epochs_to_reach_theta=40,
-                                                        start_first_rise_at_epoch=100)
+                                                        start_first_rise_at_epoch=args.adversarial_loss_start_epoch,)
 
         train_log_metrics, step_ = control_train_utils.train_loop(
             train_dataloader=train_dataloader,

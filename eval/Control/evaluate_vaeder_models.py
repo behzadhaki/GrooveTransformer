@@ -19,33 +19,55 @@ from data.src.dataLoaders import GrooveDataSet_Control
 from eval_vaeder_tools import *
 
 
-
 DATASET_JSON_PATH = "../../data/dataset_json_settings/4_4_BeatsAndFills_gmd.json"
 WANDB_PATH = "mmil_julian/ControlAdversarial/"
 
 """
+
 Revived 3: High offset dropout
 Jumping 22: Highest DICE and TP hit scores (most accurate overall) and highest density/intensity
 Rose 43: Highest KL value (0.48)
 classic 31: Lowest hit score loss, high intensity values
 
+
+earthy 149: Classic 31 + genre tensor (epoch 210)
+https://wandb.ai/mmil_julian/ControlAdversarial/runs/bju4tlkd/overview?workspace=user-jlenzy
+
+fanciful 153: Classic 31 + genre tensor + higher adversarial loss (0.3) (epoch 230)
+https://wandb.ai/mmil_julian/ControlAdversarial/runs/j0i9jzqj?workspace=user-jlenzy
+
+rain 154: No Adv term, no KL, no In-Attention (ground truth model)
+https://wandb.ai/mmil_julian/ControlAdversarial/runs/d7hlshvz/overview?workspace=user-jlenzy
+
 """
 
-
-MODELS_DICT = {"revived_3": "490:v2",
-               "jumping_22": "130:v57",
-               "rose_43": "190:v37",
-               "classic_31": "160:v30"
+MODELS_DICT = {
+               "earthy_149": "210:v99",
+               "rain_154": "210:v101"
                }
 
 
+
+# MODELS_DICT = {"revived_3": "490:v2",
+#                "jumping_22": "130:v57",
+#                "rose_43": "190:v37",
+#                "classic_31": "160:v30",
+#                "earthy_149": "210:v99",
+#                "fanciful_53": "230:v100",
+#                "rain_154": "210:v101",
+#                }
+
+
+
+
 GENRE_JSON_PATH = "../../data/control/gmd_genre_dict.json"
-GEN_UMAPS = True
-GEN_MIDI = True
-N_MIDI_INPUTS = 4
-GENRES = ["rock", "jazz", "latin"]
-SERIALIZE_WHOLE_MODEL = True
-SERIALIZE_MODEL_COMPONENTS = True
+GEN_UMAPS = False
+GEN_MIDI = False
+N_MIDI_INPUTS = 6
+GENRES = ["rock", "jazz", "latin", "hiphop"]
+TEST_CONTROLS = True
+SERIALIZE_WHOLE_MODEL = False
+SERIALIZE_MODEL_COMPONENTS = False
 
 IS_TESTING = False
 
@@ -58,6 +80,9 @@ if __name__ == "__main__":
 
     # Get original normalization functions
     DOWNSAMPLE = 0.1 if IS_TESTING else None
+    if IS_TESTING:
+        MODELS_DICT = {"revived_3": "490:v2"}
+
     print("Loading Normalization Functions")
     norm_dataset = GrooveDataSet_Control(
         dataset_setting_json_path=DATASET_JSON_PATH,
@@ -132,6 +157,17 @@ if __name__ == "__main__":
 
             generate_vaeder_midi_examples(model_name, model, dataset, sample_indices,
                                           GENRES, density_norm_fn, intensity_norm_fn)
+
+        os.chdir("../")
+
+    if TEST_CONTROLS:
+        print("\nTesting control values")
+        make_empty_folder("control_value_tests")
+        for model_name, model_data in MODELS_DICT.items():
+            print(model_name)
+            fig = test_control_values(model_name, model_data["model"], density_norm_fn, intensity_norm_fn,
+                                n_genres=len(genre_dict), n_examples=2000)
+            fig.savefig(f"{model_name}_control_values.png", format="png", bbox_inches='tight', dpi=400)
 
         os.chdir("../")
 
