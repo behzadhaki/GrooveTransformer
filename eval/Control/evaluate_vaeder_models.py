@@ -43,7 +43,8 @@ https://wandb.ai/mmil_julian/ControlAdversarial/runs/d7hlshvz/overview?workspace
 
 MODELS_DICT = {
                "earthy_149": "210:v99",
-               "rain_154": "210:v101"
+               "rain_154": "210:v101",
+               "zesty_160": "210:v104"
                }
 
 
@@ -65,7 +66,7 @@ GEN_UMAPS = False
 GEN_MIDI = False
 N_MIDI_INPUTS = 6
 GENRES = ["rock", "jazz", "latin", "hiphop"]
-TEST_CONTROLS = True
+GEN_CONTROL_HEATMAPS = True
 SERIALIZE_WHOLE_MODEL = False
 SERIALIZE_MODEL_COMPONENTS = False
 
@@ -160,15 +161,17 @@ if __name__ == "__main__":
 
         os.chdir("../")
 
-    if TEST_CONTROLS:
+    if GEN_CONTROL_HEATMAPS:
         print("\nTesting control values")
         make_empty_folder("control_value_tests")
         for model_name, model_data in MODELS_DICT.items():
             print(model_name)
-            fig = test_control_values(model_name, model_data["model"], density_norm_fn, intensity_norm_fn,
+            fig = test_control_values(model_data["model"], density_norm_fn, intensity_norm_fn,
                                 n_genres=len(genre_dict), n_examples=2000)
             fig.savefig(f"{model_name}_control_values.png", format="png", bbox_inches='tight', dpi=400)
 
+        fig = get_ground_truth_control_heatmap(num_samples=2000)
+        fig.savefig(f"ground_truth_heatmap.png", format="png", bbox_inches='tight', dpi=400)
         os.chdir("../")
 
 

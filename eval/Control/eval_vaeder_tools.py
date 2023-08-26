@@ -274,7 +274,7 @@ def generate_vaeder_midi_examples(model_name, model, dataset, sample_indices, ge
 
 
 
-def test_control_values(model_name, model,  density_norm_fn, intensity_norm_fn, n_genres, n_examples=100):
+def test_control_values(model,  density_norm_fn, intensity_norm_fn, n_genres, n_examples=100):
     batch_size = 50
     hits_list = []
     velocities_list = []
@@ -318,10 +318,10 @@ def test_control_values(model_name, model,  density_norm_fn, intensity_norm_fn, 
         intensities.append(intensity)
 
     # Display as heatmap
-    H, xedges, yedges = np.histogram2d(densities, intensities, bins=(15, 15), range=[[0, 1], [0, 1]])
+    H, xedges, yedges = np.histogram2d(densities, intensities, bins=(30, 30), range=[[0, 1], [0, 1]])
     plt.clf()
     plt.imshow(H.T, interpolation='spline16', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
-               cmap='RdPu', aspect='auto')
+               cmap='plasma', aspect='equal')
 
     plt.title("")
     plt.xlabel("Calculated Density")
@@ -331,6 +331,31 @@ def test_control_values(model_name, model,  density_norm_fn, intensity_norm_fn, 
     plt.ylim(0.0, 1.0)
 
     # Display the legend
+    return plt
+
+
+def get_ground_truth_control_heatmap(num_samples=100):
+    mean = 0.5
+    std_dev = 0.15
+    densities = np.random.normal(mean, std_dev, num_samples)
+    intensities = np.random.normal(mean, std_dev, num_samples)
+
+    densities = np.clip(densities, 0, 1)
+    intensities = np.clip(intensities, 0, 1)
+
+    plt.clf()
+    H, xedges, yedges = np.histogram2d(densities, intensities, bins=(30, 30), range=[[0, 1], [0, 1]])
+    plt.clf()
+    plt.imshow(H.T, interpolation='spline16', origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+               cmap='plasma', aspect='equal')
+
+    plt.title("")
+    plt.xlabel("Density Distribution")
+    plt.ylabel("Intensity Distribution")
+
+    plt.xlim(0.0, 1.0)
+    plt.ylim(0.0, 1.0)
+
     return plt
 
 
