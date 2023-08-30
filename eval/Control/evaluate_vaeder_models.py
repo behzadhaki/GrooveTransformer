@@ -63,10 +63,10 @@ MODELS_DICT = {
 
 GENRE_JSON_PATH = "../../data/control/gmd_genre_dict.json"
 GEN_UMAPS = False
-GEN_MIDI = False
-N_MIDI_INPUTS = 6
+GEN_MIDI = True
+N_MIDI_INPUTS = 60
 GENRES = ["rock", "jazz", "latin", "hiphop"]
-GEN_CONTROL_HEATMAPS = True
+GEN_CONTROL_HEATMAPS = False
 SERIALIZE_WHOLE_MODEL = False
 SERIALIZE_MODEL_COMPONENTS = False
 
