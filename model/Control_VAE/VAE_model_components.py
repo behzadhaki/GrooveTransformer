@@ -7,7 +7,7 @@ from model import get_hits_activation
 # --- Encoder Class and Components --- #
 class ControlEncoderInputLayer(torch.nn.Module):
     """
-    Input layer for the Encoder portion of the VAE control model.
+    Input layer for the Encoder portion of the VAEDER model.
     It takes a single, collapsed HVO input of size [batch, 32, 3] and returns a
     tensor of shape [batch, 32, d_model].
     """
@@ -51,6 +51,23 @@ class Control_Decoder(torch.nn.Module):
 
     def __init__(self, latent_dim, d_model, num_decoder_layers, nhead, dim_feedforward,
                  output_max_len, output_embedding_size, dropout, o_activation, n_genres, in_attention=False):
+        """
+        Full Decoder for VAEDER model. Given a Latent z and the parameters of density, intensity and genre,
+        it decodes a multi-voice drum pattern. Has the option to use either a standard Transformer Encoder block
+        as the decoder, or the modified 'In Attention' mechanism.
+
+        @param latent_dim: (int) latent dimension size
+        @param d_model: (int) dimension of the decoder model
+        @param num_decoder_layers: (int) number of transformer layers
+        @param nhead: (int) number of transformer heads
+        @param dim_feedforward: (int) dimension of the feedforward layers in the transformer blocks
+        @param output_max_len: (int) length of the rhythmic sequence; we use 32
+        @param output_embedding_size: (int) 3 * num_voices (H, V, O)
+        @param dropout: Dropout for decoder block
+        @param o_activation: [sigmoid, tanh] (string) offset activation type
+        @param n_genres: (int) number of genres
+        @param in_attention: (bool) whether to use the in-attention Decoder type
+        """
         super(Control_Decoder, self).__init__()
 
         assert o_activation in ["sigmoid", "tanh"]
@@ -121,16 +138,19 @@ class Control_Decoder(torch.nn.Module):
 
     def decode(self, latent_z, density, intensity, genre,
                threshold=0.5, use_thresh=True, use_pd=False, return_concatenated=False):
-        """Converts the latent vector into hit, vel, offset values
+        """
+        Converts the latent vector into hit, vel, offset values
 
-        :param latent_z: (Tensor) [N x latent_dim]
-        :param threshold: (float) Threshold for hit prediction
-        :param use_thresh: (bool) Whether to use thresholding for hit prediction
-        :param use_pd: (bool) Whether to use a pd for hit prediction
-        :param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
-        **For now only thresholding is supported**
-
-        :return: (Tensor) h, v, o (each with dimension [N x max_len x num_voices])"""
+        @param latent_z: (Tensor) [N x latent_dim]
+        @param density: (Tensor) [N]
+        @param intensity: (Tensor) [N]
+        @param genre: (Tensor) [N]
+        @param threshold: (float) Threshold for hit prediction
+        @param use_thresh: (bool) Whether to use thresholding for hit prediction
+        @param use_pd: (bool) Whether to use a pd for hit prediction
+        @param return_concatenated: (bool) Whether to return the concatenated tensor or the individual tensors
+        @return: HVO
+        """
 
         self.eval()
         with torch.no_grad():
@@ -148,6 +168,10 @@ class Control_Decoder(torch.nn.Module):
         return h, v, o if not return_concatenated else torch.cat([h, v, o], dim=-1)
 
     def get_decoder_input_layer_output(self, latent_z, density, intensity, genre):
+        """
+        Utility method to get the forward method of just input layer. Useful for evaluations
+        to visualize the latent space after incorporating parameters.
+        """
         return self.DecoderInputLayer.forward(latent_z, density, intensity, genre)
 
     def sample(self, latent_z, density, intensity, genre, voice_thresholds,
@@ -197,15 +221,20 @@ class Control_Decoder(torch.nn.Module):
 
 
 class ControlDecoderInputLayer(torch.nn.Module):
-    """
-    Takes a latent layer, as well as 3 control parameters (density, intensity, genre)
-    and transforms into a single [Batch_size, max_len, d_model] tensor
-    The initial z is fed through an FFN, to a size of (d_model - 3).
-    The density and intensity continuous values are repeated and concatenated on final dimension
-    Genre (one-hot encoding) is fed through a separate FFN and concatenated on final dimension
-    output = concat(FFN(z) + repeat(density) + repeat(intensity) + FFN(genre))
-    """
+
     def __init__(self, max_len, latent_dim, d_model, n_genres):
+        """
+        Takes a latent layer, as well as 3 control parameters (density, intensity, genre)
+        and transforms into a single [Batch_size, max_len, d_model] tensor
+        The initial z is fed through an FFN, to a size of (d_model - 3).
+        The density and intensity continuous values are repeated and concatenated on final dimension
+        Genre (one-hot encoding) is fed through a separate FFN and concatenated on final dimension
+        output = concat(FFN(z) + repeat(density) + repeat(intensity) + FFN(genre))
+        @param max_len: (int) length of the sequence
+        @param latent_dim: (int) dimension of z
+        @param d_model: (int) decoder model dimensionality
+        @param n_genres: (int) number of genres
+        """
         super(ControlDecoderInputLayer, self).__init__()
 
         self.max_len = max_len
@@ -257,7 +286,13 @@ class InAttentionEncoder(torch.nn.Module):
         self.parameter_projection = torch.nn.Linear(n_params, d_model)
 
     def forward(self, x, density, intensity, genre):
-        # Concatenate the three parameters into a single [batch_size, total_params] tensor
+        """
+        @param x: (Tensor) latent vector from the Decoder input layer of shape [N, max_len, d_model]
+        @param density: (tensor) [N]
+        @param intensity: (tensor) [N]
+        @param genre: (tensor) [N, n_genres]
+        @return: (tensor) output of decoder block, shape [N, max_len, d_model]
+        """
         parameters = torch.concat((density.unsqueeze(dim=-1), intensity.unsqueeze(dim=-1), genre), dim=-1)
         parameters = self.parameter_projection(parameters).unsqueeze(1)
 

@@ -5,7 +5,19 @@ from model import VAE_components, Control_components
 
 
 class GrooveControl_VAE(torch.nn.Module):
+    """
+    Variational Auto Encoder for Disentangled Expressive Rhythms
+    The model takes a tapped input rhythm in HVO format, as well as control parameters of density, intensity
+    and genre, and produces a voiced drum performance.
 
+    A quick guide to the functions:
+    Forward: Takes input pattern + control params and returns HVO logits
+    Predict: Forward method combined with the sampling process
+    Sample: Converts a latent vector into output HVO
+    Save: Store a .pth checkpoint of the model
+    Serialize whole model: Scripts the entire model as a torchscript object for C++ usage
+    Serialize: Similar to above, scripts each component of the VAE separately
+    """
     def __init__(self, config):
         super(GrooveControl_VAE, self).__init__()
         assert config['embedding_size_tgt'] % 3 == 0, 'embedding_size_tgt must be divisible by 3'
@@ -79,6 +91,15 @@ class GrooveControl_VAE(torch.nn.Module):
         )
 
     def forward(self, hvo, density, intensity, genre):
+        """
+        Forward method for model, returning logits. Needs sampling to convert into an actual drum pattern.
+
+        @param hvo: (tensor) shape [n, max_len, 3]
+        @param density: (tensor) shape [n]
+        @param intensity: (tensor) shape [n]
+        @param genre: (tensor) shape [n, n_genres]
+        @return: (h, v, o), mu, log_var, latent_z
+        """
         mu, log_var, latent_z = self.encode(hvo)
         h_logits, v_logits, o_logits = self.Decoder(latent_z, density, intensity, genre)
 
@@ -109,10 +130,13 @@ class GrooveControl_VAE(torch.nn.Module):
         else:
             return (h, v, o), mu, log_var, latent_z
 
-
-    # Todo: Check with Behzad if the below works
-
     def encode(self, hvo):
+        """
+        Converts tapped HVO input into a latent z vector
+        Input Layer -> Transformer Encoder -> Latent Layer
+        @param hvo: (tensor) shape [n, max_len, 3]
+        @return: (tensor) z of shape [n, latent_dim]
+        """
         if self.training:
             return self.get_latent_probs_and_reparametrize_to_z(hvo)
         else:
@@ -121,6 +145,19 @@ class GrooveControl_VAE(torch.nn.Module):
 
     def decode(self, latent_z, density, intensity, genre,
                threshold=0.5, use_thresh=True, use_pd=False, return_concatenated=False):
+        """
+        Decodes a latent z vector as well as control parameters into HVO logits.
+        Decoder Input Layer -> Transformer Encoders -> Output Layer
+        @param latent_z: (tensor) [n, latent_dim]
+        @param density: (tensor) [n]
+        @param intensity: (tensor) [n]
+        @param genre: (tensor) [n, n_genres]
+        @param threshold: (float) value above which H logits are sampled as a Hit
+        @param use_thresh: Use threshold for sampling
+        @param use_pd: Prepare for PD
+        @param return_concatenated: Concat the HVO tensors together
+        @return: (tensor) HVO shape [n, max_len, n_voices*3] (if concatenated)
+        """
         if not self.training:
             with torch.no_grad():
                 return self.Decoder.decode(latent_z, density, intensity, genre,
@@ -132,7 +169,12 @@ class GrooveControl_VAE(torch.nn.Module):
 
     # ---Utility Functions--- #
     def get_latent_probs_and_reparametrize_to_z(self, hvo):
-        # Input Layer -> Self Attention -> Latent FFN
+        """
+        Converts tapped HVO input into a latent z vector
+        Input Layer -> Transformer Encoder -> Latent Layer
+        @param hvo: (tensor) shape [n, max_len, 3]
+        @return: (tensor) z of shape [n, latent_dim]
+        """
         x = self.InputLayerEncoder(hvo)
         memory = self.Encoder(x)
         mu, log_var, latent_z = self.LatentEncoder(memory)
@@ -199,11 +241,9 @@ class GrooveControl_VAE(torch.nn.Module):
 
     def serialize_whole_model(self, model_name, save_folder):
         """
-        New method for serializing; instead of individual components, serializes the entire model
-        as a single entity
+        Serializes the full model into torchscript for C++ usage
         @param model_name: (str) name of the model
         @param save_folder: path to save the model in
-        @return:
         """
         os.makedirs(save_folder, exist_ok=True)
         serialized_model = torch.jit.script(self)

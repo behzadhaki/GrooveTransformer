@@ -28,6 +28,10 @@ class LatentRegressor(torch.nn.Module):
 
 
 class LatentClassifier(torch.nn.Module):
+    """
+    Classifier for predicting one-hot encodings from latent space of VAEDER models.
+    We use it for all 3 parameters: density, intensity and genre.
+    """
     def __init__(self, latent_dim, n_classes, loss_function):
         super(LatentClassifier, self).__init__()
 
