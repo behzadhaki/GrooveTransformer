@@ -141,3 +141,16 @@ z = torch.rand(1, latent_dim).to(dtype=torch.float32)
 hvo = model.decode(z, density, intensity, genre)
 ```
 You can save this as a MIDI file with the same process highlighted above. 
+
+
+## 4. Evaluations<a name="1"></a>
+[Evaluation tools for VAEDER](https://github.com/behzadhaki/GrooveTransformer/blob/dev/VAE_Control_Classifiers/eval/Control/evaluate_vaeder_models.py)
+
+We have built a set of scripts intended to evaluate VAEDER. 
+This includes the functionality to download any number of model checkpoints from W&B, and then perform the following operations:
+- Generate UMAP visualizations
+- Create MIDI files (of various density, intensity and genre values)
+- Generate heatmaps for density and intensity visualization
+- Serialize the model for torchscript
+
+
