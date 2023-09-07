@@ -41,7 +41,6 @@ def load_vaeder_model(model_path, params_dict=None, is_evaluating=True, device=N
         if 'params' in loaded_dict:
             params_dict = loaded_dict['params']
 
-            # Todo: TEMPORARY FIX
             if isinstance(genre_json_path, str):
                 with open(genre_json_path, 'r') as f:
                     genre_dict = json.load(f)
@@ -133,49 +132,6 @@ def create_parameters_eval_dataframe(latent_z, densities, intensities, genres, g
     return umap_df
 
 
-# def create_combined_scatter(umap_df1, umap_df2):
-#     fig, axes = plt.subplots(2, 3, figsize=(21, 14))  # 2 rows, 3 columns
-#
-#     # List of UMAP DataFrames and titles for the rows
-#     umap_dfs = [umap_df1, umap_df2]
-#     row_titles = ['Pre Parameter Injection', 'Post Parameter Injection']
-#
-#     # Features to plot
-#     features = ['density', 'intensity', 'genre']
-#     col_titles = ['Density', 'Intensity', 'Genre']
-#     colormaps = ['coolwarm', 'PiYG', 'tab20']
-#
-#     for row, (umap_df, row_title) in enumerate(zip(umap_dfs, row_titles)):
-#         for col, (feature, col_title, cmap) in enumerate(zip(features, col_titles, colormaps)):
-#             ax = axes[row, col]
-#             sns.scatterplot(x='UMAP1', y='UMAP2', hue=feature, data=umap_df, palette=cmap, ax=ax)
-#
-#             # Remove legend box for the first two columns
-#             if col != 2:
-#                 ax.legend().remove()
-#
-#             # Set limits, labels, ticks
-#             bleed = 0.3
-#             ax.set_xlim(umap_df['UMAP1'].min() - bleed, umap_df['UMAP1'].max() + bleed)
-#             ax.set_ylim(umap_df['UMAP2'].min() - bleed, umap_df['UMAP2'].max() + bleed)
-#             ax.set_xlabel("")
-#             ax.set_ylabel("")
-#             ax.set_xticks([])
-#             ax.set_yticks([])
-#
-#             # Add color bar for the first two columns only
-#             if col != 2:
-#                 norm = plt.Normalize(0, 1)
-#                 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-#                 plt.colorbar(sm, label=feature, ax=ax)
-#
-#         # Add title for each row, centered and larger font size
-#         fig.text(0.5, 0.975 - 0.5 * row, row_title, ha='center', fontsize=14)
-#
-#     plt.tight_layout(rect=[0, 0, 1, 0.96])
-#     return fig
-
-
 def generate_single_scatter(umap_df):
     fig, axes = plt.subplots(1, 3, figsize=(21, 7))  # 1 row, 3 columns
 
@@ -211,8 +167,6 @@ def generate_single_scatter(umap_df):
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     return fig
-
-
 
 
 

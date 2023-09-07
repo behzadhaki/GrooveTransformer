@@ -8,7 +8,7 @@ import helpers.Control.density_eval as density_eval
 import helpers.Control.density_model_Loader as density_model_Loader
 import helpers.Control.train_utils as control_train_utils
 import helpers.Control.loss_functions as control_loss_functions
-
+from helpers.Control.vaeder_modelLoader import load_vaeder_model
 
 from helpers.BasicMonotonicGrooveTransformer.modelLoadersSamplers import load_mgt_model
 from helpers.BasicMonotonicGrooveTransformer.modelLoadersSamplers import predict_using_mgt
